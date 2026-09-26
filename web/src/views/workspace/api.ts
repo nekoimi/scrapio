@@ -20,7 +20,12 @@ export interface ProjectHealth { project_id:number; last_effective_at?:string; c
 export interface Run { id:number; workflow_id:number; workflow_version_id:number; trigger_type:string; status:string; created_at:string; started_at?:string; finished_at?:string; summary:string }
 export interface Schedule { workflow_id:number; cron:string; timezone:string; enabled:boolean; concurrency_policy:'skip'|'queue'; next_run_at?:string; last_run_at?:string }
 export interface ScheduleEvent { id:number; scheduled_at:string; status:string; run_id?:number; reason:string }
-export interface Task { id:number; run_id:number; parent_task_id?:number; step_name:string; status:string; output_document_id?:number; error_message?:string; input:string }
+export interface Task { id:number; run_id:number; parent_task_id?:number; step_name:string; status:string; output_document_id?:number; error_message?:string; input:string; depth:number; attempt_count:number; created_at:string; finished_at?:string }
+export interface TaskAttempt { id:number; task_id:number; attempt_no:number; status:string; started_at?:string; finished_at?:string; duration_ms:number; request_snapshot:string; response_snapshot:string; error_message?:string }
+export interface RunInspection { tasks:number; pages_visited:number; pages_failed:number; pages_limited:number; discovered:number; candidates:number; created:number; updated:number; unchanged:number; last_error?:string; last_failed_task_id?:number; stop_reasons:string[] }
+export interface RunDetail { run:Run; inspection:RunInspection; coverage?:Record<string,any>; limit_events?:Array<{task_id:number;page_role:string;url:string;reason:string}> }
+export interface DocumentAsset { id:number; asset_type:string; content_type:string; content?:string; content_size:number }
+export interface DocumentDetail { document:{id:number;document_type:string;content:string;content_size:number;metadata:string}; assets:DocumentAsset[] }
 
 async function get<T>(url:string, params?:Record<string,any>):Promise<T> { const response:any=await request({url,method:'get',params}); return response.data as T; }
 async function post<T>(url:string, data:any):Promise<T> { const response:any=await request({url,method:'post',data}); return response.data as T; }
@@ -59,8 +64,10 @@ export const api={
  saveSchedule:(data:Pick<Schedule,'workflow_id'|'cron'|'timezone'|'enabled'|'concurrency_policy'>)=>post<Schedule>('/api/v2/workflows/schedule/save',data),
  runs:(page=1,project_id?:number)=>get<{list:Run[];total:number}>('/api/v2/runs/list',{page,size:20,project_id}),
  workflowRuns:(workflow_id:number)=>get<{list:Run[];total:number}>('/api/v2/runs/list',{workflow_id,page:1,size:20}),
-	runDetail:(id:number)=>get<{run:Run;tasks:Task[];coverage?:Record<string,any>;limit_events?:Array<{task_id:number;page_role:string;url:string;reason:string}>}>('/api/v2/runs/detail',{id}),
- document:(id:number)=>get<any>('/api/v2/documents/detail',{id}),
+	runDetail:(id:number)=>get<RunDetail>('/api/v2/runs/detail',{id}),
+ runTasks:(run_id:number,page=1)=>get<{list:Task[];total:number}>('/api/v2/runs/tasks',{run_id,page,size:100}),
+ taskAttempts:(id:number,page=1)=>get<{list:TaskAttempt[];total:number}>('/api/v2/tasks/attempts',{id,page}),
+ document:(id:number)=>get<DocumentDetail>('/api/v2/documents/detail',{id}),
 };
 
 export function jsonValue(value:any):Record<string,any> { if (value && typeof value==='object') return value; try { return JSON.parse(value||'{}'); } catch { return {}; } }

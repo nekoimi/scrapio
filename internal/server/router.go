@@ -153,6 +153,7 @@ func newRouter(ctx context.Context, cfg *config.Config) *mux.Router {
 			v2Api.HandleFunc("/resources/markStatus", resources.MarkStatus).Methods("POST")
 			v2Api.HandleFunc("/runs/list", runs.List).Methods("GET", "POST")
 			v2Api.HandleFunc("/runs/detail", runs.Detail).Methods("GET", "POST")
+			v2Api.HandleFunc("/runs/tasks", runs.RunTasks).Methods("GET")
 			v2Api.HandleFunc("/runs/cancel", runs.CancelRun).Methods("POST")
 			v2Api.HandleFunc("/runs/rerun", runs.Rerun).Methods("POST")
 			v2Api.HandleFunc("/tasks/list", runs.Tasks).Methods("GET", "POST")

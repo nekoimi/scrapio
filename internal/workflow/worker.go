@@ -243,7 +243,11 @@ func (w *Worker) execute(ctx context.Context, claim *task_repo.Claim) (execErr e
 	} else {
 		result, err = (Fetcher{Browser: w.browser, AllowURL: func(raw string) error { return task_repo.CheckPageURL(claim, raw) }}).Fetch(ctx, pageURL, fetchOptions)
 		if err != nil {
-			return err
+			var fetchError *FetchError
+			if errors.As(err, &fetchError) {
+				return err
+			}
+			return &StageError{Stage: "fetch", Cause: err}
 		}
 	}
 	if definition.Listing != nil {
@@ -262,12 +266,15 @@ func (w *Worker) execute(ctx context.Context, claim *task_repo.Claim) (execErr e
 			return saveDocument(s, claim.Task.Id, pageURL, result)
 		})
 		if err != nil {
-			return err
+			return &StageError{Stage: "capture", Cause: err}
 		}
 	}
 	if definition.Persistence == "records" {
 		if definition.Listing != nil && claim.Task.StepName != "detail" {
-			return w.expandListing(ctx, claim, run, definition, result, documentID, input)
+			if err := w.expandListing(ctx, claim, run, definition, result, documentID, input); err != nil {
+				return &StageError{Stage: "discover", Cause: err}
+			}
+			return nil
 		}
 		return w.persistRecords(ctx, claim, run, definition, result, documentID)
 	}
@@ -487,7 +494,7 @@ func (w *Worker) persistRecords(ctx context.Context, claim *task_repo.Claim, run
 	}
 	values, err := RecordCandidates(definition, document, claim.Task.StepName, schema)
 	if err != nil {
-		return err
+		return &StageError{Stage: "extract", Cause: err}
 	}
 	candidates := make([]record_repo.Candidate, 0, len(values))
 	for i, value := range values {
@@ -506,7 +513,7 @@ func (w *Worker) persistRecords(ctx context.Context, claim *task_repo.Claim, run
 		return writeErr
 	})
 	if err != nil {
-		return fmt.Errorf("persist records: %w", err)
+		return &StageError{Stage: "persist", Cause: err, CandidateCount: len(candidates)}
 	}
 	output, _ := json.Marshal(map[string]any{"document_id": documentID, "record_count": len(results), "record_results": results, "fetch": map[string]any{"adapter": document.Adapter, "final_url": document.FinalURL, "status_code": document.StatusCode}})
 	return task_repo.Complete(claim.Task.Id, claim.Attempt.Id, string(output))

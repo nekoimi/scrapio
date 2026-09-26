@@ -60,11 +60,6 @@ func Detail(w http.ResponseWriter, r *http.Request) {
 		respond.Error(w, error_ext.DataNotFoundError)
 		return
 	}
-	tasks, _, err := task_repo.ListTasks(task_repo.TaskFilter{RunID: id, Page: 1, Size: 500})
-	if err != nil {
-		respond.Error(w, err)
-		return
-	}
 	limits, err := task_repo.LimitEvents(id, 100)
 	if err != nil {
 		respond.Error(w, err)
@@ -75,7 +70,26 @@ func Detail(w http.ResponseWriter, r *http.Request) {
 		respond.Error(w, err)
 		return
 	}
-	respond.Ok(w, map[string]any{"run": run, "tasks": tasks, "limit_events": limits, "coverage": coverage})
+	inspection, err := task_repo.InspectRun(id)
+	if err != nil {
+		respond.Error(w, err)
+		return
+	}
+	respond.Ok(w, map[string]any{"run": run, "inspection": inspection, "limit_events": limits, "coverage": coverage})
+}
+
+func RunTasks(w http.ResponseWriter, r *http.Request) {
+	input := parseListRequest(r)
+	if input.RunID <= 0 {
+		respond.Error(w, error_ext.ValidateError)
+		return
+	}
+	rows, total, err := task_repo.ListRunTasks(input.RunID, page(input), size(input))
+	if err != nil {
+		respond.Error(w, err)
+		return
+	}
+	respond.Ok(w, PageResponse[table.CrawlTask]{List: rows, Total: total})
 }
 
 func Tasks(w http.ResponseWriter, r *http.Request) {
@@ -94,12 +108,13 @@ func Attempts(w http.ResponseWriter, r *http.Request) {
 		respond.Error(w, error_ext.ValidateError)
 		return
 	}
-	rows, err := task_repo.ListAttempts(id, 100)
+	pageNo, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	rows, total, err := task_repo.ListTaskAttempts(id, pageNo, 20)
 	if err != nil {
 		respond.Error(w, err)
 		return
 	}
-	respond.Ok(w, rows)
+	respond.Ok(w, PageResponse[table.TaskAttempt]{List: rows, Total: total})
 }
 
 func CancelRun(w http.ResponseWriter, r *http.Request)  { mutateID(w, r, task_repo.CancelRun) }
