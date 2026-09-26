@@ -35,6 +35,7 @@ type Config struct {
 	// 采集配置
 	Crawler   *CrawlerConfig   `json:"crawler,omitempty" mapstructure:"crawler"`
 	Retention *RetentionConfig `json:"retention,omitempty" mapstructure:"retention"`
+	AIAssist  *AIAssistConfig  `json:"ai_assist,omitempty" mapstructure:"ai_assist"`
 	// 数据库配置
 	DB *DBConfig `json:"db,omitempty" mapstructure:"db"`
 	// 调试 API 配置
@@ -121,6 +122,15 @@ type RetentionConfig struct {
 	DocumentDays int `json:"document_days" mapstructure:"document_days"`
 }
 
+// AIAssist is an opt-in manual suggestion gateway. It is never called by workers.
+type AIAssistConfig struct {
+	Enabled           bool   `json:"enabled" mapstructure:"enabled"`
+	BaseURL           string `json:"base_url" mapstructure:"base_url"`
+	APIKey            string `json:"api_key" mapstructure:"api_key"`
+	Model             string `json:"model" mapstructure:"model"`
+	MaxRequestsPerDay int    `json:"max_requests_per_day" mapstructure:"max_requests_per_day"`
+}
+
 // DBConfig 数据库相关配置
 type DBConfig struct {
 	// 数据库连接配置
@@ -159,6 +169,11 @@ func Load() *Config {
 	v.BindEnv("crawler.drission_rod_grpc_port")
 	v.BindEnv("db.dsn")
 	v.BindEnv("quick_api.token")
+	v.BindEnv("ai_assist.enabled")
+	v.BindEnv("ai_assist.base_url")
+	v.BindEnv("ai_assist.api_key")
+	v.BindEnv("ai_assist.model")
+	v.BindEnv("ai_assist.max_requests_per_day")
 
 	// 从环境变量自动映射配置
 	v.AutomaticEnv()
@@ -220,6 +235,11 @@ func (c *Config) Redacted() *Config {
 	safe.CloudDriver = nil
 	safe.STRM = nil
 	safe.Download = nil
+	if c.AIAssist != nil {
+		assist := *c.AIAssist
+		assist.APIKey = maskSecret(assist.APIKey)
+		safe.AIAssist = &assist
+	}
 	if c.DB != nil {
 		database := *c.DB
 		database.Dsn = maskDSN(c.DB.Dsn)

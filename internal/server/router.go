@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
+	"github.com/nekoimi/scrapio/internal/ai"
 	"github.com/nekoimi/scrapio/internal/api/audit"
 	"github.com/nekoimi/scrapio/internal/api/auth"
 	"github.com/nekoimi/scrapio/internal/api/crawler"
@@ -124,6 +125,10 @@ func newRouter(ctx context.Context, cfg *config.Config) *mux.Router {
 			v2Api.HandleFunc("/workflows/versions/create", workflows.CreateVersion).Methods("POST")
 			v2Api.HandleFunc("/workflows/versions/validate", workflows.Validate).Methods("POST")
 			v2Api.HandleFunc("/workflows/versions/publish", workflows.Publish).Methods("POST")
+			v2Api.HandleFunc("/workflows/ai/prepare", workflows.AIPrepare(cfg)).Methods("GET")
+			v2Api.HandleFunc("/workflows/ai/suggest", workflows.AISuggest(cfg, ai.AssistClient{})).Methods("POST")
+			v2Api.HandleFunc("/workflows/ai/list", workflows.AIList).Methods("GET")
+			v2Api.HandleFunc("/workflows/ai/review", workflows.AIReview).Methods("POST")
 			v2Api.HandleFunc("/workflows/samples/create", workflows.SaveSample(browserService)).Methods("POST")
 			v2Api.HandleFunc("/workflows/samples/list", workflows.ListSamples).Methods("GET")
 			v2Api.HandleFunc("/workflows/samples/delete", workflows.DeleteSample).Methods("POST")

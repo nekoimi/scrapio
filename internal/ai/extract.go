@@ -63,11 +63,7 @@ func ParseResponse(response Response, schema map[string]any) (Result, error) {
 			delete(values, "confidence")
 		}
 	}
-	status := "pending_review"
-	if confidence >= 0.9 {
-		status = "accepted"
-	}
-	return Result{Values: values, Confidence: confidence, ReviewStatus: status, Model: response.Model, InputTokens: response.InputTokens, OutputTokens: response.OutputTokens}, nil
+	return Result{Values: values, Confidence: confidence, ReviewStatus: "pending_review", Model: response.Model, InputTokens: response.InputTokens, OutputTokens: response.OutputTokens}, nil
 }
 
 func ValidateSchema(values map[string]any, schema map[string]any) error {

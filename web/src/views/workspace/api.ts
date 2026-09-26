@@ -9,6 +9,8 @@ export interface Workflow { id:number; project_id?:number; dataset_id?:number; s
 export interface PluginSubscription { id:number;dataset_id:number;workflow_id?:number;plugin_code:string;event_type:'record.created'|'record.updated';url_field:string;enabled:boolean }
 export interface PluginCapability { code:string;capabilities:string[] }
 export interface PluginTaskRow { id:number;dataset_id?:number;workflow_id?:number;record_id?:number;event_type:string;plugin_code:string;status:string;error_message?:string;created_at:string }
+export interface AISuggestion { id:number;version_id:number;sample_id:number;model:string;content_hash:string;result:string|{suggestions:Array<{field:string;selector:string;attribute?:string;reason:string}>;explanation:string};status:'pending_review'|'accepted'|'rejected';input_tokens:number;output_tokens:number;created_at:string }
+export interface AIPrepared { sample_id:number;content_hash:string;content_type:string;content:string;truncated:boolean;fields:Array<{name:string;label:string}>;model:string;max_requests_per_day:number }
 export interface Version { id:number; workflow_id:number; version:number; status:string; definition:string|Definition; change_summary:string; created_at:string }
 export interface Definition { persistence:string; trigger:{type:string;url:string;fetch:{mode:string}}; listing?:{detail_selector:string;next_selector?:string;max_pages:number;max_empty_pages:number}; budget?:{max_discovered_per_page:number;max_tasks:number;max_pages:number;max_depth:number;max_duration_seconds:number;max_domains:number;allowed_domains:string[]}; nodes:Array<{name:string;type:string;config:Record<string,any>}> }
 export interface Template { code:string; name:string; description:string; record_type:string; definition:Definition }
@@ -80,6 +82,10 @@ export const api={
  savePluginSubscription:(data:Omit<PluginSubscription,'id'>&{id?:number})=>post<PluginSubscription>('/api/v2/plugins/subscriptions/save',data),
  deletePluginSubscription:(dataset_id:number,id:number)=>post<void>('/api/v2/plugins/subscriptions/delete',{dataset_id,id}),
  pluginTasks:(workflow_id:number)=>get<{list:PluginTaskRow[];total:number}>('/api/v2/plugins/tasks',{workflow_id,page:1,size:20}),
+ aiPrepare:(version_id:number,sample_id:number)=>get<AIPrepared>('/api/v2/workflows/ai/prepare',{version_id,sample_id}),
+ aiSuggest:(version_id:number,sample_id:number,failure:string)=>post<AISuggestion>('/api/v2/workflows/ai/suggest',{version_id,sample_id,failure}),
+ aiList:(version_id:number)=>get<{list:AISuggestion[]}>('/api/v2/workflows/ai/list',{version_id}),
+ aiReview:(id:number,version_id:number,decision:'accepted'|'rejected')=>post<AISuggestion>('/api/v2/workflows/ai/review',{id,version_id,decision}),
  retryPluginTask:(id:number)=>post<void>('/api/v2/plugins/tasks/retry',{id}),
  cancelPluginTask:(id:number)=>post<void>('/api/v2/plugins/tasks/cancel',{id}),
  run:(workflow_id:number)=>post<{run_id:number;task_id:number}>('/api/v2/workflows/run',{workflow_id}),

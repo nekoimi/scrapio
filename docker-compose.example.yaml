@@ -51,6 +51,11 @@ services:
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
       APP_EXTERNAL_BASE_URL: ${APP_EXTERNAL_BASE_URL:-}
       QUICK_API_TOKEN: ${QUICK_API_TOKEN:-}
+      AI_ASSIST_ENABLED: ${AI_ASSIST_ENABLED:-false}
+      AI_ASSIST_BASE_URL: ${AI_ASSIST_BASE_URL:-}
+      AI_ASSIST_API_KEY: ${AI_ASSIST_API_KEY:-}
+      AI_ASSIST_MODEL: ${AI_ASSIST_MODEL:-}
+      AI_ASSIST_MAX_REQUESTS_PER_DAY: ${AI_ASSIST_MAX_REQUESTS_PER_DAY:-10}
     volumes:
       - app-logs:/workspace/logs
     healthcheck:

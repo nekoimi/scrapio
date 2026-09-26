@@ -21,3 +21,8 @@ crawler:
 
 db:
   dsn: ""  # 通过环境变量 DB_DSN 设置
+
+# 手动 AI 规则建议；启用时用环境变量提供端点、模型、密钥及每日请求上限。
+ai_assist:
+  enabled: false
+  max_requests_per_day: 10

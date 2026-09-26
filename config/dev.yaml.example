@@ -21,3 +21,11 @@ crawler:
 
 db:
   dsn: "postgres://dev:dev@localhost:5432/scrapio_dev?sslmode=disable"
+
+# 手动 AI 规则建议；默认关闭。base_url 为兼容 Chat Completions 的完整 HTTPS URL。
+ai_assist:
+  enabled: false
+  base_url: ""
+  model: ""
+  max_requests_per_day: 10
+  # api_key: 通过 AI_ASSIST_API_KEY 环境变量设置

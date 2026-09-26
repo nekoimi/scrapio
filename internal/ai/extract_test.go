@@ -4,7 +4,7 @@ import "testing"
 
 func TestParseResponseAndReviewStatus(t *testing.T) {
 	result, err := ParseResponse(Response{Model: "demo", Content: `{"title":"demo","confidence":0.95}`}, map[string]any{"required": []any{"title"}, "properties": map[string]any{"title": map[string]any{"type": "string"}}})
-	if err != nil || result.ReviewStatus != "accepted" || result.Values["title"] != "demo" {
+	if err != nil || result.ReviewStatus != "pending_review" || result.Values["title"] != "demo" {
 		t.Fatalf("unexpected AI result: %#v, %v", result, err)
 	}
 }
