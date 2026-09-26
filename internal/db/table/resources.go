@@ -57,6 +57,8 @@ type WorkflowSample struct {
 	Content           string    `xorm:"text" json:"content,omitempty"`
 	ContentHash       string    `xorm:"content_hash" json:"content_hash"`
 	Note              string    `xorm:"text" json:"note"`
+	ExpectedOutcome   string    `xorm:"expected_outcome" json:"expected_outcome"`
+	ExpectedError     string    `xorm:"text expected_error" json:"expected_error,omitempty"`
 	CreatedAt         time.Time `json:"created_at"`
 }
 

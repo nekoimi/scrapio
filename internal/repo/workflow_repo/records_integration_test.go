@@ -19,8 +19,8 @@ import (
 )
 
 func TestDevRecordTemplatePublication(t *testing.T) {
-	if os.Getenv("SCRAPIO_TEST_DEV_A04") != "1" {
-		t.Skip("set SCRAPIO_TEST_DEV_A04=1 to test config/dev.yaml PostgreSQL")
+	if os.Getenv("SCRAPIO_TEST_DEV_A04") != "1" && os.Getenv("SCRAPIO_TEST_DEV_C01") != "1" {
+		t.Skip("set SCRAPIO_TEST_DEV_C01=1 to test config/dev.yaml PostgreSQL")
 	}
 	previous := log.GetLevel()
 	defer log.SetLevel(previous)
@@ -144,6 +144,13 @@ func TestDevRecordTemplatePublication(t *testing.T) {
 		if err := DeleteSample(invalidSample.Id); err != nil {
 			t.Fatal(err)
 		}
+		expectedFailure, err := SaveSample(SampleInput{VersionID: version.Id, Source: "paste", PageURL: url, ContentType: contentType, Content: invalidContent, ExpectedOutcome: SampleError, ExpectedError: "required field"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if checks, err := CheckSamples(version.Id); err != nil || len(checks) != 3 || !checks[2].Passed || checks[2].ActualOutcome != SampleError || checks[2].SampleID != expectedFailure.Id {
+			t.Fatalf("expected failure regression: %#v %v", checks, err)
+		}
 		if err := PublishVersion(version.Id); err != nil {
 			t.Fatal("non-magnet publication:", err)
 		}
@@ -177,6 +184,9 @@ func TestDevRecordTemplatePublication(t *testing.T) {
 		history, err := SaveSample(SampleInput{VersionID: validDraft.Id, Source: "document", DocumentID: &documentID, ContentType: contentType, Content: content})
 		if err != nil {
 			t.Fatal(err)
+		}
+		if _, err := raw.Exec("DELETE FROM documents WHERE id=$1", documentID); err == nil {
+			t.Fatal("historical document referenced by a sample was deleted")
 		}
 		if result, err := PreviewSample(validDraft.Id, history); err != nil || !result.Passed {
 			t.Fatalf("historical preview: %#v %v", result, err)
@@ -216,6 +226,16 @@ func TestDevRecordTemplatePublication(t *testing.T) {
 	}
 	if result, err := PreviewSample(listingVersion.Id, detailSample); err != nil || !result.Passed || len(result.Decisions) != 1 {
 		t.Fatalf("detail preview: %#v %v", result, err)
+	}
+	emptySample, err := SaveSample(SampleInput{VersionID: listingVersion.Id, Source: "paste", PageRole: "list", PageURL: listing.Trigger.URL, ContentType: "html", Content: `<div>No items</div>`, ExpectedOutcome: SampleEmptyList})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result, err := PreviewSample(listingVersion.Id, emptySample); err != nil || !result.Passed || result.ActualOutcome != SampleEmptyList {
+		t.Fatalf("empty list preview: %#v %v", result, err)
+	}
+	if checks, err := CheckSamples(listingVersion.Id); err != nil || len(checks) != 3 || !checks[2].Passed {
+		t.Fatalf("listing regression: %#v %v", checks, err)
 	}
 	if err := PublishVersion(listingVersion.Id); err != nil {
 		t.Fatal("list and detail samples should allow publication:", err)
