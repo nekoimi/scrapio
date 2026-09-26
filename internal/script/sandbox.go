@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -13,6 +14,7 @@ import (
 )
 
 const (
+	MaxScriptBytes        = 64 * 1024
 	DefaultTimeout        = 2 * time.Second
 	DefaultMaxInputBytes  = 512 * 1024
 	DefaultMaxOutputBytes = 512 * 1024
@@ -28,11 +30,22 @@ type Request struct {
 
 type Result struct{ Output any }
 
+func Validate(source string) error {
+	if strings.TrimSpace(source) == "" {
+		return errors.New("script is required")
+	}
+	if len(source) > MaxScriptBytes {
+		return errors.New("script exceeds 64 KiB limit")
+	}
+	_, err := goja.Compile("transform.js", "(function(input) {\n"+source+"\n})", false)
+	return err
+}
+
 // Execute runs a pure JavaScript transform. Only the input value is exposed;
 // no filesystem, network, process, timer, or Go host object is registered.
 func Execute(ctx context.Context, request Request) (Result, error) {
-	if strings.TrimSpace(request.Script) == "" {
-		return Result{}, errors.New("script is required")
+	if err := Validate(request.Script); err != nil {
+		return Result{}, err
 	}
 	if request.Timeout <= 0 {
 		request.Timeout = DefaultTimeout
@@ -52,7 +65,15 @@ func Execute(ctx context.Context, request Request) (Result, error) {
 	}
 	runtime := goja.New()
 	var interrupted atomic.Bool
-	runtime.Set("input", request.Input)
+	// Materialize JSON inside the runtime instead of exposing caller-owned
+	// Go maps or pointers as mutable host objects.
+	inputValue, err := runtime.RunString("JSON.parse(" + strconv.Quote(string(input)) + ")")
+	if err != nil {
+		return Result{}, fmt.Errorf("decode script input: %w", err)
+	}
+	if err := runtime.Set("input", inputValue); err != nil {
+		return Result{}, err
+	}
 	// Dynamic code loading is disabled; the supplied script is the only code
 	// evaluated by this runtime.
 	_ = runtime.Set("eval", nil)

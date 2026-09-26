@@ -25,8 +25,8 @@ import (
 )
 
 func TestDevA04Templates(t *testing.T) {
-	if os.Getenv("SCRAPIO_TEST_DEV_A04") != "1" {
-		t.Skip("set SCRAPIO_TEST_DEV_A04=1 to test config/dev.yaml PostgreSQL")
+	if os.Getenv("SCRAPIO_TEST_DEV_A04") != "1" && os.Getenv("SCRAPIO_TEST_DEV_D01") != "1" {
+		t.Skip("set SCRAPIO_TEST_DEV_D01=1 to test config/dev.yaml PostgreSQL")
 	}
 	previousLogLevel := log.GetLevel()
 	defer log.SetLevel(previousLogLevel)
@@ -472,5 +472,16 @@ func TestDevA04Templates(t *testing.T) {
 	if expiredStatus != task_repo.RunFailed || expiredTaskStatus != task_repo.TaskLimited {
 		t.Fatalf("expired empty run: run=%s task=%s", expiredStatus, expiredTaskStatus)
 	}
-	t.Log("HTTP HTML and JSON templates executed without browser; 2 records, 5 observations, 3 revisions; batch rollback and run summary passed")
+	jsTemplate := Templates()[0]
+	jsTemplate.Definition.Nodes = append(jsTemplate.Definition.Nodes, scriptNode(`return {...input,title: 'D01 transformed'};`))
+	jsRun := execute(jsTemplate, "d01_script", "/page", dataset)
+	var jsTitle string
+	if err := raw.QueryRow("SELECT normalized->>'title' FROM records WHERE dataset_id=$1 AND canonical_key='https://a04-test.invalid/a'", dataset.Id).Scan(&jsTitle); err != nil || jsTitle != "D01 transformed" {
+		t.Fatalf("JS formal record: %q %v", jsTitle, err)
+	}
+	var jsStatus string
+	if err := raw.QueryRow("SELECT status FROM workflow_runs WHERE id=$1", jsRun).Scan(&jsStatus); err != nil || jsStatus != task_repo.RunSucceeded {
+		t.Fatalf("JS run: %q %v", jsStatus, err)
+	}
+	t.Log("HTML, JSON and JS record execution, provenance, budget recovery and batch rollback passed")
 }

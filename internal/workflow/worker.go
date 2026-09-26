@@ -492,7 +492,7 @@ func (w *Worker) persistRecords(ctx context.Context, claim *task_repo.Claim, run
 	if err != nil {
 		return err
 	}
-	values, err := RecordCandidates(definition, document, claim.Task.StepName, schema)
+	values, _, err := TraceRecordCandidatesContext(ctx, definition, document, claim.Task.StepName, schema)
 	if err != nil {
 		return &StageError{Stage: "extract", Cause: err}
 	}

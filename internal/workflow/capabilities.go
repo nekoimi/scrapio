@@ -76,7 +76,7 @@ func validateExecutableNode(node Node) error {
 		"discover":  {"fields": true, "content_type": true, "run_on": true, "url_field": true},
 		"transform": {"operations": true, "run_on": true},
 		"validate":  {"fields": true, "run_on": true},
-		"script":    {"script": true, "timeout_ms": true, "run_on": true},
+		"script":    {"script": true, "timeout_ms": true, "run_on": true, "input_fields": true, "output_fields": true},
 	}
 	if _, ok := ExecutableNodeTypes[node.Type]; !ok {
 		return fmt.Errorf("type: unsupported executor")

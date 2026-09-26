@@ -19,7 +19,7 @@ import (
 )
 
 func TestDevRecordTemplatePublication(t *testing.T) {
-	if os.Getenv("SCRAPIO_TEST_DEV_A04") != "1" && os.Getenv("SCRAPIO_TEST_DEV_C01") != "1" && os.Getenv("SCRAPIO_TEST_DEV_C02") != "1" && os.Getenv("SCRAPIO_TEST_DEV_C04") != "1" {
+	if os.Getenv("SCRAPIO_TEST_DEV_A04") != "1" && os.Getenv("SCRAPIO_TEST_DEV_C01") != "1" && os.Getenv("SCRAPIO_TEST_DEV_C02") != "1" && os.Getenv("SCRAPIO_TEST_DEV_C04") != "1" && os.Getenv("SCRAPIO_TEST_DEV_D01") != "1" {
 		t.Skip("set SCRAPIO_TEST_DEV_C04=1 to test config/dev.yaml PostgreSQL")
 	}
 	previous := log.GetLevel()
@@ -215,6 +215,23 @@ func TestDevRecordTemplatePublication(t *testing.T) {
 		}
 		if err := PublishVersion(draft.Id); err == nil {
 			t.Fatal("published template without dataset key")
+		}
+		jsDefinition := template.Definition
+		jsDefinition.Nodes = append(jsDefinition.Nodes, workflow.Node{Name: "js_title", Type: "script", Config: map[string]any{"script": `return {...input, title: input.title.toUpperCase()};`, "timeout_ms": float64(500), "input_fields": []any{"url", "title", "body"}, "output_fields": []any{"url", "title", "body"}}})
+		jsEncoded, _ := json.Marshal(jsDefinition)
+		jsDraft, err := CreateDraft(owner.Id, string(jsEncoded), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		jsSample, err := SaveSample(SampleInput{VersionID: jsDraft.Id, Source: "paste", PageURL: url, ContentType: contentType, Content: content})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if preview, err := PreviewSample(jsDraft.Id, jsSample); err != nil || !preview.Passed || preview.Decisions[0].Values["title"] != "FIRST" {
+			t.Fatalf("JS preview: %+v %v", preview, err)
+		}
+		if err := PublishVersion(jsDraft.Id); err != nil {
+			t.Fatalf("JS publish: %v", err)
 		}
 		if comparison, err := CompareVersionSamples(version.Id, draft.Id, version.Id); err != nil || comparison.Changed == 0 {
 			t.Fatalf("changed definition comparison: %+v %v", comparison, err)

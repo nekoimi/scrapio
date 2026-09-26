@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/nekoimi/scrapio/internal/crawlpolicy"
+	"github.com/nekoimi/scrapio/internal/script"
 )
 
 // Definition is the versioned, provider-neutral workflow document. Nodes are
@@ -244,8 +245,13 @@ func (d Definition) ValidateExecutable() error {
 	}
 	if d.Persistence == "records" {
 		for _, n := range d.Nodes {
-			if n.Type == "discover" || n.Type == "script" {
-				return fmt.Errorf("nodes: records workflows currently support extract, transform and validate only")
+			if n.Type == "discover" {
+				return fmt.Errorf("nodes: records workflows cannot use discover nodes; use listing")
+			}
+			if n.Type == "script" {
+				if _, err := scriptContract(n.Config); err != nil {
+					return fmt.Errorf("node %s: %w", n.Name, err)
+				}
 			}
 		}
 		if d.Nodes[0].Type != "extract" {
@@ -346,8 +352,8 @@ func validateNode(node Node) error {
 			}
 		}
 	case "script":
-		if strings.TrimSpace(stringConfigValue(node.Config["script"])) == "" {
-			return fmt.Errorf("script is required")
+		if err := script.Validate(stringConfigValue(node.Config["script"])); err != nil {
+			return err
 		}
 	}
 	return nil

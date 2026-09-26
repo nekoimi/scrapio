@@ -1,6 +1,7 @@
 package workflow
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 
@@ -28,6 +29,10 @@ type RecordStep struct {
 
 // TraceRecordCandidates is the execution path used by both the worker and dry-run.
 func TraceRecordCandidates(d Definition, document FetchResult, role string, schema record.Schema) ([]map[string]any, []RecordStep, error) {
+	return TraceRecordCandidatesContext(context.Background(), d, document, role, schema)
+}
+
+func TraceRecordCandidatesContext(ctx context.Context, d Definition, document FetchResult, role string, schema record.Schema) ([]map[string]any, []RecordStep, error) {
 	if err := d.ValidateRecordSchema(schema, role); err != nil {
 		return nil, nil, err
 	}
@@ -64,6 +69,9 @@ func TraceRecordCandidates(d Definition, document FetchResult, role string, sche
 	candidates := make([]map[string]any, 0, len(contents))
 	steps := make([]RecordStep, 0, len(contents)*len(d.Nodes))
 	for i, content := range contents {
+		if err := ctx.Err(); err != nil {
+			return candidates, steps, err
+		}
 		values := map[string]any{}
 		for nodeIndex, node := range d.Nodes {
 			if !nodeApplies(node, role) {
@@ -79,6 +87,8 @@ func TraceRecordCandidates(d Definition, document FetchResult, role string, sche
 				err = ApplyTransform(values, node.Config)
 			case "validate":
 				err = ValidateValues(values, node.Config)
+			case "script":
+				values, err = ExecuteRecordScript(ctx, node.Config, values)
 			}
 			if err != nil {
 				step.Error = err.Error()
@@ -140,6 +150,21 @@ func (d Definition) ValidateRecordSchema(schema record.Schema, role string) erro
 				case "set", "default":
 					names[name] = true
 				}
+			}
+		}
+		if node.Type == "script" {
+			contract, err := scriptContract(node.Config)
+			if err != nil {
+				return err
+			}
+			for _, field := range contract.InputFields {
+				if !names[field] {
+					return fmt.Errorf("node %s.input_fields.%s: unavailable", node.Name, field)
+				}
+			}
+			names = map[string]bool{}
+			for _, field := range contract.OutputFields {
+				names[field] = true
 			}
 		}
 	}
