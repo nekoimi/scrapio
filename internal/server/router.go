@@ -96,6 +96,8 @@ func newRouter(ctx context.Context, cfg *config.Config) *mux.Router {
 		{
 			v2Api.HandleFunc("/projects/list", datasets.ProjectList).Methods("GET")
 			v2Api.HandleFunc("/projects/health", datasets.ProjectHealth).Methods("GET")
+			v2Api.HandleFunc("/workflows/quality", datasets.WorkflowQuality).Methods("GET")
+			v2Api.HandleFunc("/workflows/quality/save", datasets.SaveWorkflowQuality).Methods("POST")
 			v2Api.HandleFunc("/projects/create", datasets.ProjectCreate).Methods("POST")
 			v2Api.HandleFunc("/projects/update", datasets.ProjectUpdate).Methods("POST")
 			v2Api.HandleFunc("/datasets/list", datasets.List).Methods("GET")

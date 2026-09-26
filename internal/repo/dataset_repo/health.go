@@ -122,6 +122,13 @@ LEFT JOIN workflow_schedules s ON s.workflow_id=w.id WHERE w.project_id=$1 ORDER
 		case scheduled && (!lastSuccess.Valid || time.Since(lastSuccess.Time) > 7*24*time.Hour):
 			c.Issue = "定时采集超过 7 天没有成功运行"
 		}
+		if c.Issue == "" && lastID.Valid {
+			quality, err := Quality(c.WorkflowID)
+			if err != nil {
+				return nil, err
+			}
+			c.Issue = quality.Issue
+		}
 		if c.Issue != "" {
 			out.Issues++
 		}

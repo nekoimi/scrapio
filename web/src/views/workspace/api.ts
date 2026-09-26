@@ -21,6 +21,9 @@ export interface SourceCoverage { source_id:number; source_name:string; records:
 export interface SavedView { id:number; dataset_id:number; name:string; filter:RecordFilter }
 export interface ExportJob { id:number; dataset_id:number; status:string; row_count:number; error?:string }
 export interface ProjectHealth { project_id:number; last_effective_at?:string; created_7d:number; updated_7d:number; issues:number; datasets:Array<{dataset_id:number;name:string;records:number;created_7d:number;updated_7d:number;last_effective_at?:string}>; collectors:Array<{workflow_id:number;name:string;dataset_id?:number;last_run_id?:number;last_run_status:string;last_run_at?:string;last_success_at?:string;issue?:string}> }
+export interface QualityThreshold {workflow_id:number;min_key_rate:number;max_required_missing_rate:number;max_anomaly_rate:number}
+export interface QualityRun {run_id:number;status:string;created_at:string;pages:number;required_missing:number;anomalies:number;records:number;required_missing_rate:number;key_rate:number;anomaly_rate:number}
+export interface QualityTrend {workflow_id:number;dataset_id?:number;has_baseline:boolean;threshold:QualityThreshold;runs:QualityRun[];issue?:string}
 export interface Run { id:number; workflow_id:number; workflow_version_id:number; trigger_type:string; status:string; created_at:string; started_at?:string; finished_at?:string; summary:string }
 export interface Schedule { workflow_id:number; cron:string; timezone:string; enabled:boolean; concurrency_policy:'skip'|'queue'; next_run_at?:string; last_run_at?:string }
 export interface ScheduleEvent { id:number; scheduled_at:string; status:string; run_id?:number; reason:string }
@@ -53,6 +56,8 @@ export const api={
  record:(id:number)=>get<any>('/api/v2/records/detail',{id}),
  workflows:(project_id?:number)=>get<{list:Workflow[];total:number}>('/api/v2/workflows/list',{project_id,page:1,size:100}),
  workflow:(id:number)=>get<{workflow:Workflow;versions:Version[]}>('/api/v2/workflows/detail',{id}),
+ quality:(workflow_id:number)=>get<QualityTrend>('/api/v2/workflows/quality',{workflow_id}),
+ saveQuality:(value:QualityThreshold)=>post<QualityThreshold>('/api/v2/workflows/quality/save',value),
  templates:()=>get<{list:Template[]}>('/api/v2/workflows/templates'),
  createWorkflow:(data:any)=>post<{workflow:Workflow;version:Version}>('/api/v2/workflows/create',data),
  createVersion:(workflow_id:number,definition:string)=>post<Version>('/api/v2/workflows/versions/create',{workflow_id,definition}),
