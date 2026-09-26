@@ -19,8 +19,8 @@ import (
 )
 
 func TestDevRecordTemplatePublication(t *testing.T) {
-	if os.Getenv("SCRAPIO_TEST_DEV_A04") != "1" && os.Getenv("SCRAPIO_TEST_DEV_C01") != "1" {
-		t.Skip("set SCRAPIO_TEST_DEV_C01=1 to test config/dev.yaml PostgreSQL")
+	if os.Getenv("SCRAPIO_TEST_DEV_A04") != "1" && os.Getenv("SCRAPIO_TEST_DEV_C01") != "1" && os.Getenv("SCRAPIO_TEST_DEV_C02") != "1" {
+		t.Skip("set SCRAPIO_TEST_DEV_C02=1 to test config/dev.yaml PostgreSQL")
 	}
 	previous := log.GetLevel()
 	defer log.SetLevel(previous)
@@ -191,6 +191,9 @@ func TestDevRecordTemplatePublication(t *testing.T) {
 		if result, err := PreviewSample(validDraft.Id, history); err != nil || !result.Passed {
 			t.Fatalf("historical preview: %#v %v", result, err)
 		}
+		if comparison, err := CompareVersionSamples(version.Id, validDraft.Id, version.Id); err != nil || len(comparison.Samples) != 3 || comparison.Changed != 0 {
+			t.Fatalf("same definition comparison: %+v %v", comparison, err)
+		}
 		definition := template.Definition
 		definition.Nodes = append(definition.Nodes, workflow.Node{Name: "remove_key", Type: "transform", Config: map[string]any{"operations": []any{map[string]any{"op": "delete", "field": "url"}}}})
 		invalid, _ := json.Marshal(definition)
@@ -200,6 +203,22 @@ func TestDevRecordTemplatePublication(t *testing.T) {
 		}
 		if err := PublishVersion(draft.Id); err == nil {
 			t.Fatal("published template without dataset key")
+		}
+		if comparison, err := CompareVersionSamples(version.Id, draft.Id, version.Id); err != nil || comparison.Changed == 0 {
+			t.Fatalf("changed definition comparison: %+v %v", comparison, err)
+		}
+		rollback, err := RollbackVersion(version.Id)
+		if err != nil || rollback.Status != VersionDraft || rollback.Id == version.Id {
+			t.Fatalf("rollback draft: %+v %v", rollback, err)
+		}
+		if copied, err := ListSamples(rollback.Id); err != nil || len(copied) != 3 {
+			t.Fatalf("rollback samples: %+v %v", copied, err)
+		}
+		if checks, err := CheckSamples(rollback.Id); err != nil || len(checks) != 3 {
+			t.Fatalf("rollback regression: %+v %v", checks, err)
+		}
+		if run.WorkflowVersionId != version.Id {
+			t.Fatalf("historical run version changed: %+v", run)
 		}
 	}
 	listing := workflow.Templates()[3].Definition

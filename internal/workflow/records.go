@@ -18,10 +18,12 @@ func RecordCandidates(d Definition, document FetchResult, role string, schema re
 }
 
 type RecordStep struct {
-	Candidate int            `json:"candidate"`
-	Node      string         `json:"node"`
-	Type      string         `json:"type"`
-	Values    map[string]any `json:"values"`
+	Candidate int               `json:"candidate"`
+	Node      string            `json:"node"`
+	Type      string            `json:"type"`
+	Values    map[string]any    `json:"values"`
+	Fields    []FieldDiagnostic `json:"fields,omitempty"`
+	Error     string            `json:"error,omitempty"`
 }
 
 // TraceRecordCandidates is the execution path used by both the worker and dry-run.
@@ -63,13 +65,15 @@ func TraceRecordCandidates(d Definition, document FetchResult, role string, sche
 	steps := make([]RecordStep, 0, len(contents)*len(d.Nodes))
 	for i, content := range contents {
 		values := map[string]any{}
-		for _, node := range d.Nodes {
+		for nodeIndex, node := range d.Nodes {
 			if !nodeApplies(node, role) {
 				continue
 			}
 			var err error
+			step := RecordStep{Candidate: i, Node: node.Name, Type: node.Type}
 			switch node.Type {
 			case "extract":
+				step.Fields = DiagnoseExtractNode(node, nodeIndex, content)
 				values, err = extractNodeValues(node, content)
 			case "transform":
 				err = ApplyTransform(values, node.Config)
@@ -77,16 +81,21 @@ func TraceRecordCandidates(d Definition, document FetchResult, role string, sche
 				err = ValidateValues(values, node.Config)
 			}
 			if err != nil {
+				step.Error = err.Error()
+				step.Values = values
+				steps = append(steps, step)
 				return candidates, steps, fmt.Errorf("candidate[%d].%s: %w", i, node.Name, err)
 			}
 			snapshot := make(map[string]any, len(values))
 			for key, value := range values {
 				snapshot[key] = value
 			}
-			steps = append(steps, RecordStep{Candidate: i, Node: node.Name, Type: node.Type, Values: snapshot})
+			step.Values = snapshot
+			steps = append(steps, step)
 		}
 		prepared, err := record.Prepare(schema, values)
 		if err != nil {
+			steps = append(steps, RecordStep{Candidate: i, Node: "dataset_schema", Type: "validate", Values: values, Error: err.Error()})
 			return candidates, steps, fmt.Errorf("candidate[%d]: %w", i, err)
 		}
 		candidates = append(candidates, prepared.Values)

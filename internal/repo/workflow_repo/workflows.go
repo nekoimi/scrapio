@@ -322,7 +322,53 @@ func PublishVersion(id int64) error {
 	return s.Commit()
 }
 
-func RollbackVersion(id int64) error { return PublishVersion(id) }
+// RollbackVersion copies historical rules and samples into a new draft.
+// Publication remains a separate, validated action.
+func RollbackVersion(id int64) (*table.WorkflowVersion, error) {
+	source, has, err := GetVersion(id)
+	if err != nil {
+		return nil, err
+	}
+	if !has {
+		return nil, errors.New("workflow version not found")
+	}
+	if source.Status == VersionDraft {
+		return nil, errors.New("rollback source must be a published or retired version")
+	}
+	s := db.Instance().NewSession()
+	defer s.Close()
+	if err := s.Begin(); err != nil {
+		return nil, err
+	}
+	defer s.Rollback()
+	rows, err := s.QueryString("SELECT id FROM workflows WHERE id=? FOR UPDATE", source.WorkflowId)
+	if err != nil {
+		return nil, err
+	}
+	if len(rows) == 0 {
+		return nil, errors.New("workflow not found")
+	}
+	var latest struct {
+		Version int `xorm:"version"`
+	}
+	if _, err := s.Table(new(table.WorkflowVersion)).Select("COALESCE(MAX(version),0) AS version").Where("workflow_id=?", source.WorkflowId).Get(&latest); err != nil {
+		return nil, err
+	}
+	draft := &table.WorkflowVersion{WorkflowId: source.WorkflowId, Version: latest.Version + 1, Status: VersionDraft, Definition: source.Definition, CreatedAt: time.Now()}
+	if _, err := s.Insert(draft); err != nil {
+		return nil, err
+	}
+	_, err = s.Exec(`INSERT INTO workflow_samples(workflow_version_id,source,document_id,page_url,content_type,content,content_hash,note,page_role,expected_outcome,expected_error)
+SELECT ?,source,document_id,page_url,content_type,content,content_hash,note,page_role,expected_outcome,expected_error
+FROM workflow_samples WHERE workflow_version_id=? ORDER BY id`, draft.Id, id)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.Commit(); err != nil {
+		return nil, err
+	}
+	return draft, nil
+}
 
 func Stop(id int64) error {
 	if _, has, err := Get(id); err != nil || !has {

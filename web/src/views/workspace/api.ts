@@ -11,7 +11,10 @@ export interface Definition { persistence:string; trigger:{type:string;url:strin
 export interface Template { code:string; name:string; description:string; record_type:string; definition:Definition }
 export type SampleOutcome = 'success'|'error'|'empty_list';
 export interface Sample { id:number; workflow_version_id:number; source:string; page_role:string; content_type:string; content_hash:string; note:string; page_url:string; expected_outcome:SampleOutcome; expected_error?:string; created_at:string }
-export interface Preview { dry_run:boolean; passed:boolean; fetched_live:boolean; sample_id?:number; version_id:number; page_role:string; expected_outcome:SampleOutcome; actual_outcome:string; actual_error?:string; discovered_urls?:string[]; next_url?:string; steps:Array<{candidate:number;node:string;type:string;values:Record<string,any>}>; decisions:Array<{index:number;decision:string;canonical_key?:string;values?:Record<string,any>;changed_fields?:string[];reason?:string}>; error?:string }
+export interface FieldDiagnostic { name:string; rule_path:string; selector:string; match_count:number; raw?:any; converted?:any; error?:string }
+export interface Preview { dry_run:boolean; passed:boolean; fetched_live:boolean; sample_id?:number; version_id:number; page_role:string; expected_outcome:SampleOutcome; actual_outcome:string; actual_error?:string; discovered_urls?:string[]; next_url?:string; steps:Array<{candidate:number;node:string;type:string;values:Record<string,any>;fields?:FieldDiagnostic[];error?:string}>; decisions:Array<{index:number;decision:string;canonical_key?:string;values?:Record<string,any>;changed_fields?:string[];reason?:string}>; error?:string }
+export interface SampleComparison { sample_id:number; page_role:string; changed:boolean; fields:Array<{candidate:number;field:string;left?:any;right?:any}>; left:Preview; right:Preview }
+export interface VersionSampleComparison { left_version_id:number;right_version_id:number;sample_version_id:number;changed:number;samples:SampleComparison[] }
 export interface RecordRow { id:number; dataset_id:number; canonical_key:string; normalized:string|Record<string,any>; last_seen_at:string; last_decision:string; last_changed_at?:string; source_count:number }
 export interface RecordFilter { dataset_id:number; query?:string; source_id?:number; activity?:'created'|'updated'|''; since?:string }
 export interface SourceCoverage { source_id:number; source_name:string; records:number; observations:number; last_observed_at:string }
@@ -53,6 +56,8 @@ export const api={
  templates:()=>get<{list:Template[]}>('/api/v2/workflows/templates'),
  createWorkflow:(data:any)=>post<{workflow:Workflow;version:Version}>('/api/v2/workflows/create',data),
  createVersion:(workflow_id:number,definition:string)=>post<Version>('/api/v2/workflows/versions/create',{workflow_id,definition}),
+ rollbackVersion:(id:number)=>post<Version>('/api/v2/workflows/versions/rollback',{id}),
+ compareSamples:(left_version_id:number,right_version_id:number,sample_version_id:number)=>post<VersionSampleComparison>('/api/v2/workflows/versions/compare-samples',{left_version_id,right_version_id,sample_version_id}),
  validate:(id:number)=>post<void>('/api/v2/workflows/versions/validate',{id}),
  sampleList:(version_id:number)=>get<{list:Sample[]}>('/api/v2/workflows/samples/list',{version_id}),
  sampleCreate:(data:any)=>post<Sample>('/api/v2/workflows/samples/create',data),

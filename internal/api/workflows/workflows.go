@@ -64,6 +64,11 @@ type ReplayDiffRequest struct {
 	LeftVersion  int64 `json:"left_version_id"`
 	RightVersion int64 `json:"right_version_id"`
 }
+type CompareSamplesRequest struct {
+	LeftVersionID   int64 `json:"left_version_id"`
+	RightVersionID  int64 `json:"right_version_id"`
+	SampleVersionID int64 `json:"sample_version_id"`
+}
 type RunRequest struct {
 	WorkflowID int64           `json:"workflow_id"`
 	Input      json.RawMessage `json:"input,omitempty"`
@@ -183,10 +188,53 @@ func Validate(w http.ResponseWriter, r *http.Request) {
 	mutateVersion(w, r, workflow_repo.ValidateVersion, true)
 }
 func Publish(w http.ResponseWriter, r *http.Request) {
-	mutateVersion(w, r, workflow_repo.PublishVersion, true)
+	id, err := idFromRequest(r)
+	if err != nil || id <= 0 {
+		respond.Error(w, error_ext.ValidateError)
+		return
+	}
+	if err := workflow_repo.PublishVersion(id); err != nil {
+		if workflow.IsDefinitionError(err) {
+			path, reason := workflow.Issue(err)
+			respond.InvalidDefinition(w, path, reason)
+			return
+		}
+		respond.Error(w, err)
+		return
+	}
+	version, has, err := workflow_repo.GetVersion(id)
+	if err == nil && has {
+		_ = audit_repo.Record(middleware.RequestID(r.Context()), "workflow.version_published", "workflow", &version.WorkflowId, map[string]any{"version_id": id})
+	}
+	respond.Ok(w, nil)
 }
 func Rollback(w http.ResponseWriter, r *http.Request) {
-	mutateVersion(w, r, workflow_repo.RollbackVersion, true)
+	id, err := idFromRequest(r)
+	if err != nil || id <= 0 {
+		respond.Error(w, error_ext.ValidateError)
+		return
+	}
+	draft, err := workflow_repo.RollbackVersion(id)
+	if err != nil {
+		respond.Error(w, err)
+		return
+	}
+	_ = audit_repo.Record(middleware.RequestID(r.Context()), "workflow.rollback_draft_created", "workflow", &draft.WorkflowId, map[string]any{"source_version_id": id, "draft_version_id": draft.Id})
+	respond.Ok(w, draft)
+}
+
+func CompareSamples(w http.ResponseWriter, r *http.Request) {
+	input := new(CompareSamplesRequest)
+	if err := request.Parse(r, input); err != nil || input.LeftVersionID <= 0 || input.RightVersionID <= 0 || input.SampleVersionID <= 0 {
+		respond.Error(w, error_ext.ValidateError)
+		return
+	}
+	result, err := workflow_repo.CompareVersionSamples(input.LeftVersionID, input.RightVersionID, input.SampleVersionID)
+	if err != nil {
+		respond.Error(w, err)
+		return
+	}
+	respond.Ok(w, result)
 }
 
 func Stop(w http.ResponseWriter, r *http.Request) {

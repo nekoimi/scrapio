@@ -214,13 +214,21 @@ func PreviewSample(versionID int64, sample *table.WorkflowSample) (SamplePreview
 }
 
 func PreviewSampleWithKeys(versionID int64, sample *table.WorkflowSample, idempotencyKeys []string) (SamplePreview, error) {
+	return previewSampleWithKeys(versionID, sample, idempotencyKeys, false)
+}
+
+func PreviewSampleForComparison(versionID int64, sample *table.WorkflowSample) (SamplePreview, error) {
+	return previewSampleWithKeys(versionID, sample, nil, true)
+}
+
+func previewSampleWithKeys(versionID int64, sample *table.WorkflowSample, idempotencyKeys []string, allowSameWorkflow bool) (SamplePreview, error) {
 	result := SamplePreview{DryRun: true, VersionID: versionID, Source: sample.Source, SampleID: sample.Id, PageRole: sample.PageRole, FetchedLive: false, Steps: []workflow.RecordStep{}, Decisions: []record_repo.PreviewDecision{}}
 	outcome, expectationErr := sampleExpectation(sample.ExpectedOutcome, sample.ExpectedError, sample.PageRole)
 	if expectationErr != nil {
 		return result, expectationErr
 	}
 	result.ExpectedOutcome = outcome
-	if sample.WorkflowVersionId != versionID {
+	if !allowSameWorkflow && sample.WorkflowVersionId != versionID {
 		return result, errors.New("sample belongs to another version")
 	}
 	version, has, err := GetVersion(versionID)
@@ -229,6 +237,12 @@ func PreviewSampleWithKeys(versionID int64, sample *table.WorkflowSample, idempo
 	}
 	if !has {
 		return result, errors.New("workflow version not found")
+	}
+	if allowSameWorkflow && sample.WorkflowVersionId != versionID {
+		source, exists, sourceErr := GetVersion(sample.WorkflowVersionId)
+		if sourceErr != nil || !exists || source.WorkflowId != version.WorkflowId {
+			return result, errors.New("sample belongs to another workflow")
+		}
 	}
 	owner, has, err := Get(version.WorkflowId)
 	if err != nil {

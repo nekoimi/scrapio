@@ -50,6 +50,9 @@ func TestTraceRecordCandidatesMatchesExecution(t *testing.T) {
 	if steps[0].Values["title"] != "Trace" {
 		t.Fatalf("unexpected extraction: %#v", steps[0])
 	}
+	if len(steps[0].Fields) == 0 || steps[0].Fields[1].MatchCount != 1 || steps[0].Fields[1].RulePath != "nodes[0].config.fields[1]" {
+		t.Fatalf("missing field diagnostics: %#v", steps[0].Fields)
+	}
 	plain, err := RecordCandidates(d, doc, "trigger", articleSchema())
 	if err != nil {
 		t.Fatal(err)

@@ -127,6 +127,7 @@ func newRouter(ctx context.Context, cfg *config.Config) *mux.Router {
 			v2Api.HandleFunc("/workflows/samples/preview", workflows.PreviewSample).Methods("POST")
 			v2Api.HandleFunc("/workflows/versions/check-samples", workflows.CheckSamples).Methods("POST")
 			v2Api.HandleFunc("/workflows/versions/rollback", workflows.Rollback).Methods("POST")
+			v2Api.HandleFunc("/workflows/versions/compare-samples", workflows.CompareSamples).Methods("POST")
 			v2Api.HandleFunc("/workflows/stop", workflows.Stop).Methods("POST")
 			v2Api.HandleFunc("/workflows/run", workflows.Run).Methods("POST")
 			v2Api.HandleFunc("/workflows/run/api", workflows.APITrigger).Methods("POST")
