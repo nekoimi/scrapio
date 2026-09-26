@@ -34,6 +34,8 @@ type Claim struct {
 
 type ListFilter struct {
 	ResourceID int64
+	DatasetID  int64
+	WorkflowID int64
 	PluginCode string
 	EventType  string
 	Status     string
@@ -139,6 +141,12 @@ func applyListFilter(s *xorm.Session, filter ListFilter) {
 	s.Where("1 = 1")
 	if filter.ResourceID > 0 {
 		s.And("resource_id = ?", filter.ResourceID)
+	}
+	if filter.DatasetID > 0 {
+		s.And("dataset_id = ?", filter.DatasetID)
+	}
+	if filter.WorkflowID > 0 {
+		s.And("workflow_id = ?", filter.WorkflowID)
 	}
 	if strings.TrimSpace(filter.PluginCode) != "" {
 		s.And("plugin_code = ?", strings.TrimSpace(filter.PluginCode))

@@ -14,10 +14,12 @@ import (
 	"github.com/nekoimi/scrapio/internal/db/table"
 	"github.com/nekoimi/scrapio/internal/record"
 	"github.com/nekoimi/scrapio/internal/repo/dataset_repo"
+	"github.com/nekoimi/scrapio/internal/repo/plugin_repo"
 	"xorm.io/xorm"
 )
 
 type Candidate struct {
+	SuppressPlugins       bool // Replay writes never dispatch external effects.
 	DatasetID             int64
 	ExpectedSchemaVersion int
 	Values                map[string]any
@@ -269,6 +271,12 @@ func save(s *xorm.Session, c Candidate) (Result, error) {
 	}
 	if c.LegacyResourceID != nil {
 		if _, err := s.Exec("INSERT INTO legacy_resource_records (legacy_resource_id,record_id,observation_id) VALUES (?,?,?) ON CONFLICT (legacy_resource_id) DO UPDATE SET record_id = EXCLUDED.record_id, observation_id = EXCLUDED.observation_id, migrated_at = NOW()", *c.LegacyResourceID, recordID, observationID); err != nil {
+			return Result{}, err
+		}
+	}
+	if !c.SuppressPlugins && c.LegacyResourceID == nil && c.WorkflowID != nil && c.WorkflowVersionID != nil && c.RunID != nil && c.TaskID != nil && (decision == "created" || decision == "updated") {
+		provenance := map[string]any{"dataset_id": c.DatasetID, "record_id": recordID, "observation_id": observationID, "workflow_id": c.WorkflowID, "workflow_version_id": c.WorkflowVersionID, "run_id": c.RunID, "task_id": c.TaskID, "document_id": c.DocumentID, "source_url": c.SourceURL}
+		if err := plugin_repo.QueueRecordEvent(s, c.DatasetID, *c.WorkflowID, recordID, observationID, "record."+decision, merged, provenance); err != nil {
 			return Result{}, err
 		}
 	}

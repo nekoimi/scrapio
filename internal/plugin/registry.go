@@ -7,10 +7,17 @@ import (
 )
 
 type Task struct {
-	ResourceID int64
-	EventType  string
-	Input      map[string]any
+	ID             int64
+	RecordID       int64
+	IdempotencyKey string
+	ResourceID     int64
+	EventType      string
+	Input          map[string]any
 }
+
+// RecordHandler explicitly opts in to record subscriptions. URL input is mapped
+// from a scalar dataset field; generic handlers can implement their own contract.
+type RecordHandler interface{ SupportsRecordEvents() bool }
 
 type Handler interface {
 	Code() string

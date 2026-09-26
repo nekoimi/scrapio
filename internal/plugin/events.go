@@ -1,6 +1,8 @@
 package plugin
 
 const (
+	EventRecordCreated     = "record.created"
+	EventRecordUpdated     = "record.updated"
 	EventResourceCreated   = "resource.created"
 	EventResourceUpdated   = "resource.updated"
 	EventResourceValidated = "resource.validated"

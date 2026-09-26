@@ -209,6 +209,11 @@ func (ResourceEvent) TableName() string { return "resource_events" }
 type PluginTask struct {
 	Id             int64      `json:"id"`
 	ResourceId     int64      `xorm:"resource_id" json:"resource_id"`
+	RecordId       *int64     `xorm:"record_id" json:"record_id,omitempty"`
+	ObservationId  *int64     `xorm:"observation_id" json:"observation_id,omitempty"`
+	DatasetId      *int64     `xorm:"dataset_id" json:"dataset_id,omitempty"`
+	WorkflowId     *int64     `xorm:"workflow_id" json:"workflow_id,omitempty"`
+	SubscriptionId *int64     `xorm:"subscription_id" json:"subscription_id,omitempty"`
 	EventType      string     `xorm:"event_type" json:"event_type"`
 	PluginCode     string     `xorm:"plugin_code" json:"plugin_code"`
 	IdempotencyKey string     `xorm:"idempotency_key" json:"idempotency_key"`
@@ -228,6 +233,20 @@ type PluginTask struct {
 }
 
 func (PluginTask) TableName() string { return "plugin_tasks" }
+
+type PluginSubscription struct {
+	Id         int64     `json:"id"`
+	DatasetId  int64     `xorm:"dataset_id" json:"dataset_id"`
+	WorkflowId *int64    `xorm:"workflow_id" json:"workflow_id,omitempty"`
+	PluginCode string    `xorm:"plugin_code" json:"plugin_code"`
+	EventType  string    `xorm:"event_type" json:"event_type"`
+	URLField   string    `xorm:"url_field" json:"url_field"`
+	Enabled    bool      `json:"enabled"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
+}
+
+func (PluginSubscription) TableName() string { return "plugin_subscriptions" }
 
 type AIExtraction struct {
 	Id                int64     `json:"id"`

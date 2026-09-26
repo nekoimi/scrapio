@@ -48,8 +48,9 @@ func NewCloudDriver(cfg config.CloudDriverConfig) *CloudDriver {
 	}
 	return &CloudDriver{cfg: cfg, client: &http.Client{Timeout: timeout}}
 }
-func (p *CloudDriver) Code() string           { return CloudCode }
-func (p *CloudDriver) Capabilities() []string { return []string{"magnet.offline_add"} }
+func (p *CloudDriver) Code() string               { return CloudCode }
+func (p *CloudDriver) SupportsRecordEvents() bool { return true }
+func (p *CloudDriver) Capabilities() []string     { return []string{"magnet.offline_add"} }
 func (p *CloudDriver) Health(ctx context.Context) error {
 	var value map[string]any
 	return p.do(ctx, http.MethodGet, "/health", nil, &value)
@@ -57,10 +58,10 @@ func (p *CloudDriver) Health(ctx context.Context) error {
 func (p *CloudDriver) Handle(ctx context.Context, task plugin.Task) (any, string, error) {
 	rawURL := inputString(task.Input, "url", "link", "optimal_link")
 	if rawURL == "" {
-		return nil, "", errors.New("cloud plugin requires input.url")
+		return nil, "", &plugin.PermanentError{Err: errors.New("cloud plugin requires a nonempty scalar input.url")}
 	}
 	if err := validateDownloadURL(rawURL); err != nil {
-		return nil, "", err
+		return nil, "", &plugin.PermanentError{Err: err}
 	}
 	category := inputString(task.Input, "category", "origin")
 	if category == "" {
@@ -68,6 +69,9 @@ func (p *CloudDriver) Handle(ctx context.Context, task plugin.Task) (any, string
 	}
 	savePath := inputString(task.Input, "save_path")
 	request := map[string]any{"url": rawURL, "category": category, "client_task_id": fmt.Sprintf("resource-%d-%s", task.ResourceID, task.EventType), "metadata": map[string]string{"event_type": task.EventType}}
+	if task.RecordID > 0 {
+		request["client_task_id"] = task.IdempotencyKey
+	}
 	if savePath != "" {
 		request["save_path"] = savePath
 	}
@@ -142,6 +146,11 @@ func (p *CloudDriver) Poll(ctx context.Context, task plugin.Task, externalID str
 // OnComplete writes the final cloud artifact metadata to the generic resource
 // attributes and event stream. It deliberately does not change resource.status.
 func (p *CloudDriver) OnComplete(_ context.Context, task plugin.Task, output any) error {
+	// Record deliveries keep artifacts on the plugin task. Never mutate the
+	// collected record or recursively dispatch record.updated.
+	if task.RecordID > 0 {
+		return nil
+	}
 	data, ok := output.(map[string]any)
 	if !ok {
 		encoded, err := json.Marshal(output)
@@ -195,8 +204,9 @@ type Aria2 struct {
 func NewAria2(cfg config.Aria2Config) *Aria2 {
 	return &Aria2{cfg: cfg, client: &http.Client{Timeout: 30 * time.Second}}
 }
-func (p *Aria2) Code() string           { return Aria2Code }
-func (p *Aria2) Capabilities() []string { return []string{"magnet.add_uri"} }
+func (p *Aria2) Code() string               { return Aria2Code }
+func (p *Aria2) SupportsRecordEvents() bool { return true }
+func (p *Aria2) Capabilities() []string     { return []string{"magnet.add_uri"} }
 func (p *Aria2) Health(ctx context.Context) error {
 	_, err := p.call(ctx, "aria2.getVersion", nil)
 	return err
@@ -204,10 +214,10 @@ func (p *Aria2) Health(ctx context.Context) error {
 func (p *Aria2) Handle(ctx context.Context, task plugin.Task) (any, string, error) {
 	rawURL := inputString(task.Input, "url", "link", "optimal_link")
 	if rawURL == "" {
-		return nil, "", errors.New("aria2 plugin requires input.url")
+		return nil, "", &plugin.PermanentError{Err: errors.New("aria2 plugin requires a nonempty scalar input.url")}
 	}
 	if err := validateDownloadURL(rawURL); err != nil {
-		return nil, "", err
+		return nil, "", &plugin.PermanentError{Err: err}
 	}
 	params := []any{}
 	if p.cfg.Secret != "" {

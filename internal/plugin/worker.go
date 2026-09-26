@@ -154,7 +154,15 @@ func (w *Worker) processClaim(ctx context.Context, claim *plugin_repo.Claim) {
 		_ = plugin_repo.Fail(claim.Task.Id, err, false)
 		return
 	}
-	task := Task{ResourceID: claim.Task.ResourceId, EventType: claim.Task.EventType, Input: input}
+	task := Task{ID: claim.Task.Id, IdempotencyKey: claim.Task.IdempotencyKey, ResourceID: claim.Task.ResourceId, EventType: claim.Task.EventType, Input: input}
+	if claim.Task.RecordId != nil {
+		task.RecordID = *claim.Task.RecordId
+		optIn, supported := handler.(RecordHandler)
+		if !supported || !optIn.SupportsRecordEvents() {
+			_ = plugin_repo.Fail(claim.Task.Id, errors.New("plugin does not support record events"), false)
+			return
+		}
+	}
 	async, isAsync := handler.(AsyncHandler)
 	if isAsync && claim.Task.ExternalID != "" {
 		output, done, err := async.Poll(ctx, task, claim.Task.ExternalID)

@@ -6,6 +6,9 @@ export interface DatasetField { field_key:string; label:string; field_type:strin
 export interface SchemaField { key:string; label:string; type:string; required:boolean; multiple:boolean }
 export interface DatasetSchema { unique_key_fields:string[]; empty_value_policy:string; fields:SchemaField[] }
 export interface Workflow { id:number; project_id?:number; dataset_id?:number; source_id:number; code:string; name:string; owner_name:string; resource_type:string; enabled:boolean; published_version_id?:number }
+export interface PluginSubscription { id:number;dataset_id:number;workflow_id?:number;plugin_code:string;event_type:'record.created'|'record.updated';url_field:string;enabled:boolean }
+export interface PluginCapability { code:string;capabilities:string[] }
+export interface PluginTaskRow { id:number;dataset_id?:number;workflow_id?:number;record_id?:number;event_type:string;plugin_code:string;status:string;error_message?:string;created_at:string }
 export interface Version { id:number; workflow_id:number; version:number; status:string; definition:string|Definition; change_summary:string; created_at:string }
 export interface Definition { persistence:string; trigger:{type:string;url:string;fetch:{mode:string}}; listing?:{detail_selector:string;next_selector?:string;max_pages:number;max_empty_pages:number}; budget?:{max_discovered_per_page:number;max_tasks:number;max_pages:number;max_depth:number;max_duration_seconds:number;max_domains:number;allowed_domains:string[]}; nodes:Array<{name:string;type:string;config:Record<string,any>}> }
 export interface Template { code:string; name:string; description:string; record_type:string; definition:Definition }
@@ -72,6 +75,13 @@ export const api={
  samplePreview:(data:any)=>post<Preview>('/api/v2/workflows/samples/preview',data),
  sampleCheck:(id:number)=>post<{passed:boolean;checks:Preview[];error?:string}>('/api/v2/workflows/versions/check-samples',{id}),
  publish:(id:number)=>post<void>('/api/v2/workflows/versions/publish',{id}),
+ pluginCapabilities:()=>get<{list:PluginCapability[]}>('/api/v2/plugins/record-capabilities'),
+ pluginSubscriptions:(dataset_id:number,workflow_id:number)=>get<{list:PluginSubscription[]}>('/api/v2/plugins/subscriptions',{dataset_id,workflow_id}),
+ savePluginSubscription:(data:Omit<PluginSubscription,'id'>&{id?:number})=>post<PluginSubscription>('/api/v2/plugins/subscriptions/save',data),
+ deletePluginSubscription:(dataset_id:number,id:number)=>post<void>('/api/v2/plugins/subscriptions/delete',{dataset_id,id}),
+ pluginTasks:(workflow_id:number)=>get<{list:PluginTaskRow[];total:number}>('/api/v2/plugins/tasks',{workflow_id,page:1,size:20}),
+ retryPluginTask:(id:number)=>post<void>('/api/v2/plugins/tasks/retry',{id}),
+ cancelPluginTask:(id:number)=>post<void>('/api/v2/plugins/tasks/cancel',{id}),
  run:(workflow_id:number)=>post<{run_id:number;task_id:number}>('/api/v2/workflows/run',{workflow_id}),
  schedule:(workflow_id:number)=>get<{schedule:Schedule|null;events:ScheduleEvent[]}>('/api/v2/workflows/schedule',{workflow_id}),
  saveSchedule:(data:Pick<Schedule,'workflow_id'|'cron'|'timezone'|'enabled'|'concurrency_policy'>)=>post<Schedule>('/api/v2/workflows/schedule/save',data),

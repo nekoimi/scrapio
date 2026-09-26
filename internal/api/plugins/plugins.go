@@ -19,6 +19,80 @@ type IDRequest struct {
 	ID int64 `json:"id"`
 }
 
+func Subscriptions(w http.ResponseWriter, r *http.Request) {
+	datasetID, _ := strconv.ParseInt(r.URL.Query().Get("dataset_id"), 10, 64)
+	workflowID, _ := strconv.ParseInt(r.URL.Query().Get("workflow_id"), 10, 64)
+	rows, err := plugin_repo.Subscriptions(datasetID, workflowID)
+	if err != nil {
+		respond.Error(w, err)
+		return
+	}
+	respond.Ok(w, map[string]any{"list": rows})
+}
+
+func subscriptionSupported(registry *pluginruntime.Registry, code string) bool {
+	if registry == nil {
+		return false
+	}
+	handler, found := registry.Get(code)
+	if !found {
+		return false
+	}
+	optIn, ok := handler.(pluginruntime.RecordHandler)
+	return ok && optIn.SupportsRecordEvents()
+}
+
+func SaveSubscription(registry *pluginruntime.Registry) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var input plugin_repo.SubscriptionInput
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			respond.Error(w, error_ext.ValidateError)
+			return
+		}
+		if !subscriptionSupported(registry, input.PluginCode) {
+			respond.Error(w, errors.New("plugin is not registered for record events"))
+			return
+		}
+		row, err := plugin_repo.SaveSubscription(input)
+		if err != nil {
+			respond.Error(w, err)
+			return
+		}
+		respond.Ok(w, row)
+	}
+}
+
+func DeleteSubscription(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		DatasetID int64 `json:"dataset_id"`
+		ID        int64 `json:"id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		respond.Error(w, error_ext.ValidateError)
+		return
+	}
+	if err := plugin_repo.DeleteSubscription(input.DatasetID, input.ID); err != nil {
+		respond.Error(w, err)
+		return
+	}
+	respond.Ok(w, nil)
+}
+
+func RecordCapabilities(registry *pluginruntime.Registry) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		items := make([]map[string]any, 0)
+		if registry != nil {
+			for _, handler := range registry.List() {
+				if subscriptionSupported(registry, handler.Code()) {
+					items = append(items, map[string]any{"code": handler.Code(), "capabilities": handler.Capabilities()})
+				}
+			}
+		}
+		sort.Slice(items, func(i, j int) bool { return items[i]["code"].(string) < items[j]["code"].(string) })
+		respond.Ok(w, map[string]any{"list": items})
+	}
+}
+
 type PluginStatus struct {
 	Code          string   `json:"code"`
 	Capabilities  []string `json:"capabilities"`
@@ -72,10 +146,13 @@ func Overview(registry *pluginruntime.Registry, worker *pluginruntime.Worker) ht
 
 func List(w http.ResponseWriter, r *http.Request) {
 	resourceID, _ := strconv.ParseInt(r.URL.Query().Get("resource_id"), 10, 64)
+	datasetID, _ := strconv.ParseInt(r.URL.Query().Get("dataset_id"), 10, 64)
+	workflowID, _ := strconv.ParseInt(r.URL.Query().Get("workflow_id"), 10, 64)
 	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
 	size, _ := strconv.Atoi(r.URL.Query().Get("size"))
 	rows, total, err := plugin_repo.ListFiltered(plugin_repo.ListFilter{
 		ResourceID: resourceID, PluginCode: r.URL.Query().Get("plugin_code"),
+		DatasetID: datasetID, WorkflowID: workflowID,
 		EventType: r.URL.Query().Get("event_type"), Status: r.URL.Query().Get("status"),
 		Page: page, Size: size,
 	})
