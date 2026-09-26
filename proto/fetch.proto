@@ -1,8 +1,7 @@
 syntax = "proto3";
 
 package grpc;
-
-option go_package="internal/drission_rod/grpc;grpc";
+option go_package = "github.com/nekoimi/scrapio/internal/drission_rod/grpc";
 
 message FetchRequest {
   string url = 1;
@@ -43,6 +42,14 @@ message BrowserCookie {
   string path = 4;
 }
 
+message BrowserActionResult {
+  int32 index = 1;
+  string type = 2;
+  bool success = 3;
+  int64 duration_ms = 4;
+  string error = 5;
+}
+
 message BrowserJobResponse {
   bool success = 1;
   string protocol_version = 2;
@@ -55,6 +62,10 @@ message BrowserJobResponse {
   bytes screenshot = 9;
   repeated BrowserCookie cookies = 10;
   int64 duration_ms = 11;
+  string final_url = 12;
+  int32 status_code = 13; // 0 when the browser cannot report navigation status.
+  string content_type = 14;
+  repeated BrowserActionResult action_results = 15;
 }
 
 message BrowserHealthRequest {

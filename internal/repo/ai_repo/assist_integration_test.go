@@ -14,6 +14,7 @@ import (
 	"github.com/nekoimi/scrapio/internal/config"
 	"github.com/nekoimi/scrapio/internal/db"
 	"github.com/nekoimi/scrapio/internal/repo/dataset_repo"
+	"github.com/nekoimi/scrapio/internal/repo/workflow_repo"
 	"github.com/spf13/viper"
 )
 
@@ -107,5 +108,15 @@ func TestDevD03SuggestionReview(t *testing.T) {
 	}
 	if _, err := ReviewRuleSuggestion(row.ID, versionID, "rejected"); err == nil {
 		t.Fatal("second review accepted")
+	}
+	if err := workflow_repo.DeleteSample(sampleID); err != nil {
+		t.Fatalf("delete draft sample after AI suggestion: %v", err)
+	}
+	var remaining int
+	if err := probe.QueryRow("SELECT count(*) FROM ai_rule_suggestions WHERE sample_id=$1", sampleID).Scan(&remaining); err != nil || remaining != 0 {
+		t.Fatalf("suggestions remain after sample deletion: %d %v", remaining, err)
+	}
+	if err := probe.QueryRow("SELECT count(*) FROM ai_assist_requests WHERE sample_id=$1", sampleID).Scan(&remaining); err != nil || remaining != 0 {
+		t.Fatalf("request reservations remain after sample deletion: %d %v", remaining, err)
 	}
 }

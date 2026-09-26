@@ -498,7 +498,10 @@ func (w *Worker) persistRecords(ctx context.Context, claim *task_repo.Claim, run
 	}
 	candidates := make([]record_repo.Candidate, 0, len(values))
 	for i, value := range values {
-		candidates = append(candidates, record_repo.Candidate{SuppressPlugins: document.Adapter == "replay", DatasetID: *owner.DatasetId, ExpectedSchemaVersion: schema.Version, Values: value, SourceID: &owner.SourceId, SourceURL: document.FinalURL, WorkflowID: &run.WorkflowId, WorkflowVersionID: &run.WorkflowVersionId, RunID: &run.Id, TaskID: &claim.Task.Id, DocumentID: &documentID, IdempotencyKey: fmt.Sprintf("workflow-task:%d:item:%d", claim.Task.Id, i)})
+		// A saved document can be resumed before its record was committed. The
+		// observation idempotency key, not the fetch adapter, determines whether
+		// a plugin event has already been queued with the record transaction.
+		candidates = append(candidates, record_repo.Candidate{DatasetID: *owner.DatasetId, ExpectedSchemaVersion: schema.Version, Values: value, SourceID: &owner.SourceId, SourceURL: document.FinalURL, WorkflowID: &run.WorkflowId, WorkflowVersionID: &run.WorkflowVersionId, RunID: &run.Id, TaskID: &claim.Task.Id, DocumentID: &documentID, IdempotencyKey: fmt.Sprintf("workflow-task:%d:item:%d", claim.Task.Id, i)})
 	}
 	if err := ctx.Err(); err != nil {
 		return err

@@ -66,3 +66,21 @@ func TestAIAssistBounds(t *testing.T) {
 		t.Fatal("insecure remote gateway accepted")
 	}
 }
+
+func TestValidateSuggestionsRequiresSampleMatch(t *testing.T) {
+	for _, tc := range []struct {
+		name, kind, content, selector string
+	}{
+		{"missing HTML node", "html", "<h1>Present</h1>", ".absent"},
+		{"empty HTML text", "html", "<h1>  </h1>", "h1"},
+		{"missing JSON property", "json", `{"title":"Present"}`, "$.absent"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			input := AssistRequest{ContentType: tc.kind, Content: tc.content, Fields: []RuleField{{Name: "title"}}}
+			result := AssistResponse{Suggestions: []RuleSuggestion{{Field: "title", Selector: tc.selector}}}
+			if err := ValidateSuggestions(input, result); err == nil {
+				t.Fatal("selector with no sample value was accepted")
+			}
+		})
+	}
+}

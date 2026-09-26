@@ -19,7 +19,7 @@ import (
 )
 
 type Candidate struct {
-	SuppressPlugins       bool // Replay writes never dispatch external effects.
+	SuppressPlugins       bool // Explicit offline/backfill writes never dispatch external effects.
 	DatasetID             int64
 	ExpectedSchemaVersion int
 	Values                map[string]any

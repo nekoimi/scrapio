@@ -18,6 +18,7 @@ import (
 	"github.com/nekoimi/scrapio/internal/db"
 	"github.com/nekoimi/scrapio/internal/db/table"
 	"github.com/nekoimi/scrapio/internal/repo/dataset_repo"
+	"github.com/nekoimi/scrapio/internal/repo/plugin_repo"
 	"github.com/nekoimi/scrapio/internal/repo/record_repo"
 	"github.com/nekoimi/scrapio/internal/repo/task_repo"
 	log "github.com/sirupsen/logrus"
@@ -67,6 +68,8 @@ func TestDevA04Templates(t *testing.T) {
 	}
 	defer func() {
 		statements := []string{
+			`DELETE FROM plugin_tasks WHERE dataset_id IN (SELECT id FROM datasets WHERE project_id=$1)`,
+			`DELETE FROM plugin_subscriptions WHERE dataset_id IN (SELECT id FROM datasets WHERE project_id=$1)`,
 			`DELETE FROM record_revisions WHERE record_id IN (SELECT r.id FROM records r JOIN datasets d ON d.id=r.dataset_id WHERE d.project_id=$1)`,
 			`DELETE FROM record_observations WHERE dataset_id IN (SELECT id FROM datasets WHERE project_id=$1)`,
 			`DELETE FROM records WHERE dataset_id IN (SELECT id FROM datasets WHERE project_id=$1)`,
@@ -482,6 +485,59 @@ func TestDevA04Templates(t *testing.T) {
 	var jsStatus string
 	if err := raw.QueryRow("SELECT status FROM workflow_runs WHERE id=$1", jsRun).Scan(&jsStatus); err != nil || jsStatus != task_repo.RunSucceeded {
 		t.Fatalf("JS run: %q %v", jsStatus, err)
+	}
+	// A retry can resume a saved document before its first record transaction.
+	// That first observation must still enqueue the subscribed external action.
+	resumeDefinition := Templates()[0].Definition
+	resumeDefinition.Trigger.URL = server.URL + "/page"
+	resumeEncoded, _ := json.Marshal(resumeDefinition)
+	resumeOwner := &table.Workflow{ProjectId: &project.Id, DatasetId: &dataset.Id, SourceId: sourceID, Code: "saved_document", Name: "saved_document", ResourceType: "article", Enabled: true, CreatedAt: now, UpdatedAt: now}
+	if _, err := db.Instance().InsertOne(resumeOwner); err != nil {
+		t.Fatal(err)
+	}
+	resumeVersion := &table.WorkflowVersion{WorkflowId: resumeOwner.Id, Version: 1, Status: "published", Definition: string(resumeEncoded), CreatedAt: now}
+	if _, err := db.Instance().InsertOne(resumeVersion); err != nil {
+		t.Fatal(err)
+	}
+	resumeRun := &table.WorkflowRun{WorkflowId: resumeOwner.Id, WorkflowVersionId: resumeVersion.Id, TriggerType: "manual", Status: task_repo.RunRunning, Input: "{}", Summary: "{}", CreatedAt: now}
+	if _, err := db.Instance().InsertOne(resumeRun); err != nil {
+		t.Fatal(err)
+	}
+	resumeTask, err := task_repo.CreateTask(resumeRun.Id, 0, "trigger", workflowTaskType, "{}", 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resumeURL := server.URL + "/saved-document"
+	resumeHTML := fmt.Sprintf(`<link rel="canonical" href="%s"><h1>Recovered</h1><article>Body</article>`, resumeURL)
+	var savedID int64
+	if err := raw.QueryRow("INSERT INTO documents(task_id,document_type,content,content_size,metadata) VALUES($1,'html',$2,$3,$4::jsonb) RETURNING id", resumeTask.Id, resumeHTML, len(resumeHTML), fmt.Sprintf(`{"final_url":%q}`, resumeDefinition.Trigger.URL)).Scan(&savedID); err != nil {
+		t.Fatal(err)
+	}
+	resumeLease := time.Now().Add(time.Minute)
+	if _, err := raw.Exec("UPDATE crawl_tasks SET output_document_id=$1,status='running',attempt_count=1,lease_owner='resume-test',lease_until=$2 WHERE id=$3", savedID, resumeLease, resumeTask.Id); err != nil {
+		t.Fatal(err)
+	}
+	resumeTask.OutputDocumentId, resumeTask.Status, resumeTask.AttemptCount, resumeTask.LeaseOwner, resumeTask.LeaseUntil = &savedID, task_repo.TaskRunning, 1, "resume-test", &resumeLease
+	resumeAttempt := table.TaskAttempt{TaskId: resumeTask.Id, AttemptNo: 1, WorkerId: "resume-test", Status: task_repo.TaskRunning, StartedAt: &now, RequestSnapshot: "{}", ResponseSnapshot: "{}"}
+	if _, err := db.Instance().InsertOne(&resumeAttempt); err != nil {
+		t.Fatal(err)
+	}
+	sub, err := plugin_repo.SaveSubscription(plugin_repo.SubscriptionInput{DatasetID: dataset.Id, WorkflowID: &resumeOwner.Id, PluginCode: "aria2", EventType: "record.created", URLField: "url", Enabled: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := worker.execute(ctx, &task_repo.Claim{Task: *resumeTask, Attempt: resumeAttempt}); err != nil {
+		t.Fatal("saved document execution:", err)
+	}
+	var queuedPluginTasks int
+	if err := raw.QueryRow("SELECT count(*) FROM plugin_tasks WHERE subscription_id=$1", sub.Id).Scan(&queuedPluginTasks); err != nil || queuedPluginTasks != 1 {
+		t.Fatalf("saved document first observation queued %d plugin tasks: %v", queuedPluginTasks, err)
+	}
+	if _, err := record_repo.Save(record_repo.Candidate{DatasetID: dataset.Id, WorkflowID: &resumeOwner.Id, WorkflowVersionID: &resumeVersion.Id, RunID: &resumeRun.Id, TaskID: &resumeTask.Id, DocumentID: &savedID, Values: map[string]any{"url": resumeURL, "title": "Recovered", "body": "Body"}, IdempotencyKey: fmt.Sprintf("workflow-task:%d:item:0", resumeTask.Id)}); err != nil {
+		t.Fatal(err)
+	}
+	if err := raw.QueryRow("SELECT count(*) FROM plugin_tasks WHERE subscription_id=$1", sub.Id).Scan(&queuedPluginTasks); err != nil || queuedPluginTasks != 1 {
+		t.Fatalf("duplicate observation queued %d plugin tasks: %v", queuedPluginTasks, err)
 	}
 	t.Log("HTML, JSON and JS record execution, provenance, budget recovery and batch rollback passed")
 }

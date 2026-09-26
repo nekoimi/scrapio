@@ -71,8 +71,12 @@ func ValidateSuggestions(input AssistRequest, result AssistResponse) error {
 		if input.ContentType == "json" && !strings.HasPrefix(item.Selector, "$") {
 			return fmt.Errorf("AI selector for %q must be JSONPath", item.Field)
 		}
-		if _, err := workflow.Extract(workflow.ExtractRequest{ContentType: input.ContentType, Content: input.Content, Fields: []workflow.FieldRule{{Name: item.Field, Selector: item.Selector, Attribute: item.Attribute}}}); err != nil {
+		values, err := workflow.Extract(workflow.ExtractRequest{ContentType: input.ContentType, Content: input.Content, Fields: []workflow.FieldRule{{Name: item.Field, Selector: item.Selector, Attribute: item.Attribute, Required: true}}})
+		if err != nil {
 			return fmt.Errorf("AI selector for %q did not validate: %w", item.Field, err)
+		}
+		if values[item.Field] == nil {
+			return fmt.Errorf("AI selector for %q matched no value", item.Field)
 		}
 	}
 	return nil
