@@ -51,6 +51,19 @@ func ProjectList(w http.ResponseWriter, _ *http.Request) {
 	}
 	respond.Ok(w, rows)
 }
+func ProjectHealth(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.URL.Query().Get("project_id"), 10, 64)
+	if err != nil || id <= 0 {
+		respond.Error(w, error_ext.ValidateError)
+		return
+	}
+	health, err := dataset_repo.Health(id)
+	if err != nil {
+		respond.Error(w, err)
+		return
+	}
+	respond.Ok(w, health)
+}
 func ProjectCreate(w http.ResponseWriter, r *http.Request) {
 	var input projectRequest
 	if err := request.Parse(r, &input); err != nil {

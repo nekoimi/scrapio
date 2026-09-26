@@ -61,7 +61,12 @@ func List(w http.ResponseWriter, r *http.Request) {
 	}
 	page, _ := strconv.Atoi(query.Get("page"))
 	size, _ := strconv.Atoi(query.Get("size"))
-	rows, total, err := record_repo.List(id, page, size)
+	f, err := filterFromQuery(r)
+	if err != nil {
+		respond.InvalidRecord(w, err.Error())
+		return
+	}
+	rows, total, err := record_repo.ListFiltered(f, page, size)
 	if err != nil {
 		respond.Error(w, err)
 		return
