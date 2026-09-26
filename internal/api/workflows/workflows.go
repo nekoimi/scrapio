@@ -40,8 +40,14 @@ type CreateRequest struct {
 }
 
 type VersionRequest struct {
+	WorkflowID    int64  `json:"workflow_id"`
+	Definition    string `json:"definition"`
+	BaseVersionID int64  `json:"base_version_id,omitempty"`
+	ChangeSummary string `json:"change_summary,omitempty"`
+}
+type OwnerRequest struct {
 	WorkflowID int64  `json:"workflow_id"`
-	Definition string `json:"definition"`
+	OwnerName  string `json:"owner_name"`
 }
 type IDRequest struct {
 	ID int64 `json:"id"`
@@ -156,13 +162,27 @@ func CreateVersion(w http.ResponseWriter, r *http.Request) {
 		respond.Error(w, error_ext.ValidateError)
 		return
 	}
-	version, err := workflow_repo.CreateDraft(input.WorkflowID, input.Definition, nil)
+	version, err := workflow_repo.CreateDraftWithBase(input.WorkflowID, input.Definition, nil, input.BaseVersionID, input.ChangeSummary)
 	if err != nil {
 		respond.Error(w, err)
 		return
 	}
 	_ = audit_repo.Record(middleware.RequestID(r.Context()), "workflow.version_created", "workflow", &input.WorkflowID, map[string]any{"version_id": version.Id})
 	respond.Ok(w, version)
+}
+
+func UpdateOwner(w http.ResponseWriter, r *http.Request) {
+	input := new(OwnerRequest)
+	if err := request.Parse(r, input); err != nil || input.WorkflowID <= 0 {
+		respond.Error(w, error_ext.ValidateError)
+		return
+	}
+	if err := workflow_repo.UpdateOwner(input.WorkflowID, input.OwnerName); err != nil {
+		respond.Error(w, err)
+		return
+	}
+	_ = audit_repo.Record(middleware.RequestID(r.Context()), "workflow.owner_updated", "workflow", &input.WorkflowID, map[string]any{"owner_name": input.OwnerName})
+	respond.Ok(w, nil)
 }
 
 func Run(w http.ResponseWriter, r *http.Request) {

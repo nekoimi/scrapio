@@ -23,6 +23,7 @@ type Workflow struct {
 	SourceId           int64     `xorm:"source_id" json:"source_id"`
 	Code               string    `json:"code"`
 	Name               string    `json:"name"`
+	OwnerName          string    `xorm:"owner_name" json:"owner_name"`
 	ResourceType       string    `xorm:"resource_type" json:"resource_type"`
 	Enabled            bool      `json:"enabled"`
 	PublishedVersionId *int64    `xorm:"published_version_id" json:"published_version_id,omitempty"`
@@ -33,14 +34,15 @@ type Workflow struct {
 func (Workflow) TableName() string { return "workflows" }
 
 type WorkflowVersion struct {
-	Id          int64      `json:"id"`
-	WorkflowId  int64      `xorm:"workflow_id" json:"workflow_id"`
-	Version     int        `json:"version"`
-	Status      string     `json:"status"`
-	Definition  string     `xorm:"jsonb" json:"definition"`
-	CreatedBy   *int64     `xorm:"created_by" json:"created_by,omitempty"`
-	CreatedAt   time.Time  `json:"created_at"`
-	PublishedAt *time.Time `xorm:"published_at" json:"published_at,omitempty"`
+	Id            int64      `json:"id"`
+	WorkflowId    int64      `xorm:"workflow_id" json:"workflow_id"`
+	Version       int        `json:"version"`
+	Status        string     `json:"status"`
+	Definition    string     `xorm:"jsonb" json:"definition"`
+	ChangeSummary string     `xorm:"change_summary" json:"change_summary"`
+	CreatedBy     *int64     `xorm:"created_by" json:"created_by,omitempty"`
+	CreatedAt     time.Time  `json:"created_at"`
+	PublishedAt   *time.Time `xorm:"published_at" json:"published_at,omitempty"`
 }
 
 func (WorkflowVersion) TableName() string { return "workflow_versions" }

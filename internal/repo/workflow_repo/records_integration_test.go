@@ -19,8 +19,8 @@ import (
 )
 
 func TestDevRecordTemplatePublication(t *testing.T) {
-	if os.Getenv("SCRAPIO_TEST_DEV_A04") != "1" && os.Getenv("SCRAPIO_TEST_DEV_C01") != "1" && os.Getenv("SCRAPIO_TEST_DEV_C02") != "1" {
-		t.Skip("set SCRAPIO_TEST_DEV_C02=1 to test config/dev.yaml PostgreSQL")
+	if os.Getenv("SCRAPIO_TEST_DEV_A04") != "1" && os.Getenv("SCRAPIO_TEST_DEV_C01") != "1" && os.Getenv("SCRAPIO_TEST_DEV_C02") != "1" && os.Getenv("SCRAPIO_TEST_DEV_C04") != "1" {
+		t.Skip("set SCRAPIO_TEST_DEV_C04=1 to test config/dev.yaml PostgreSQL")
 	}
 	previous := log.GetLevel()
 	defer log.SetLevel(previous)
@@ -172,6 +172,18 @@ func TestDevRecordTemplatePublication(t *testing.T) {
 		validDraft, err := CreateDraft(owner.Id, string(encoded), nil)
 		if err != nil {
 			t.Fatal(err)
+		}
+		if _, err := CreateDraftWithBase(owner.Id, string(encoded), nil, version.Id, "stale edit"); err == nil {
+			t.Fatal("stale draft was accepted")
+		}
+		if next, err := CreateDraftWithBase(owner.Id, string(encoded), nil, validDraft.Id, "C04 change summary"); err != nil || next.ChangeSummary != "C04 change summary" {
+			t.Fatalf("version summary: %+v %v", next, err)
+		}
+		if err := UpdateOwner(owner.Id, "C04 maintainer"); err != nil {
+			t.Fatal(err)
+		}
+		if updated, has, err := Get(owner.Id); err != nil || !has || updated.OwnerName != "C04 maintainer" {
+			t.Fatalf("owner: %+v %v", updated, err)
 		}
 		var documentID int64
 		if err := raw.QueryRow(`INSERT INTO documents(task_id,document_type,content,content_size,metadata) VALUES($1,$2,$3,$4,'{}'::jsonb) RETURNING id`, task.Id, contentType, content, len(content)).Scan(&documentID); err != nil {

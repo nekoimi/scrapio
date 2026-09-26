@@ -3,12 +3,28 @@ package documents
 import (
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/nekoimi/scrapio/internal/db"
 	"github.com/nekoimi/scrapio/internal/db/table"
 	"github.com/nekoimi/scrapio/internal/pkg/error_ext"
 	"github.com/nekoimi/scrapio/internal/pkg/respond"
+	"github.com/nekoimi/scrapio/internal/repo/task_repo"
 )
+
+func RetentionPreview(w http.ResponseWriter, r *http.Request) {
+	days, err := strconv.Atoi(r.URL.Query().Get("days"))
+	if err != nil || days < 1 || days > 3650 {
+		respond.Error(w, error_ext.ValidateError)
+		return
+	}
+	result, err := task_repo.PreviewDocumentRetention(time.Now().AddDate(0, 0, -days))
+	if err != nil {
+		respond.Error(w, err)
+		return
+	}
+	respond.Ok(w, result)
+}
 
 func List(w http.ResponseWriter, r *http.Request) {
 	page, _ := strconv.Atoi(r.URL.Query().Get("page"))

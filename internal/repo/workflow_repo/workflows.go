@@ -199,6 +199,13 @@ func Create(input CreateWorkflowInput) (*table.Workflow, *table.WorkflowVersion,
 }
 
 func CreateDraft(workflowID int64, definition string, createdBy *int64) (*table.WorkflowVersion, error) {
+	return CreateDraftWithBase(workflowID, definition, createdBy, 0, "")
+}
+
+func CreateDraftWithBase(workflowID int64, definition string, createdBy *int64, baseVersionID int64, summary string) (*table.WorkflowVersion, error) {
+	if len(strings.TrimSpace(summary)) > 500 {
+		return nil, errors.New("change summary is too long")
+	}
 	if _, has, err := Get(workflowID); err != nil || !has {
 		if err != nil {
 			return nil, err
@@ -208,15 +215,52 @@ func CreateDraft(workflowID int64, definition string, createdBy *int64) (*table.
 	if _, err := workflow.ParseDefinition(definition); err != nil {
 		return nil, err
 	}
-	var latest struct {
-		Version int `xorm:"version"`
-	}
-	if _, err := db.Instance().Table(new(table.WorkflowVersion)).Select("COALESCE(MAX(version), 0) AS version").Where("workflow_id = ?", workflowID).Get(&latest); err != nil {
+	s := db.Instance().NewSession()
+	defer s.Close()
+	if err := s.Begin(); err != nil {
 		return nil, err
 	}
-	version := &table.WorkflowVersion{WorkflowId: workflowID, Version: latest.Version + 1, Status: VersionDraft, Definition: definition, CreatedBy: createdBy, CreatedAt: time.Now()}
-	_, err := db.Instance().InsertOne(version)
-	return version, err
+	defer s.Rollback()
+	locked, err := s.QueryString("SELECT id FROM workflows WHERE id=? FOR UPDATE", workflowID)
+	if err != nil {
+		return nil, err
+	}
+	if len(locked) == 0 {
+		return nil, errors.New("workflow not found")
+	}
+	var latest struct {
+		Id      int64 `xorm:"id"`
+		Version int   `xorm:"version"`
+	}
+	if _, err := s.Table(new(table.WorkflowVersion)).Select("id,version").Where("workflow_id = ?", workflowID).Desc("version").Limit(1).Get(&latest); err != nil {
+		return nil, err
+	}
+	if baseVersionID > 0 && latest.Id != baseVersionID {
+		return nil, errors.New("draft conflict: a newer version exists; refresh before saving")
+	}
+	version := &table.WorkflowVersion{WorkflowId: workflowID, Version: latest.Version + 1, Status: VersionDraft, Definition: definition, ChangeSummary: strings.TrimSpace(summary), CreatedBy: createdBy, CreatedAt: time.Now()}
+	if _, err := s.Insert(version); err != nil {
+		return nil, err
+	}
+	if err := s.Commit(); err != nil {
+		return nil, err
+	}
+	return version, nil
+}
+
+func UpdateOwner(workflowID int64, owner string) error {
+	owner = strings.TrimSpace(owner)
+	if workflowID <= 0 || len(owner) > 128 {
+		return errors.New("invalid workflow owner")
+	}
+	changed, err := db.Instance().ID(workflowID).Cols("owner_name", "updated_at").Update(&table.Workflow{OwnerName: owner, UpdatedAt: time.Now()})
+	if err != nil {
+		return err
+	}
+	if changed == 0 {
+		return errors.New("workflow not found")
+	}
+	return nil
 }
 
 func ValidateVersion(id int64) error {

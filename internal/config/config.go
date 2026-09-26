@@ -33,7 +33,8 @@ type Config struct {
 	// DownloadConfig is retained for the future delivery plugin only.
 	Download *DownloadConfig `json:"download,omitempty" mapstructure:"download"`
 	// 采集配置
-	Crawler *CrawlerConfig `json:"crawler,omitempty" mapstructure:"crawler"`
+	Crawler   *CrawlerConfig   `json:"crawler,omitempty" mapstructure:"crawler"`
+	Retention *RetentionConfig `json:"retention,omitempty" mapstructure:"retention"`
 	// 数据库配置
 	DB *DBConfig `json:"db,omitempty" mapstructure:"db"`
 	// 调试 API 配置
@@ -116,6 +117,10 @@ type CrawlerConfig struct {
 	DrissionRodGrpcPort int    `json:"drission_rod_grpc_port,omitempty" mapstructure:"drission_rod_grpc_port"`
 }
 
+type RetentionConfig struct {
+	DocumentDays int `json:"document_days" mapstructure:"document_days"`
+}
+
 // DBConfig 数据库相关配置
 type DBConfig struct {
 	// 数据库连接配置
@@ -138,6 +143,7 @@ func Load() *Config {
 	v.SetDefault("jwt_secret", "abc123456")
 	v.SetDefault("crawler.exec_on_startup", false)
 	v.SetDefault("crawler.worker_num", 4)
+	v.SetDefault("retention.document_days", 0)
 
 	// 加载 YAML 配置文件
 	loadYamlFile(v)
@@ -148,6 +154,7 @@ func Load() *Config {
 	v.BindEnv("log_rotation.compress")
 	v.BindEnv("crawler.exec_on_startup")
 	v.BindEnv("crawler.worker_num")
+	v.BindEnv("retention.document_days")
 	v.BindEnv("crawler.drission_rod_grpc_ip")
 	v.BindEnv("crawler.drission_rod_grpc_port")
 	v.BindEnv("db.dsn")

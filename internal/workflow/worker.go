@@ -623,13 +623,19 @@ func saveDocument(s *xorm.Session, taskID int64, pageURL string, result FetchRes
 	if content == "" {
 		return 0, errors.New("fetch returned empty document")
 	}
+	if len(content) > 10*1024*1024 {
+		return 0, errors.New("document exceeds 10 MiB storage limit")
+	}
+	if len(result.Screenshot) > 10*1024*1024 {
+		return 0, errors.New("screenshot exceeds 10 MiB storage limit")
+	}
 	hash := sha256.Sum256([]byte(content))
 	metadata, _ := json.Marshal(map[string]any{"url": pageURL, "requested_url": result.RequestedURL, "final_url": result.FinalURL, "adapter": result.Adapter, "status_code": result.StatusCode, "content_type": result.ContentType, "request_id": result.RequestID, "duration_ms": result.Duration.Milliseconds(), "action_results": result.Actions})
 	document := &table.Document{TaskId: &taskID, DocumentType: documentType, Content: content, ContentHash: hex.EncodeToString(hash[:]), ContentSize: int64(len(content)), Metadata: string(metadata), CreatedAt: time.Now()}
 	if _, err := s.InsertOne(document); err != nil {
 		return 0, err
 	}
-	if len(result.Screenshot) > 0 && len(result.Screenshot) <= 10*1024*1024 {
+	if len(result.Screenshot) > 0 {
 		assetHash := sha256.Sum256(result.Screenshot)
 		_, err := s.Exec(`INSERT INTO document_assets (document_id, asset_type, content_type, content, content_hash, content_size, metadata) VALUES (?, 'screenshot', 'image/png', ?, ?, ?, '{}'::jsonb) ON CONFLICT (document_id, asset_type) DO UPDATE SET content = EXCLUDED.content, content_hash = EXCLUDED.content_hash, content_size = EXCLUDED.content_size`, document.Id, result.Screenshot, hex.EncodeToString(assetHash[:]), len(result.Screenshot))
 		if err != nil {

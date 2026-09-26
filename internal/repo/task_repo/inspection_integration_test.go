@@ -15,8 +15,8 @@ import (
 )
 
 func TestDevRunInspection(t *testing.T) {
-	if os.Getenv("SCRAPIO_TEST_DEV_B05") != "1" {
-		t.Skip("set SCRAPIO_TEST_DEV_B05=1 to test development PostgreSQL")
+	if os.Getenv("SCRAPIO_TEST_DEV_B05") != "1" && os.Getenv("SCRAPIO_TEST_DEV_C04") != "1" {
+		t.Skip("set SCRAPIO_TEST_DEV_C04=1 to test development PostgreSQL")
 	}
 	v := viper.New()
 	v.SetConfigFile("../../../config/dev.yaml")
@@ -90,8 +90,33 @@ func TestDevRunInspection(t *testing.T) {
 	if err = probe.QueryRow("INSERT INTO documents(task_id,document_type,content) VALUES($1,'html','<h1>B05</h1>') RETURNING id", success).Scan(&documentID); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := probe.Exec("UPDATE documents SET created_at=NOW()-INTERVAL '100 days' WHERE id=$1", documentID); err != nil {
+		t.Fatal(err)
+	}
+	orphanID := int64(0)
+	if err := probe.QueryRow("INSERT INTO documents(document_type,content,content_size,created_at) VALUES('html','old orphan',10,NOW()-INTERVAL '100 days') RETURNING id").Scan(&orphanID); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _, _ = probe.Exec("DELETE FROM documents WHERE id=$1", orphanID) }()
 	if _, err = probe.Exec("UPDATE crawl_tasks SET output_document_id=$1 WHERE id=$2", documentID, success); err != nil {
 		t.Fatal(err)
+	}
+	if os.Getenv("SCRAPIO_TEST_DEV_C04") == "1" {
+		cutoff := time.Now().AddDate(0, 0, -90)
+		preview, err := PreviewDocumentRetention(cutoff)
+		if err != nil || preview.Eligible < 1 || preview.Protected < 1 {
+			t.Fatalf("retention preview: %+v %v", preview, err)
+		}
+		if _, err := cleanupExpiredDocuments(cutoff, orphanID); err != nil {
+			t.Fatal(err)
+		}
+		var exists bool
+		if err := probe.QueryRow("SELECT EXISTS(SELECT 1 FROM documents WHERE id=$1)", orphanID).Scan(&exists); err != nil || exists {
+			t.Fatalf("orphan still exists: %v %v", exists, err)
+		}
+		if err := probe.QueryRow("SELECT EXISTS(SELECT 1 FROM documents WHERE id=$1)", documentID).Scan(&exists); err != nil || !exists {
+			t.Fatalf("referenced document deleted: %v %v", exists, err)
+		}
 	}
 	for _, a := range []struct {
 		task             int64

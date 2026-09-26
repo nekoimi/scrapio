@@ -5,8 +5,8 @@ export interface Dataset { id:number; project_id:number; code:string; name:strin
 export interface DatasetField { field_key:string; label:string; field_type:string; required:boolean; multiple:boolean }
 export interface SchemaField { key:string; label:string; type:string; required:boolean; multiple:boolean }
 export interface DatasetSchema { unique_key_fields:string[]; empty_value_policy:string; fields:SchemaField[] }
-export interface Workflow { id:number; project_id?:number; dataset_id?:number; source_id:number; code:string; name:string; resource_type:string; enabled:boolean; published_version_id?:number }
-export interface Version { id:number; workflow_id:number; version:number; status:string; definition:string|Definition; created_at:string }
+export interface Workflow { id:number; project_id?:number; dataset_id?:number; source_id:number; code:string; name:string; owner_name:string; resource_type:string; enabled:boolean; published_version_id?:number }
+export interface Version { id:number; workflow_id:number; version:number; status:string; definition:string|Definition; change_summary:string; created_at:string }
 export interface Definition { persistence:string; trigger:{type:string;url:string;fetch:{mode:string}}; listing?:{detail_selector:string;next_selector?:string;max_pages:number;max_empty_pages:number}; budget?:{max_discovered_per_page:number;max_tasks:number;max_pages:number;max_depth:number;max_duration_seconds:number;max_domains:number;allowed_domains:string[]}; nodes:Array<{name:string;type:string;config:Record<string,any>}> }
 export interface Template { code:string; name:string; description:string; record_type:string; definition:Definition }
 export type SampleOutcome = 'success'|'error'|'empty_list';
@@ -60,7 +60,9 @@ export const api={
  saveQuality:(value:QualityThreshold)=>post<QualityThreshold>('/api/v2/workflows/quality/save',value),
  templates:()=>get<{list:Template[]}>('/api/v2/workflows/templates'),
  createWorkflow:(data:any)=>post<{workflow:Workflow;version:Version}>('/api/v2/workflows/create',data),
- createVersion:(workflow_id:number,definition:string)=>post<Version>('/api/v2/workflows/versions/create',{workflow_id,definition}),
+ createVersion:(workflow_id:number,definition:string,base_version_id=0,change_summary='')=>post<Version>('/api/v2/workflows/versions/create',{workflow_id,definition,base_version_id,change_summary}),
+ updateWorkflowOwner:(workflow_id:number,owner_name:string)=>post<void>('/api/v2/workflows/owner/update',{workflow_id,owner_name}),
+ documentRetentionPreview:(days:number)=>get<{cutoff:string;eligible:number;protected:number;bytes:number}>('/api/v2/documents/retention/preview',{days}),
  rollbackVersion:(id:number)=>post<Version>('/api/v2/workflows/versions/rollback',{id}),
  compareSamples:(left_version_id:number,right_version_id:number,sample_version_id:number)=>post<VersionSampleComparison>('/api/v2/workflows/versions/compare-samples',{left_version_id,right_version_id,sample_version_id}),
  validate:(id:number)=>post<void>('/api/v2/workflows/versions/validate',{id}),
