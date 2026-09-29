@@ -104,8 +104,11 @@ router.beforeEach(async (to, from, next) => {
 			Session.clear();
 			NProgress.done();
 		} else if (token && to.path === '/login') {
-			next('/workspace/projects');
+			next('/app/home');
 			NProgress.done();
+		} else if (to.path === '/app' || to.path.startsWith('/app/')) {
+			// The new product shell has a stable static route and no legacy menu dependency.
+			next();
 		} else {
 			const storesRoutesList = useRoutesList(pinia);
 			const { routesList } = storeToRefs(storesRoutesList);

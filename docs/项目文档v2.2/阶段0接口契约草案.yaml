@@ -1,0 +1,408 @@
+openapi: 3.0.3
+info:
+  title: scrapio v2.2 editor contract spike
+  version: 0.1.0-draft
+  description: >-
+    阶段 0 草案；仅覆盖新草稿与交互浏览器最小闭环。尚未联调远程
+    scrapio-browser，不代表现有接口已交付。旧 /api/v1 和 /api/v2 保持独立。
+servers:
+  - url: /api/v3
+security:
+  - bearerAuth: []
+paths:
+  /me:
+    get:
+      summary: 当前登录身份；沿用现有认证
+      responses:
+        '200':
+          description: 身份
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: {type: integer}
+                  username: {type: string}
+  /home:
+    get:
+      summary: 新产品首页状态；数据域未建立时返回 pending
+      responses:
+        '200':
+          description: 首页状态
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: {type: string, enum: [pending, ready]}
+                  reason: {type: string}
+  /capabilities:
+    get:
+      summary: 可用编辑与运行能力
+      responses:
+        '200':
+          description: 能力快照
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CapabilitiesResponse'
+  /collectors:
+    post:
+      summary: 从 URL 创建新产品草稿
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [entry_url, entry_type]
+              properties:
+                entry_url: {type: string, format: uri, maxLength: 2048}
+                entry_type: {type: string, enum: [web, json]}
+                name: {type: string, maxLength: 120}
+      responses:
+        '201':
+          description: 草稿已创建
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DraftResponse'}
+        '400': {$ref: '#/components/responses/Error'}
+        '409': {$ref: '#/components/responses/Error'}
+  /collectors/{collector_id}/draft:
+    parameters:
+      - $ref: '#/components/parameters/CollectorId'
+    get:
+      summary: 读取新草稿
+      responses:
+        '200':
+          description: 草稿
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DraftResponse'}
+        '404': {$ref: '#/components/responses/Error'}
+    put:
+      summary: 按 revision 更新草稿
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [expected_revision, definition]
+              properties:
+                expected_revision: {type: integer, minimum: 1}
+                definition:
+                  $ref: '#/components/schemas/Definition'
+      responses:
+        '200':
+          description: 新 revision
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DraftResponse'}
+        '409': {$ref: '#/components/responses/Error'}
+  /browser-sessions:
+    post:
+      summary: 为指定草稿创建编辑会话
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [collector_id, draft_revision, viewport]
+              properties:
+                collector_id: {type: string}
+                draft_revision: {type: integer, minimum: 1}
+                viewport: {$ref: '#/components/schemas/Viewport'}
+      responses:
+        '201':
+          description: 会话和传输信息
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SessionResponse'}
+        '503': {$ref: '#/components/responses/Error'}
+  /browser-sessions/{session_id}:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+    get:
+      summary: 会话状态
+      responses:
+        '200':
+          description: 状态
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SessionResponse'}
+        '410': {$ref: '#/components/responses/Error'}
+    delete:
+      summary: 关闭编辑会话
+      responses:
+        '204': {description: 已关闭或已过期}
+  /browser-sessions/{session_id}/resume:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+    post:
+      summary: 查询是否可恢复；不可恢复时返回需要重放的检查点
+      responses:
+        '200':
+          description: 恢复信息
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SessionResponse'}
+        '410': {$ref: '#/components/responses/Error'}
+  /browser-sessions/{session_id}/frame:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+      - in: query
+        name: page_state_id
+        required: true
+        schema: {type: string}
+    get:
+      summary: 获取对应页面状态的画面帧；仅为截图轮询候选方案
+      responses:
+        '200':
+          description: 画面帧；X-Page-State-ID 与请求一致
+          headers:
+            X-Page-State-ID:
+              schema: {type: string}
+          content:
+            image/png:
+              schema: {type: string, format: binary}
+        '409': {$ref: '#/components/responses/Error'}
+  /browser-sessions/{session_id}/events:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+      - in: header
+        name: Last-Event-ID
+        required: false
+        schema: {type: string}
+    get:
+      summary: 页面状态和动作回执事件；SSE 为候选方案
+      responses:
+        '200':
+          description: 带事件序号的页面状态更新；超出保留窗口须重新读取会话状态
+          content:
+            text/event-stream:
+              schema: {type: string}
+  /browser-sessions/{session_id}/inspect:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+    post:
+      summary: 只检查元素，不执行网页点击
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [page_state_id, x, y]
+              properties:
+                page_state_id: {type: string}
+                x: {type: number, minimum: 0}
+                y: {type: number, minimum: 0}
+                mode: {type: string, enum: [record, field]}
+      responses:
+        '200':
+          description: 元素候选和样本
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [element_id, page_state_id, match_count, locators]
+                properties:
+                  element_id: {type: string, description: 临时页面元素 ID，不持久化}
+                  page_state_id: {type: string}
+                  match_count: {type: integer, minimum: 0}
+                  sample_values: {type: array, items: {type: string}}
+                  locators: {type: array, items: {$ref: '#/components/schemas/Locator'}}
+        '409': {$ref: '#/components/responses/Error'}
+  /browser-sessions/{session_id}/locator-checks:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+    post:
+      summary: 验证持久化定位器的命中数量和样本，不执行网页动作
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [page_state_id, locator]
+              properties:
+                page_state_id: {type: string}
+                locator: {$ref: '#/components/schemas/Locator'}
+      responses:
+        '200':
+          description: 命中结果
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [page_state_id, match_count]
+                properties:
+                  page_state_id: {type: string}
+                  match_count: {type: integer, minimum: 0}
+                  sample_values: {type: array, items: {type: string}}
+        '409': {$ref: '#/components/responses/Error'}
+  /browser-sessions/{session_id}/commands:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+    post:
+      summary: 执行一次明确的浏览器命令
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CommandRequest'}
+      responses:
+        '202':
+          description: 命令已接受，页面变更由状态事件确认
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [command_id, status]
+                properties:
+                  command_id: {type: string}
+                  status: {type: string, enum: [queued, running, succeeded, failed]}
+        '409': {$ref: '#/components/responses/Error'}
+  /browser-sessions/{session_id}/commands/{command_id}:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+      - in: path
+        name: command_id
+        required: true
+        schema: {type: string}
+    get:
+      summary: 查询动作回执
+      responses:
+        '200':
+          description: 动作结果
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CommandResult'}
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+  parameters:
+    CollectorId:
+      in: path
+      name: collector_id
+      required: true
+      schema: {type: string}
+    SessionId:
+      in: path
+      name: session_id
+      required: true
+      schema: {type: string}
+    IdempotencyKey:
+      in: header
+      name: Idempotency-Key
+      required: true
+      schema: {type: string, maxLength: 128}
+  responses:
+    Error:
+      description: 结构化错误；401/403/404/409/410/503 使用相同结构
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorResponse'}
+  schemas:
+    CapabilitiesResponse:
+      type: object
+      properties:
+        editor_protocol: {type: string, example: editor.v1}
+        browser_ready: {type: boolean}
+        supported_actions: {type: array, items: {type: string}}
+        supports_live_inspection: {type: boolean}
+        definition_versions: {type: array, items: {type: integer}}
+        reason: {type: string}
+    DraftResponse:
+      type: object
+      required: [id, revision, definition]
+      properties:
+        id: {type: string}
+        revision: {type: integer, minimum: 1}
+        definition: {$ref: '#/components/schemas/Definition'}
+    Definition:
+      type: object
+      required: [definition_version, entry_url, steps]
+      properties:
+        definition_version: {type: integer, example: 1}
+        entry_url: {type: string, format: uri}
+        steps:
+          type: array
+          items:
+            type: object
+            required: [step_id, type]
+            properties:
+              step_id: {type: string}
+              type: {type: string, enum: [navigate, action, record, detail, next_page, extract, output]}
+              config: {type: object, additionalProperties: true}
+    Viewport:
+      type: object
+      required: [width, height, device_scale_factor]
+      properties:
+        width: {type: integer, minimum: 320, maximum: 3840}
+        height: {type: integer, minimum: 240, maximum: 2160}
+        device_scale_factor: {type: number, minimum: 0.5, maximum: 4}
+    SessionResponse:
+      type: object
+      required: [session_id, status, expires_at, viewport]
+      properties:
+        session_id: {type: string}
+        status: {type: string, enum: [creating, ready, busy, disconnected, expired, closed, failed]}
+        expires_at: {type: string, format: date-time}
+        page_state_id: {type: string}
+        current_url: {type: string}
+        viewport: {$ref: '#/components/schemas/Viewport'}
+        frame_transport: {type: string, enum: [pending, snapshots, websocket]}
+    Locator:
+      type: object
+      required: [strategy, expression]
+      properties:
+        strategy: {type: string, enum: [css, xpath]}
+        expression: {type: string}
+        relative_to: {type: string, description: 可选的重复记录容器 step_id}
+    CommandRequest:
+      type: object
+      required: [page_state_id, type]
+      properties:
+        page_state_id: {type: string}
+        type: {type: string, enum: [navigate, back, forward, refresh, click, input, wait, scroll]}
+        locator: {$ref: '#/components/schemas/Locator'}
+        value: {type: string, description: 不允许保存密码；敏感值只能使用凭据引用}
+        credential_ref: {type: string}
+        timeout_ms: {type: integer, minimum: 100, maximum: 30000}
+    CommandResult:
+      type: object
+      required: [command_id, status]
+      properties:
+        command_id: {type: string}
+        status: {type: string, enum: [queued, running, succeeded, failed]}
+        before_page_state_id: {type: string}
+        after_page_state_id: {type: string}
+        duration_ms: {type: integer}
+        error: {$ref: '#/components/schemas/ErrorBody'}
+    ErrorResponse:
+      type: object
+      required: [error, request_id]
+      properties:
+        error: {$ref: '#/components/schemas/ErrorBody'}
+        request_id: {type: string}
+    ErrorBody:
+      type: object
+      required: [code, message, retryable]
+      properties:
+        code: {type: string}
+        message: {type: string}
+        retryable: {type: boolean}
+        stage: {type: string}
+        step_id: {type: string}
+        path: {type: string}

@@ -1,0 +1,33 @@
+.scrapio-app { min-height: 100vh; display: flex; background: #f5f6f8; color: #22293a; font-family: Inter, 'Microsoft YaHei', sans-serif; }
+.scrapio-app * { box-sizing: border-box; }
+.app-side { width: 220px; background: #172239; color: #dbe3f2; display: flex; flex-direction: column; padding: 28px 15px; flex-shrink: 0; }
+.app-brand { color: white; display: flex; align-items: center; gap: 12px; font-size: 22px; font-weight: 700; padding: 0 12px 38px; text-decoration: none; }
+.app-brand small { display: block; color: #a8b8d3; font-size: 11px; font-weight: 400; letter-spacing: 2px; margin-top: 2px; }
+.brand-mark { background: #4e6fce; border-radius: 11px; width: 36px; height: 36px; text-align: center; line-height: 36px; }
+.nav-caption { color: #8d9db8; font-size: 11px; letter-spacing: 2px; padding: 0 14px 10px; }
+.app-side nav { display: grid; gap: 5px; }
+.app-side nav a { display: block; border-radius: 9px; padding: 12px 14px; color: #c4cede; text-decoration: none; }
+.app-side nav a.router-link-active { color: #fff; background: #30466e; }
+.side-bottom { margin-top: auto; padding: 20px 12px 0; border-top: 1px solid #34445f; }
+.side-bottom a { color: #c8d6f5; font-size: 12px; text-decoration: none; }
+.app-main { flex: 1; min-width: 0; }
+.app-top { height: 66px; padding: 0 32px; background: #fff; border-bottom: 1px solid #e7eaf0; display: flex; align-items: center; justify-content: space-between; }
+.app-top span { color: #68758a; font-size: 13px; }
+.app-page { max-width: 1140px; padding: 52px 48px; margin: 0 auto; }
+.app-page h1 { font-size: 34px; letter-spacing: -.6px; margin: 10px 0; }
+.app-page h2 { font-size: 18px; margin: 0 0 22px; }
+.eyebrow { color: #4e6fce; font-size: 12px; font-weight: 700; letter-spacing: 2px; }
+.lead, .muted { color: #647086; }
+.lead { margin-bottom: 35px; }
+.app-card { background: #fff; border: 1px solid #e4e8ef; border-radius: 14px; padding: 28px; margin-bottom: 20px; box-shadow: 0 2px 12px #17223908; }
+.app-card label { display: block; margin-bottom: 9px; font-weight: 600; font-size: 13px; }
+.url-row { display: flex; gap: 10px; }
+.url-row input { flex: 1; min-width: 0; padding: 13px 15px; border: 1px solid #d5dce8; border-radius: 8px; }
+.url-row button { border: 0; background: #4567c4; color: white; border-radius: 8px; padding: 0 25px; }
+.url-row button:disabled { opacity: .5; cursor: not-allowed; }
+.app-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.status-wait { color: #9a691b; font-weight: 700; }
+.status-good { color: #287858; font-weight: 700; }
+.app-error { color: #af3e42; }
+.app-error button { margin-left: 10px; }
+@media (max-width: 760px) { .scrapio-app { display: block; } .app-side { width: 100%; padding: 14px; } .app-brand { padding-bottom: 12px; } .app-side nav { display: flex; overflow-x: auto; } .app-side nav a { white-space: nowrap; } .nav-caption, .side-bottom { display: none; } .app-page { padding: 32px 20px; } .app-grid { grid-template-columns: 1fr; } }

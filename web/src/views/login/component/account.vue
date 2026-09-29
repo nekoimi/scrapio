@@ -66,11 +66,9 @@ import {reactive, computed} from 'vue';
 import {useRoute, useRouter} from 'vue-router';
 import {ElMessage} from 'element-plus';
 import {useI18n} from 'vue-i18n';
-import Cookies from 'js-cookie';
 import {storeToRefs} from 'pinia';
 import {useThemeConfig} from '/@/stores/themeConfig';
 import {initFrontEndControlRoutes} from '/@/router/frontEnd';
-import {initBackEndControlRoutes} from '/@/router/backEnd';
 import {Session} from '/@/utils/storage';
 import {formatAxis} from '/@/utils/formatTime';
 import {encodePassword} from "/@/utils/password";
@@ -109,14 +107,17 @@ const onSignIn = async () => {
   }).then(async resp => {
     // 存储 token 到浏览器缓存
     Session.set('token', resp.data.token);
-    // 加载菜单路由
-    const isNoPower = await initFrontEndControlRoutes();
-    if (isNoPower) {
-      ElMessage.warning('没有权限');
-      Session.clear();
-    } else {
-      signInSuccess(resp.data)
+    const redirect = typeof route.query?.redirect === 'string' ? route.query.redirect : '';
+    // Legacy deep links still need their dynamic menu; the new app does not.
+    if (redirect && !redirect.startsWith('/app')) {
+      const isNoPower = await initFrontEndControlRoutes();
+      if (isNoPower) {
+        ElMessage.warning('没有权限');
+        Session.clear();
+        return;
+      }
     }
+    signInSuccess(resp.data);
   }).finally(() => {
     state.loading.signIn = false;
   })
@@ -133,7 +134,7 @@ const signInSuccess = (data: any | undefined) => {
       query: Object.keys(<string>route.query?.params).length > 0 ? JSON.parse(<string>route.query?.params) : '',
     });
   } else {
-    router.push('/');
+    router.push('/app/home');
   }
   // 登录成功提示
   const signInText = t('message.signInText');

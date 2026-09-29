@@ -23,6 +23,7 @@ import (
 	"github.com/nekoimi/scrapio/internal/api/sources"
 	"github.com/nekoimi/scrapio/internal/api/ui"
 	"github.com/nekoimi/scrapio/internal/api/user"
+	"github.com/nekoimi/scrapio/internal/api/v3"
 	"github.com/nekoimi/scrapio/internal/api/workflows"
 	"github.com/nekoimi/scrapio/internal/bean"
 	"github.com/nekoimi/scrapio/internal/config"
@@ -63,6 +64,10 @@ func newRouter(ctx context.Context, cfg *config.Config) *mux.Router {
 	{
 		// 登出
 		apiRoute.HandleFunc("/auth/logout", auth.Logout)
+		v3Api := apiRoute.PathPrefix("/v3").Subrouter()
+		v3Api.HandleFunc("/me", v3.Me).Methods("GET")
+		v3Api.HandleFunc("/capabilities", v3.Capabilities).Methods("GET")
+		v3Api.HandleFunc("/home", v3.Home).Methods("GET")
 
 		v1Api := apiRoute.PathPrefix("/v1").Subrouter()
 		{
@@ -184,11 +189,27 @@ func newRouter(ctx context.Context, cfg *config.Config) *mux.Router {
 	}
 
 	// 静态资源
+	// The current Vue bundle uses hash history. Keep /app deep links usable
+	// until the new application can be served with its own history fallback.
+	r.HandleFunc("/app", appEntry).Methods("GET")
+	r.PathPrefix("/app/").HandlerFunc(appEntry).Methods("GET")
 	r.PathPrefix("/").Handler(ui.AdminUI(uiDir))
 
 	debugRoute(r)
 
 	return r
+}
+
+func appEntry(w http.ResponseWriter, r *http.Request) {
+	path := r.URL.Path
+	if path == "/app" || path == "/app/" {
+		path = "/app/home"
+	}
+	target := "/#" + path
+	if r.URL.RawQuery != "" {
+		target += "?" + r.URL.RawQuery
+	}
+	http.Redirect(w, r, target, http.StatusFound)
 }
 
 func debugRoute(r *mux.Router) {

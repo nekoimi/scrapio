@@ -1,9 +1,9 @@
 <template>
 	<el-config-provider :size="getGlobalComponentSize" :locale="getGlobalI18n">
-		<router-view v-show="setLockScreen" />
-		<LockScreen v-if="themeConfig.isLockScreen" />
-		<Setings ref="setingsRef" v-show="setLockScreen" />
-		<CloseFull v-if="!themeConfig.isLockScreen" />
+		<router-view v-show="isNewApp || setLockScreen" />
+		<LockScreen v-if="!isNewApp && themeConfig.isLockScreen" />
+		<Setings v-if="!isNewApp" ref="setingsRef" v-show="setLockScreen" />
+		<CloseFull v-if="!isNewApp && !themeConfig.isLockScreen" />
 	</el-config-provider>
 </template>
 
@@ -28,6 +28,7 @@ const CloseFull = defineAsyncComponent(() => import('/@/layout/navBars/topBar/cl
 const { messages, locale } = useI18n();
 const setingsRef = ref();
 const route = useRoute();
+const isNewApp = computed(() => route.path === '/app' || route.path.startsWith('/app/'));
 const stores = useTagsViewRoutes();
 const storesThemeConfig = useThemeConfig();
 const { themeConfig } = storeToRefs(storesThemeConfig);
@@ -58,7 +59,7 @@ onMounted(() => {
 	nextTick(() => {
 		// 监听布局配'置弹窗点击打开
 		mittBus.on('openSetingsDrawer', () => {
-			setingsRef.value.openDrawer();
+			setingsRef.value?.openDrawer();
 		});
 		// 获取缓存中的布局配置
 		if (Local.get('themeConfig')) {
