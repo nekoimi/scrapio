@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/nekoimi/scrapio/internal/pkg/error_ext"
 	"github.com/nekoimi/scrapio/internal/pkg/jwt"
@@ -24,12 +25,20 @@ func AuthMiddleware(next http.Handler) http.Handler {
 		}
 
 		if token == "" {
+			if strings.HasPrefix(r.URL.Path, "/api/v3") {
+				respond.V3Error(w, r, http.StatusUnauthorized, "UNAUTHENTICATED", "身份认证异常", false)
+				return
+			}
 			respond.Error(w, error_ext.AuthenticationError)
 			return
 		}
 
 		sub, err := jwt.ParseToken(token)
 		if err != nil {
+			if strings.HasPrefix(r.URL.Path, "/api/v3") {
+				respond.V3Error(w, r, http.StatusUnauthorized, "UNAUTHENTICATED", "认证信息无效或已过期", false)
+				return
+			}
 			if errors.Is(err, jwt.TokenExpireError) {
 				respond.Error(w, error_ext.AuthenticationExpirseError)
 			} else {

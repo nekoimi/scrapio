@@ -70,6 +70,18 @@ paths:
               schema: {$ref: '#/components/schemas/DraftResponse'}
         '400': {$ref: '#/components/responses/Error'}
         '409': {$ref: '#/components/responses/Error'}
+    get:
+      summary: 当前用户的新采集方案列表
+      responses:
+        '200':
+          description: 方案列表
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: {type: array, items: {$ref: '#/components/schemas/Collector'}}
+                  has_more: {type: boolean}
   /collectors/{collector_id}/draft:
     parameters:
       - $ref: '#/components/parameters/CollectorId'
@@ -102,6 +114,15 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/DraftResponse'}
         '409': {$ref: '#/components/responses/Error'}
+  /collectors/{collector_id}/archive:
+    parameters:
+      - $ref: '#/components/parameters/CollectorId'
+    post:
+      summary: 归档当前用户的草稿
+      responses:
+        '200':
+          description: 已归档
+        '404': {$ref: '#/components/responses/Error'}
   /browser-sessions:
     post:
       summary: 为指定草稿创建编辑会话
@@ -330,6 +351,17 @@ components:
         id: {type: string}
         revision: {type: integer, minimum: 1}
         definition: {$ref: '#/components/schemas/Definition'}
+    Collector:
+      type: object
+      required: [id, name, entry_url, entry_type, status, revision, definition]
+      properties:
+        id: {type: integer}
+        name: {type: string}
+        entry_url: {type: string, format: uri}
+        entry_type: {type: string, enum: [web, json]}
+        status: {type: string, enum: [draft, published, archived]}
+        revision: {type: integer, minimum: 1}
+        definition: {type: object}
     Definition:
       type: object
       required: [definition_version, entry_url, steps]

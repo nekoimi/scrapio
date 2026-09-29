@@ -1364,7 +1364,8 @@ export const staticRoutes: Array<RouteRecordRaw> = [
 		redirect: '/app/home',
 		children: [
 			{ path: 'home', name: 'v22Home', component: () => import('/@/views/app/home.vue'), meta: { title: '首页' } },
-			{ path: 'collectors', name: 'v22Collectors', component: () => import('/@/views/app/pending.vue'), props: { section: '采集方案' }, meta: { title: '采集方案' } },
+			{ path: 'collectors', name: 'v22Collectors', component: () => import('/@/views/app/collectors.vue'), meta: { title: '采集方案' } },
+			{ path: 'collectors/:id', name: 'v22CollectorDetail', component: () => import('/@/views/app/collector-detail.vue'), meta: { title: '采集方案' } },
 			{ path: 'data', name: 'v22Data', component: () => import('/@/views/app/pending.vue'), props: { section: '数据' }, meta: { title: '数据' } },
 			{ path: 'runs', name: 'v22Runs', component: () => import('/@/views/app/pending.vue'), props: { section: '运行' }, meta: { title: '运行' } },
 			{ path: 'settings', name: 'v22Settings', component: () => import('/@/views/app/pending.vue'), props: { section: '设置' }, meta: { title: '设置' } },

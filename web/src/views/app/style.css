@@ -23,11 +23,23 @@
 .app-card label { display: block; margin-bottom: 9px; font-weight: 600; font-size: 13px; }
 .url-row { display: flex; gap: 10px; }
 .url-row input { flex: 1; min-width: 0; padding: 13px 15px; border: 1px solid #d5dce8; border-radius: 8px; }
-.url-row button { border: 0; background: #4567c4; color: white; border-radius: 8px; padding: 0 25px; }
+.url-row select, .url-row button { border: 0; border-radius: 8px; padding: 0 15px; }
+.url-row select { border: 1px solid #d5dce8; background: white; }
+.url-row button { background: #4567c4; color: white; padding: 0 25px; }
 .url-row button:disabled { opacity: .5; cursor: not-allowed; }
 .app-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
 .status-wait { color: #9a691b; font-weight: 700; }
 .status-good { color: #287858; font-weight: 700; }
 .app-error { color: #af3e42; }
+.full-input, .definition-editor { width: 100%; border: 1px solid #d5dce8; border-radius: 8px; padding: 12px; margin: 8px 0 20px; font: inherit; }
+.definition-editor { min-height: 300px; font-family: ui-monospace, Consolas, monospace; resize: vertical; }
+.editor-actions { display: flex; align-items: center; gap: 18px; }
+.editor-actions button { border: 0; background: #4567c4; color: white; border-radius: 8px; padding: 11px 20px; }
+.editor-actions a { color: #4567c4; }
+.collector-list { padding: 10px 28px; }
+.collector-row { display: flex; justify-content: space-between; gap: 20px; align-items: center; padding: 18px 0; border-bottom: 1px solid #edf0f5; }
+.collector-row:last-child { border-bottom: 0; }
+.collector-row span, .collector-row small { display: block; color: #718097; font-size: 12px; margin-top: 6px; }
+.collector-row a { display: block; margin-top: 8px; color: #4567c4; font-size: 13px; }
 .app-error button { margin-left: 10px; }
 @media (max-width: 760px) { .scrapio-app { display: block; } .app-side { width: 100%; padding: 14px; } .app-brand { padding-bottom: 12px; } .app-side nav { display: flex; overflow-x: auto; } .app-side nav a { white-space: nowrap; } .nav-caption, .side-bottom { display: none; } .app-page { padding: 32px 20px; } .app-grid { grid-template-columns: 1fr; } }

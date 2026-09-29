@@ -1,27 +1,21 @@
 package v3
 
-import (
-	"net/http"
-
-	"github.com/nekoimi/scrapio/internal/db/table"
-	"github.com/nekoimi/scrapio/internal/pkg/request"
-	"github.com/nekoimi/scrapio/internal/pkg/respond"
-)
+import "net/http"
 
 // Me keeps the v2.2 identity contract independent from legacy menu roles.
 func Me(w http.ResponseWriter, r *http.Request) {
-	subject, ok := request.JwtUser(w, r)
-	if !ok {
+	admin, authenticated := owner(r)
+	if !authenticated {
+		fail(w, r, http.StatusUnauthorized, "UNAUTHENTICATED", "身份认证异常", false, "auth", "")
 		return
 	}
-	admin := subject.(*table.Admin)
-	respond.Ok(w, map[string]any{"id": admin.Id, "username": admin.Username})
+	ok(w, r, map[string]any{"id": admin.Id, "username": admin.Username})
 }
 
 // Capabilities describes only capabilities available in the new product domain.
 // The existing one-shot browser Execute RPC does not provide an editor session.
-func Capabilities(w http.ResponseWriter, _ *http.Request) {
-	respond.Ok(w, map[string]any{
+func Capabilities(w http.ResponseWriter, r *http.Request) {
+	ok(w, r, map[string]any{
 		"editor_protocol":          "unavailable",
 		"browser_ready":            false,
 		"supported_actions":        []string{},
@@ -33,8 +27,8 @@ func Capabilities(w http.ResponseWriter, _ *http.Request) {
 
 // Home exposes an explicit pending state until the v2.2 data domain exists.
 // Returning zero counts here would misleadingly imply an empty new database.
-func Home(w http.ResponseWriter, _ *http.Request) {
-	respond.Ok(w, map[string]any{
+func Home(w http.ResponseWriter, r *http.Request) {
+	ok(w, r, map[string]any{
 		"status": "pending",
 		"reason": "新采集方案和数据域尚未接入",
 	})

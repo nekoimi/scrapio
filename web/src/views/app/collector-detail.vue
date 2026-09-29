@@ -1,0 +1,11 @@
+<template>
+  <div class="app-page"><div class="eyebrow">SCRAPIO / V2.2 / DRAFT</div><h1>{{ draft?.name || '采集方案' }}</h1><p class="lead">入口：{{ draft?.entry_url }} · revision {{ draft?.revision }}</p><section class="app-card"><label for="collector-name">方案名称</label><input id="collector-name" v-model="name" class="full-input" /><label for="collector-definition">定义 JSON</label><textarea id="collector-definition" v-model="definitionText" class="definition-editor" spellcheck="false" /><div class="editor-actions"><button :disabled="saving" @click="save">{{ saving ? '保存中…' : '保存草稿' }}</button><router-link to="/app/collectors">返回方案列表</router-link></div><p class="muted">保存使用 expected_revision；如果版本冲突，会保留当前草稿并要求重新加载。</p></section><p v-if="message" class="status-good">{{ message }}</p><p v-if="error" class="app-error" role="alert">{{ error }}</p></div>
+</template>
+<script setup lang="ts">
+import { onMounted, ref } from 'vue';
+import { useRoute } from 'vue-router';
+import { appApi, type Collector } from './api';
+const route = useRoute(); const draft = ref<Collector>(); const name = ref(''); const definitionText = ref(''); const saving = ref(false); const message = ref(''); const error = ref('');
+onMounted(async () => { try { draft.value = await appApi.collector(Number(route.params.id)); name.value = draft.value.name; definitionText.value = JSON.stringify(typeof draft.value.definition === 'string' ? JSON.parse(draft.value.definition) : draft.value.definition, null, 2); } catch { error.value = '无法读取草稿。'; } });
+async function save() { if (!draft.value || saving.value) return; message.value = ''; error.value = ''; let definition: Record<string, any>; try { definition = JSON.parse(definitionText.value); } catch { error.value = '定义 JSON 格式不正确。'; return; } saving.value = true; try { draft.value = await appApi.updateCollector(draft.value.id, { name: name.value, expected_revision: draft.value.revision, definition }); definitionText.value = JSON.stringify(typeof draft.value.definition === 'string' ? JSON.parse(draft.value.definition) : draft.value.definition, null, 2); message.value = `已保存 revision ${draft.value.revision}`; } catch { error.value = '保存失败，可能是草稿版本冲突，请刷新后重试。'; } finally { saving.value = false; } }
+</script>

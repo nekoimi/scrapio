@@ -8,6 +8,36 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+type V3ErrorResponse struct {
+	Error     V3ErrorDetail `json:"error"`
+	RequestID string        `json:"request_id,omitempty"`
+}
+
+type V3ErrorDetail struct {
+	Code      string `json:"code"`
+	Message   string `json:"message"`
+	Retryable bool   `json:"retryable"`
+	Stage     string `json:"stage,omitempty"`
+	Path      string `json:"path,omitempty"`
+}
+
+// V3Error writes the stable v2.2 error envelope without changing legacy APIs.
+func V3Error(w http.ResponseWriter, r *http.Request, status int, code, message string, retryable bool) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(V3ErrorResponse{Error: V3ErrorDetail{Code: code, Message: message, Retryable: retryable}, RequestID: requestID(r)})
+}
+
+func requestID(r *http.Request) string {
+	if r == nil {
+		return ""
+	}
+	if value, ok := r.Context().Value("request_id").(string); ok {
+		return value
+	}
+	return r.Header.Get("X-Request-ID")
+}
+
 type JsonResponse struct {
 	Code int    `json:"code"`
 	Msg  string `json:"msg,omitempty"`

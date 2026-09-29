@@ -68,6 +68,11 @@ func newRouter(ctx context.Context, cfg *config.Config) *mux.Router {
 		v3Api.HandleFunc("/me", v3.Me).Methods("GET")
 		v3Api.HandleFunc("/capabilities", v3.Capabilities).Methods("GET")
 		v3Api.HandleFunc("/home", v3.Home).Methods("GET")
+		v3Api.HandleFunc("/collectors", v3.CreateCollector).Methods("POST")
+		v3Api.HandleFunc("/collectors", v3.ListCollectors).Methods("GET")
+		v3Api.HandleFunc("/collectors/{collector_id}/draft", v3.GetCollectorDraft).Methods("GET")
+		v3Api.HandleFunc("/collectors/{collector_id}/draft", v3.UpdateCollectorDraft).Methods("PUT")
+		v3Api.HandleFunc("/collectors/{collector_id}/archive", v3.ArchiveCollector).Methods("POST")
 
 		v1Api := apiRoute.PathPrefix("/v1").Subrouter()
 		{
