@@ -1,6 +1,7 @@
 package v22_collector_repo
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -26,19 +27,82 @@ type UpdateInput struct {
 }
 
 type Collector struct {
-	ID         string          `json:"id"`
-	Name       string          `json:"name"`
-	EntryURL   string          `json:"entry_url"`
-	EntryType  string          `json:"entry_type"`
-	Status     string          `json:"status"`
-	Definition json.RawMessage `json:"definition"`
-	Revision   int             `json:"revision"`
-	CreatedAt  time.Time       `json:"created_at"`
-	UpdatedAt  time.Time       `json:"updated_at"`
+	ID               string          `json:"id"`
+	Name             string          `json:"name"`
+	EntryURL         string          `json:"entry_url"`
+	EntryType        string          `json:"entry_type"`
+	Status           string          `json:"status"`
+	Definition       json.RawMessage `json:"definition"`
+	Revision         int             `json:"revision"`
+	ValidationStatus string          `json:"validation_status"`
+	ValidationErrors []string        `json:"validation_errors"`
+	SaveSummary      *SaveSummary    `json:"save_summary,omitempty"`
+	CreatedAt        time.Time       `json:"created_at"`
+	UpdatedAt        time.Time       `json:"updated_at"`
+}
+
+type SaveSummary struct {
+	Revision      int       `json:"revision"`
+	ChangedFields []string  `json:"changed_fields"`
+	SavedAt       time.Time `json:"saved_at"`
+}
+
+type ValidationResult struct {
+	Valid  bool     `json:"valid"`
+	Errors []string `json:"errors"`
+}
+
+type ListPage struct {
+	Items      []table.V22Collector
+	NextCursor string
+	HasMore    bool
 }
 
 func ToDTO(row *table.V22Collector) Collector {
-	return Collector{ID: strconv.FormatInt(row.Id, 10), Name: row.Name, EntryURL: row.EntryURL, EntryType: row.EntryType, Status: row.Status, Definition: json.RawMessage(row.Definition), Revision: row.Revision, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
+	status, errors := validationState(row)
+	return Collector{ID: strconv.FormatInt(row.Id, 10), Name: row.Name, EntryURL: row.EntryURL, EntryType: row.EntryType, Status: row.Status, Definition: json.RawMessage(row.Definition), Revision: row.Revision, ValidationStatus: status, ValidationErrors: errors, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
+}
+
+func validationState(row *table.V22Collector) (string, []string) {
+	if row.ValidatedRevision == 0 {
+		return "not_validated", []string{}
+	}
+	var result ValidationResult
+	if json.Unmarshal([]byte(row.ValidationSummary), &result) != nil {
+		return "stale", []string{}
+	}
+	if row.ValidatedRevision != row.Revision {
+		return "stale", result.Errors
+	}
+	if !result.Valid {
+		return "invalid", result.Errors
+	}
+	return "valid", []string{}
+}
+
+func validateDefinition(raw json.RawMessage, entryURL string) ValidationResult {
+	var definition map[string]any
+	if err := json.Unmarshal(raw, &definition); err != nil || definition == nil {
+		return ValidationResult{Errors: []string{"definition must be a JSON object"}}
+	}
+	if version, ok := definition["definition_version"].(float64); !ok || version != 1 {
+		return ValidationResult{Errors: []string{"definition_version must be 1"}}
+	}
+	value, ok := definition["entry_url"].(string)
+	if !ok || strings.TrimSpace(value) != strings.TrimSpace(entryURL) {
+		return ValidationResult{Errors: []string{"definition.entry_url must match collector entry_url"}}
+	}
+	if _, err := url.ParseRequestURI(entryURL); err != nil {
+		return ValidationResult{Errors: []string{"entry_url must be an absolute http(s) URL"}}
+	}
+	parsed, _ := url.Parse(entryURL)
+	if parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+		return ValidationResult{Errors: []string{"entry_url must be an absolute http(s) URL"}}
+	}
+	if _, ok := definition["steps"].([]any); !ok {
+		return ValidationResult{Errors: []string{"definition.steps must be an array"}}
+	}
+	return ValidationResult{Valid: true, Errors: []string{}}
 }
 
 type RevisionConflict struct {
@@ -107,7 +171,7 @@ func Create(ownerID int64, input CreateInput, idempotencyKey string) (*table.V22
 			return row, nil
 		}
 	}
-	row := &table.V22Collector{OwnerId: ownerID, Name: input.Name, EntryURL: input.EntryURL, EntryType: input.EntryType, Status: "draft", Definition: string(definition), Revision: 1, CreatedBy: ownerID, UpdatedBy: ownerID, CreatedAt: now, UpdatedAt: now}
+	row := &table.V22Collector{OwnerId: ownerID, Name: input.Name, EntryURL: input.EntryURL, EntryType: input.EntryType, Status: "draft", Definition: string(definition), Revision: 1, ValidationSummary: `{"valid":false,"errors":[]}`, CreatedBy: ownerID, UpdatedBy: ownerID, CreatedAt: now, UpdatedAt: now}
 	if _, err := s.InsertOne(row); err != nil {
 		return nil, err
 	}
@@ -172,7 +236,7 @@ func Copy(ownerID, id int64, idempotencyKey string) (*table.V22Collector, error)
 	copy := &table.V22Collector{
 		OwnerId: ownerID, Name: string(copyName) + suffix, EntryURL: original.EntryURL,
 		EntryType: original.EntryType, Status: "draft", Definition: original.Definition,
-		Revision: 1, CreatedBy: ownerID, UpdatedBy: ownerID, CreatedAt: now, UpdatedAt: now,
+		Revision: 1, ValidationSummary: `{"valid":false,"errors":[]}`, CreatedBy: ownerID, UpdatedBy: ownerID, CreatedAt: now, UpdatedAt: now,
 	}
 	if _, err := s.InsertOne(copy); err != nil {
 		return nil, err
@@ -189,28 +253,73 @@ func Copy(ownerID, id int64, idempotencyKey string) (*table.V22Collector, error)
 	return copy, nil
 }
 
-func List(ownerID int64) ([]table.V22Collector, error) {
-	if ownerID <= 0 || db.Instance() == nil {
-		return nil, errors.New("database is not initialized")
-	}
-	rows := make([]table.V22Collector, 0)
-	err := db.Instance().Where("owner_id = ? AND status <> ?", ownerID, "archived").Desc("updated_at").Desc("id").Find(&rows)
-	return rows, err
+func encodeCursor(row table.V22Collector) string {
+	payload := row.UpdatedAt.UTC().Format(time.RFC3339Nano) + "|" + strconv.FormatInt(row.Id, 10)
+	return base64.RawURLEncoding.EncodeToString([]byte(payload))
 }
 
-func Update(ownerID, id int64, input UpdateInput) (*table.V22Collector, error) {
+func decodeCursor(cursor string) (time.Time, int64, error) {
+	raw, err := base64.RawURLEncoding.DecodeString(cursor)
+	if err != nil {
+		return time.Time{}, 0, errors.New("invalid cursor")
+	}
+	parts := strings.Split(string(raw), "|")
+	if len(parts) != 2 {
+		return time.Time{}, 0, errors.New("invalid cursor")
+	}
+	updatedAt, err := time.Parse(time.RFC3339Nano, parts[0])
+	if err != nil {
+		return time.Time{}, 0, errors.New("invalid cursor")
+	}
+	id, err := strconv.ParseInt(parts[1], 10, 64)
+	if err != nil || id <= 0 {
+		return time.Time{}, 0, errors.New("invalid cursor")
+	}
+	return updatedAt, id, nil
+}
+
+func List(ownerID int64, limit int, cursor string) (ListPage, error) {
+	if ownerID <= 0 || db.Instance() == nil {
+		return ListPage{}, errors.New("database is not initialized")
+	}
+	if limit < 1 || limit > 100 {
+		return ListPage{}, errors.New("limit must be between 1 and 100")
+	}
+	rows := make([]table.V22Collector, 0)
+	query := db.Instance().Where("owner_id = ? AND status <> ?", ownerID, "archived")
+	if cursor != "" {
+		updatedAt, id, err := decodeCursor(cursor)
+		if err != nil {
+			return ListPage{}, err
+		}
+		query = query.And("(updated_at < ? OR (updated_at = ? AND id < ?))", updatedAt, updatedAt, id)
+	}
+	err := query.Desc("updated_at").Desc("id").Limit(limit + 1).Find(&rows)
+	if err != nil {
+		return ListPage{}, err
+	}
+	page := ListPage{Items: rows}
+	if len(rows) > limit {
+		page.HasMore = true
+		page.Items = rows[:limit]
+		page.NextCursor = encodeCursor(page.Items[len(page.Items)-1])
+	}
+	return page, nil
+}
+
+func Update(ownerID, id int64, input UpdateInput) (*table.V22Collector, []string, error) {
 	if db.Instance() == nil {
-		return nil, errors.New("database is not initialized")
+		return nil, nil, errors.New("database is not initialized")
 	}
 	if input.ExpectedRevision <= 0 {
-		return nil, errors.New("expected_revision is required")
+		return nil, nil, errors.New("expected_revision is required")
 	}
 	if len(input.Definition) == 0 || !json.Valid(input.Definition) {
-		return nil, errors.New("definition must be valid JSON")
+		return nil, nil, errors.New("definition must be valid JSON")
 	}
 	var definitionObject map[string]any
 	if err := json.Unmarshal(input.Definition, &definitionObject); err != nil || definitionObject == nil {
-		return nil, errors.New("definition must be a JSON object")
+		return nil, nil, errors.New("definition must be a JSON object")
 	}
 	entryURL := ""
 	hasEntryURL := false
@@ -219,50 +328,103 @@ func Update(ownerID, id int64, input UpdateInput) (*table.V22Collector, error) {
 		var valid bool
 		entryURL, valid = value.(string)
 		if !valid {
-			return nil, errors.New("definition.entry_url must be a string")
+			return nil, nil, errors.New("definition.entry_url must be a string")
 		}
 		entryURL = strings.TrimSpace(entryURL)
 	}
 	if strings.TrimSpace(input.Name) != "" && len([]rune(strings.TrimSpace(input.Name))) > 160 {
-		return nil, errors.New("name is too long")
+		return nil, nil, errors.New("name is too long")
 	}
 	s := db.Instance().NewSession()
 	defer s.Close()
 	if err := s.Begin(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer s.Rollback()
 	rows, err := s.QueryString("SELECT id FROM v22_collectors WHERE id = ? AND owner_id = ? FOR UPDATE", id, ownerID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if len(rows) == 0 {
-		return nil, errors.New("collector not found")
+		return nil, nil, errors.New("collector not found")
 	}
 	row := new(table.V22Collector)
 	if has, err := s.ID(id).Get(row); err != nil || !has {
-		return nil, errors.New("collector not found")
+		return nil, nil, errors.New("collector not found")
+	}
+	if row.Status == "archived" {
+		return nil, nil, errors.New("collector not found")
 	}
 	if row.Revision != input.ExpectedRevision {
-		return nil, &RevisionConflict{Latest: row}
+		return nil, nil, &RevisionConflict{Latest: row}
 	}
+	changed := make([]string, 0, 3)
 	if strings.TrimSpace(input.Name) != "" {
-		row.Name = strings.TrimSpace(input.Name)
+		name := strings.TrimSpace(input.Name)
+		if name != row.Name {
+			changed = append(changed, "name")
+		}
+		row.Name = name
 	}
 	if hasEntryURL {
 		if err := validateCreate(CreateInput{Name: row.Name, EntryURL: entryURL, EntryType: row.EntryType}); err != nil {
-			return nil, err
+			return nil, nil, err
+		}
+		if entryURL != row.EntryURL {
+			changed = append(changed, "entry_url")
 		}
 		row.EntryURL = entryURL
 	}
+	if string(input.Definition) != row.Definition {
+		changed = append(changed, "definition")
+	}
+	if len(changed) == 0 {
+		return row, changed, nil
+	}
 	row.Definition, row.Revision, row.UpdatedBy, row.UpdatedAt = string(input.Definition), row.Revision+1, ownerID, time.Now()
 	if _, err := s.ID(id).Cols("name", "entry_url", "definition", "revision", "updated_by", "updated_at").Update(row); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if err := s.Commit(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return row, nil
+	return row, changed, nil
+}
+
+func Validate(ownerID, id int64) (*table.V22Collector, ValidationResult, error) {
+	if ownerID <= 0 || id <= 0 || db.Instance() == nil {
+		return nil, ValidationResult{}, errors.New("collector not found")
+	}
+	s := db.Instance().NewSession()
+	defer s.Close()
+	if err := s.Begin(); err != nil {
+		return nil, ValidationResult{}, err
+	}
+	defer s.Rollback()
+	rows, err := s.QueryString("SELECT id FROM v22_collectors WHERE id = ? AND owner_id = ? FOR UPDATE", id, ownerID)
+	if err != nil {
+		return nil, ValidationResult{}, err
+	}
+	if len(rows) == 0 {
+		return nil, ValidationResult{}, errors.New("collector not found")
+	}
+	row := new(table.V22Collector)
+	if has, err := s.ID(id).Get(row); err != nil || !has {
+		return nil, ValidationResult{}, errors.New("collector not found")
+	}
+	if row.Status == "archived" {
+		return nil, ValidationResult{}, errors.New("collector not found")
+	}
+	result := validateDefinition(json.RawMessage(row.Definition), row.EntryURL)
+	summary, _ := json.Marshal(result)
+	row.ValidatedRevision, row.ValidationSummary = row.Revision, string(summary)
+	if _, err := s.ID(id).Cols("validated_revision", "validation_summary").Update(row); err != nil {
+		return nil, ValidationResult{}, err
+	}
+	if err := s.Commit(); err != nil {
+		return nil, ValidationResult{}, err
+	}
+	return row, result, nil
 }
 
 func Archive(ownerID, id int64) error {
@@ -274,6 +436,6 @@ func Archive(ownerID, id int64) error {
 		return errors.New("collector not found")
 	}
 	now := time.Now()
-	_, err = db.Instance().ID(row.Id).Cols("status", "archived_at", "updated_at", "updated_by").Update(&table.V22Collector{Status: "archived", ArchivedAt: &now, UpdatedAt: now, UpdatedBy: ownerID})
+	_, err = db.Instance().Where("id = ? AND owner_id = ? AND status <> ?", row.Id, ownerID, "archived").Cols("status", "archived_at", "updated_at", "updated_by").Update(&table.V22Collector{Status: "archived", ArchivedAt: &now, UpdatedAt: now, UpdatedBy: ownerID})
 	return err
 }

@@ -56,16 +56,29 @@ func ListCollectors(w http.ResponseWriter, r *http.Request) {
 		fail(w, r, http.StatusUnauthorized, "UNAUTHENTICATED", "身份认证异常", false, "auth", "")
 		return
 	}
-	rows, err := v22_collector_repo.List(admin.Id)
+	limit := 25
+	if value := r.URL.Query().Get("limit"); value != "" {
+		parsed, err := strconv.Atoi(value)
+		if err != nil || parsed < 1 || parsed > 100 {
+			fail(w, r, http.StatusBadRequest, "INVALID_ARGUMENT", "limit must be between 1 and 100", false, "validate", "limit")
+			return
+		}
+		limit = parsed
+	}
+	page, err := v22_collector_repo.List(admin.Id, limit, r.URL.Query().Get("cursor"))
 	if err != nil {
-		fail(w, r, http.StatusInternalServerError, "INTERNAL", err.Error(), true, "storage", "")
+		if err.Error() == "invalid cursor" || err.Error() == "limit must be between 1 and 100" {
+			fail(w, r, http.StatusBadRequest, "INVALID_ARGUMENT", err.Error(), false, "validate", "cursor")
+		} else {
+			fail(w, r, http.StatusInternalServerError, "INTERNAL", err.Error(), true, "storage", "")
+		}
 		return
 	}
-	items := make([]v22_collector_repo.Collector, 0, len(rows))
-	for i := range rows {
-		items = append(items, v22_collector_repo.ToDTO(&rows[i]))
+	items := make([]v22_collector_repo.Collector, 0, len(page.Items))
+	for i := range page.Items {
+		items = append(items, v22_collector_repo.ToDTO(&page.Items[i]))
 	}
-	ok(w, r, map[string]any{"items": items, "has_more": false})
+	ok(w, r, map[string]any{"items": items, "has_more": page.HasMore, "next_cursor": page.NextCursor})
 }
 
 func CopyCollector(w http.ResponseWriter, r *http.Request) {
@@ -130,7 +143,7 @@ func UpdateCollectorDraft(w http.ResponseWriter, r *http.Request) {
 		fail(w, r, http.StatusBadRequest, "INVALID_ARGUMENT", err.Error(), false, "validate", "")
 		return
 	}
-	row, err := v22_collector_repo.Update(admin.Id, id, input)
+	row, changed, err := v22_collector_repo.Update(admin.Id, id, input)
 	if err != nil {
 		var conflict *v22_collector_repo.RevisionConflict
 		if errors.As(err, &conflict) {
@@ -144,7 +157,32 @@ func UpdateCollectorDraft(w http.ResponseWriter, r *http.Request) {
 		fail(w, r, status, code, err.Error(), false, "save", "")
 		return
 	}
-	ok(w, r, v22_collector_repo.ToDTO(row))
+	dto := v22_collector_repo.ToDTO(row)
+	dto.SaveSummary = &v22_collector_repo.SaveSummary{Revision: row.Revision, ChangedFields: changed, SavedAt: row.UpdatedAt}
+	ok(w, r, dto)
+}
+
+func ValidateCollectorDraft(w http.ResponseWriter, r *http.Request) {
+	admin, authenticated := owner(r)
+	if !authenticated {
+		fail(w, r, http.StatusUnauthorized, "UNAUTHENTICATED", "身份认证异常", false, "auth", "")
+		return
+	}
+	id, valid := collectorID(r)
+	if !valid {
+		fail(w, r, http.StatusBadRequest, "INVALID_ARGUMENT", "collector_id is required", false, "validate", "collector_id")
+		return
+	}
+	row, result, err := v22_collector_repo.Validate(admin.Id, id)
+	if err != nil {
+		status, code := http.StatusInternalServerError, "INTERNAL"
+		if err.Error() == "collector not found" {
+			status, code = http.StatusNotFound, "NOT_FOUND"
+		}
+		fail(w, r, status, code, err.Error(), status >= 500, "validate", "")
+		return
+	}
+	ok(w, r, map[string]any{"collector": v22_collector_repo.ToDTO(row), "validation": result})
 }
 
 func v3Conflict(w http.ResponseWriter, r *http.Request, latest any) {

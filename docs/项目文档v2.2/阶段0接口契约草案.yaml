@@ -72,6 +72,13 @@ paths:
         '409': {$ref: '#/components/responses/Error'}
     get:
       summary: 当前用户的新采集方案列表
+      parameters:
+        - in: query
+          name: limit
+          schema: {type: integer, minimum: 1, maximum: 100, default: 25}
+        - in: query
+          name: cursor
+          schema: {type: string}
       responses:
         '200':
           description: 方案列表
@@ -82,6 +89,7 @@ paths:
                 properties:
                   items: {type: array, items: {$ref: '#/components/schemas/Collector'}}
                   has_more: {type: boolean}
+                  next_cursor: {type: string}
   /collectors/{collector_id}/copies:
     parameters:
       - $ref: '#/components/parameters/CollectorId'
@@ -136,6 +144,22 @@ paths:
       responses:
         '200':
           description: 已归档
+        '404': {$ref: '#/components/responses/Error'}
+  /collectors/{collector_id}/validate:
+    parameters:
+      - $ref: '#/components/parameters/CollectorId'
+    post:
+      summary: 检查当前草稿结构并绑定当前 revision；不访问目标网站
+      responses:
+        '200':
+          description: 结构检查结果
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  collector: {$ref: '#/components/schemas/Collector'}
+                  validation: {$ref: '#/components/schemas/ValidationResult'}
         '404': {$ref: '#/components/responses/Error'}
   /browser-sessions:
     post:
@@ -375,7 +399,22 @@ components:
         entry_type: {type: string, enum: [web, json]}
         status: {type: string, enum: [draft, published, archived]}
         revision: {type: integer, minimum: 1}
+        validation_status: {type: string, enum: [not_validated, valid, invalid, stale]}
+        validation_errors: {type: array, items: {type: string}}
+        save_summary: {$ref: '#/components/schemas/SaveSummary'}
         definition: {type: object}
+    SaveSummary:
+      type: object
+      properties:
+        revision: {type: integer, minimum: 1}
+        changed_fields: {type: array, items: {type: string, enum: [name, entry_url, definition]}}
+        saved_at: {type: string, format: date-time}
+    ValidationResult:
+      type: object
+      required: [valid, errors]
+      properties:
+        valid: {type: boolean}
+        errors: {type: array, items: {type: string}}
     Definition:
       type: object
       required: [definition_version, entry_url, steps]

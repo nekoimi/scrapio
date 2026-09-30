@@ -36,6 +36,10 @@
 .editor-actions { display: flex; align-items: center; gap: 18px; }
 .editor-actions button { border: 0; background: #4567c4; color: white; border-radius: 8px; padding: 11px 20px; }
 .editor-actions .secondary-action { background: #edf0f5; color: #3f4a5d; }
+.validation-state { margin-top: 18px; padding-top: 14px; border-top: 1px solid #edf0f5; color: #586274; }
+.validation-state[data-state="valid"] { color: #287a53; }
+.validation-state[data-state="invalid"], .validation-state[data-state="stale"] { color: #a34b38; }
+.validation-state ul { margin: 8px 0 0; padding-left: 20px; }
 .editor-actions a { color: #4567c4; }
 .collector-list { padding: 10px 28px; }
 .collector-row { display: flex; justify-content: space-between; gap: 20px; align-items: center; padding: 18px 0; border-bottom: 1px solid #edf0f5; }
