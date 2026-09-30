@@ -199,6 +199,9 @@ func List(ownerID int64) ([]table.V22Collector, error) {
 }
 
 func Update(ownerID, id int64, input UpdateInput) (*table.V22Collector, error) {
+	if db.Instance() == nil {
+		return nil, errors.New("database is not initialized")
+	}
 	if input.ExpectedRevision <= 0 {
 		return nil, errors.New("expected_revision is required")
 	}
@@ -208,6 +211,20 @@ func Update(ownerID, id int64, input UpdateInput) (*table.V22Collector, error) {
 	var definitionObject map[string]any
 	if err := json.Unmarshal(input.Definition, &definitionObject); err != nil || definitionObject == nil {
 		return nil, errors.New("definition must be a JSON object")
+	}
+	entryURL := ""
+	hasEntryURL := false
+	if value, exists := definitionObject["entry_url"]; exists {
+		hasEntryURL = true
+		var valid bool
+		entryURL, valid = value.(string)
+		if !valid {
+			return nil, errors.New("definition.entry_url must be a string")
+		}
+		entryURL = strings.TrimSpace(entryURL)
+	}
+	if strings.TrimSpace(input.Name) != "" && len([]rune(strings.TrimSpace(input.Name))) > 160 {
+		return nil, errors.New("name is too long")
 	}
 	s := db.Instance().NewSession()
 	defer s.Close()
@@ -232,8 +249,14 @@ func Update(ownerID, id int64, input UpdateInput) (*table.V22Collector, error) {
 	if strings.TrimSpace(input.Name) != "" {
 		row.Name = strings.TrimSpace(input.Name)
 	}
+	if hasEntryURL {
+		if err := validateCreate(CreateInput{Name: row.Name, EntryURL: entryURL, EntryType: row.EntryType}); err != nil {
+			return nil, err
+		}
+		row.EntryURL = entryURL
+	}
 	row.Definition, row.Revision, row.UpdatedBy, row.UpdatedAt = string(input.Definition), row.Revision+1, ownerID, time.Now()
-	if _, err := s.ID(id).Cols("name", "definition", "revision", "updated_by", "updated_at").Update(row); err != nil {
+	if _, err := s.ID(id).Cols("name", "entry_url", "definition", "revision", "updated_by", "updated_at").Update(row); err != nil {
 		return nil, err
 	}
 	if err := s.Commit(); err != nil {

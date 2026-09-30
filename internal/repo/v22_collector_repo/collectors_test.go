@@ -1,6 +1,7 @@
 package v22_collector_repo
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/nekoimi/scrapio/internal/db/table"
@@ -25,6 +26,28 @@ func TestValidateCreate(t *testing.T) {
 				t.Fatalf("valid = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestDefinitionEntryURLValidation(t *testing.T) {
+	valid := json.RawMessage(`{"entry_url":"https://example.org/new","steps":[]}`)
+	var definition map[string]any
+	if err := json.Unmarshal(valid, &definition); err != nil {
+		t.Fatal(err)
+	}
+	url, ok := definition["entry_url"].(string)
+	if !ok || url != "https://example.org/new" {
+		t.Fatalf("entry_url = %#v", definition["entry_url"])
+	}
+	for _, raw := range []string{`{"entry_url":false}`, `{"entry_url":"file:///tmp/a"}`, `{"entry_url":"/relative"}`} {
+		var current map[string]any
+		if err := json.Unmarshal([]byte(raw), &current); err != nil {
+			t.Fatal(err)
+		}
+		candidate, isString := current["entry_url"].(string)
+		if isString && validateCreate(CreateInput{EntryURL: candidate, EntryType: "web"}) == nil {
+			t.Errorf("expected invalid entry_url: %s", raw)
+		}
 	}
 }
 

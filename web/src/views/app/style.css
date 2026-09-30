@@ -35,6 +35,7 @@
 .definition-editor { min-height: 300px; font-family: ui-monospace, Consolas, monospace; resize: vertical; }
 .editor-actions { display: flex; align-items: center; gap: 18px; }
 .editor-actions button { border: 0; background: #4567c4; color: white; border-radius: 8px; padding: 11px 20px; }
+.editor-actions .secondary-action { background: #edf0f5; color: #3f4a5d; }
 .editor-actions a { color: #4567c4; }
 .collector-list { padding: 10px 28px; }
 .collector-row { display: flex; justify-content: space-between; gap: 20px; align-items: center; padding: 18px 0; border-bottom: 1px solid #edf0f5; }
