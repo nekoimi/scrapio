@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -24,6 +25,22 @@ type UpdateInput struct {
 	Definition       json.RawMessage `json:"definition"`
 }
 
+type Collector struct {
+	ID         string          `json:"id"`
+	Name       string          `json:"name"`
+	EntryURL   string          `json:"entry_url"`
+	EntryType  string          `json:"entry_type"`
+	Status     string          `json:"status"`
+	Definition json.RawMessage `json:"definition"`
+	Revision   int             `json:"revision"`
+	CreatedAt  time.Time       `json:"created_at"`
+	UpdatedAt  time.Time       `json:"updated_at"`
+}
+
+func ToDTO(row *table.V22Collector) Collector {
+	return Collector{ID: strconv.FormatInt(row.Id, 10), Name: row.Name, EntryURL: row.EntryURL, EntryType: row.EntryType, Status: row.Status, Definition: json.RawMessage(row.Definition), Revision: row.Revision, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
+}
+
 type RevisionConflict struct {
 	Latest *table.V22Collector
 }
@@ -41,10 +58,23 @@ func validateCreate(input CreateInput) error {
 	if len([]rune(strings.TrimSpace(input.Name))) > 160 {
 		return errors.New("name is too long")
 	}
+	if len(input.EntryURL) > 2048 {
+		return errors.New("entry_url is too long")
+	}
+	return nil
+}
+
+func validateIdempotencyKey(key string) error {
+	if len([]rune(key)) > 128 {
+		return errors.New("Idempotency-Key exceeds 128 characters")
+	}
 	return nil
 }
 
 func Create(ownerID int64, input CreateInput, idempotencyKey string) (*table.V22Collector, error) {
+	if err := validateIdempotencyKey(idempotencyKey); err != nil {
+		return nil, err
+	}
 	if ownerID <= 0 || db.Instance() == nil {
 		return nil, errors.New("database is not initialized")
 	}
@@ -100,6 +130,63 @@ func Get(ownerID, id int64) (*table.V22Collector, bool, error) {
 	row := new(table.V22Collector)
 	has, err := db.Instance().Where("id = ? AND owner_id = ?", id, ownerID).Get(row)
 	return row, has, err
+}
+
+func Copy(ownerID, id int64, idempotencyKey string) (*table.V22Collector, error) {
+	if err := validateIdempotencyKey(idempotencyKey); err != nil {
+		return nil, err
+	}
+	if ownerID <= 0 || db.Instance() == nil {
+		return nil, errors.New("database is not initialized")
+	}
+	s := db.Instance().NewSession()
+	defer s.Close()
+	if err := s.Begin(); err != nil {
+		return nil, err
+	}
+	defer s.Rollback()
+	if idempotencyKey != "" {
+		var idem table.V22IdempotencyKey
+		if has, err := s.Where("owner_id = ? AND operation = ? AND key = ?", ownerID, "collector.copy", idempotencyKey).Get(&idem); err != nil {
+			return nil, err
+		} else if has {
+			row := new(table.V22Collector)
+			if has, err := s.Where("id = ? AND owner_id = ?", idem.ResourceId, ownerID).Get(row); err != nil || !has {
+				return nil, errors.New("idempotent collector not found")
+			}
+			return row, nil
+		}
+	}
+	original := new(table.V22Collector)
+	if has, err := s.Where("id = ? AND owner_id = ? AND status <> ?", id, ownerID, "archived").Get(original); err != nil {
+		return nil, err
+	} else if !has {
+		return nil, errors.New("collector not found")
+	}
+	now := time.Now()
+	copyName := []rune(original.Name)
+	const suffix = " (副本)"
+	if len(copyName)+len([]rune(suffix)) > 160 {
+		copyName = copyName[:160-len([]rune(suffix))]
+	}
+	copy := &table.V22Collector{
+		OwnerId: ownerID, Name: string(copyName) + suffix, EntryURL: original.EntryURL,
+		EntryType: original.EntryType, Status: "draft", Definition: original.Definition,
+		Revision: 1, CreatedBy: ownerID, UpdatedBy: ownerID, CreatedAt: now, UpdatedAt: now,
+	}
+	if _, err := s.InsertOne(copy); err != nil {
+		return nil, err
+	}
+	if idempotencyKey != "" {
+		response, _ := json.Marshal(map[string]any{"id": copy.Id})
+		if _, err := s.InsertOne(&table.V22IdempotencyKey{OwnerId: ownerID, Operation: "collector.copy", Key: idempotencyKey, ResourceId: copy.Id, Response: string(response), CreatedAt: now}); err != nil {
+			return nil, err
+		}
+	}
+	if err := s.Commit(); err != nil {
+		return nil, err
+	}
+	return copy, nil
 }
 
 func List(ownerID int64) ([]table.V22Collector, error) {

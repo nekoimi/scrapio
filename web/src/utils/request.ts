@@ -53,6 +53,20 @@ service.interceptors.response.use(
     },
     (error) => {
         // 对响应错误做点什么
+        const apiError = error.response?.data?.error;
+        if (apiError) {
+            if (error.response.status === 401 || apiError.code === 'UNAUTHENTICATED') {
+                ElMessageBox.alert(`${apiError.message}，请重新登录`, '提示', {})
+                    .then(() => {
+                        Session.clear();
+                        window.location.href = '/#/login';
+                    })
+                    .catch(() => {});
+                return Promise.reject(error.response.data);
+            }
+            ElMessage.error(apiError.message || '请求失败');
+            return Promise.reject(error.response.data);
+        }
         if (error.message.indexOf('timeout') != -1) {
             ElMessage.error('网络超时');
         } else if (error.message == 'Network Error') {

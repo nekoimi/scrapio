@@ -47,7 +47,7 @@ func CreateCollector(w http.ResponseWriter, r *http.Request) {
 		fail(w, r, http.StatusBadRequest, "INVALID_ARGUMENT", err.Error(), false, "validate", "")
 		return
 	}
-	created(w, r, row)
+	created(w, r, v22_collector_repo.ToDTO(row))
 }
 
 func ListCollectors(w http.ResponseWriter, r *http.Request) {
@@ -61,7 +61,34 @@ func ListCollectors(w http.ResponseWriter, r *http.Request) {
 		fail(w, r, http.StatusInternalServerError, "INTERNAL", err.Error(), true, "storage", "")
 		return
 	}
-	ok(w, r, map[string]any{"items": rows, "has_more": false})
+	items := make([]v22_collector_repo.Collector, 0, len(rows))
+	for i := range rows {
+		items = append(items, v22_collector_repo.ToDTO(&rows[i]))
+	}
+	ok(w, r, map[string]any{"items": items, "has_more": false})
+}
+
+func CopyCollector(w http.ResponseWriter, r *http.Request) {
+	admin, authenticated := owner(r)
+	if !authenticated {
+		fail(w, r, http.StatusUnauthorized, "UNAUTHENTICATED", "身份认证异常", false, "auth", "")
+		return
+	}
+	id, valid := collectorID(r)
+	if !valid {
+		fail(w, r, http.StatusBadRequest, "INVALID_ARGUMENT", "collector_id is required", false, "validate", "collector_id")
+		return
+	}
+	row, err := v22_collector_repo.Copy(admin.Id, id, r.Header.Get("Idempotency-Key"))
+	if err != nil {
+		if err.Error() == "collector not found" {
+			fail(w, r, http.StatusNotFound, "NOT_FOUND", err.Error(), false, "copy", "collector_id")
+		} else {
+			fail(w, r, http.StatusInternalServerError, "INTERNAL", err.Error(), true, "copy", "")
+		}
+		return
+	}
+	created(w, r, v22_collector_repo.ToDTO(row))
 }
 
 func GetCollectorDraft(w http.ResponseWriter, r *http.Request) {
@@ -84,7 +111,7 @@ func GetCollectorDraft(w http.ResponseWriter, r *http.Request) {
 		fail(w, r, http.StatusNotFound, "NOT_FOUND", "collector not found", false, "lookup", "collector_id")
 		return
 	}
-	ok(w, r, row)
+	ok(w, r, v22_collector_repo.ToDTO(row))
 }
 
 func UpdateCollectorDraft(w http.ResponseWriter, r *http.Request) {
@@ -107,7 +134,7 @@ func UpdateCollectorDraft(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		var conflict *v22_collector_repo.RevisionConflict
 		if errors.As(err, &conflict) {
-			fail(w, r, http.StatusConflict, "STALE_REVISION", "草稿已被其他请求修改，请重新加载", false, "save", "expected_revision")
+			v3Conflict(w, r, v22_collector_repo.ToDTO(conflict.Latest))
 			return
 		}
 		status, code := http.StatusBadRequest, "INVALID_ARGUMENT"
@@ -117,7 +144,11 @@ func UpdateCollectorDraft(w http.ResponseWriter, r *http.Request) {
 		fail(w, r, status, code, err.Error(), false, "save", "")
 		return
 	}
-	ok(w, r, row)
+	ok(w, r, v22_collector_repo.ToDTO(row))
+}
+
+func v3Conflict(w http.ResponseWriter, r *http.Request, latest any) {
+	conflict(w, r, latest)
 }
 
 func ArchiveCollector(w http.ResponseWriter, r *http.Request) {
@@ -135,5 +166,5 @@ func ArchiveCollector(w http.ResponseWriter, r *http.Request) {
 		fail(w, r, http.StatusNotFound, "NOT_FOUND", err.Error(), false, "archive", "collector_id")
 		return
 	}
-	ok(w, r, map[string]any{"id": id, "status": "archived"})
+	ok(w, r, map[string]any{"id": strconv.FormatInt(id, 10), "status": "archived"})
 }

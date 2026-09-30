@@ -18,6 +18,7 @@ type apiError struct {
 	Retryable bool   `json:"retryable"`
 	Stage     string `json:"stage,omitempty"`
 	Path      string `json:"path,omitempty"`
+	Latest    any    `json:"latest,omitempty"`
 }
 
 type errorResponse struct {
@@ -41,4 +42,11 @@ func created(w http.ResponseWriter, r *http.Request, data any) {
 
 func fail(w http.ResponseWriter, r *http.Request, status int, code, message string, retryable bool, stage, path string) {
 	writeJSON(w, status, errorResponse{Error: apiError{Code: code, Message: message, Retryable: retryable, Stage: stage, Path: path}, RequestID: middleware.RequestID(r.Context())})
+}
+
+func conflict(w http.ResponseWriter, r *http.Request, latest any) {
+	writeJSON(w, http.StatusConflict, errorResponse{
+		Error:     apiError{Code: "STALE_REVISION", Message: "草稿已被其他请求修改；本地修改已保留，请选择加载服务器版本", Retryable: false, Stage: "save", Path: "expected_revision", Latest: latest},
+		RequestID: middleware.RequestID(r.Context()),
+	})
 }

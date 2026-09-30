@@ -1,6 +1,9 @@
 package v3
 
-import "net/http"
+import (
+	"net/http"
+	"strconv"
+)
 
 // Me keeps the v2.2 identity contract independent from legacy menu roles.
 func Me(w http.ResponseWriter, r *http.Request) {
@@ -9,7 +12,7 @@ func Me(w http.ResponseWriter, r *http.Request) {
 		fail(w, r, http.StatusUnauthorized, "UNAUTHENTICATED", "身份认证异常", false, "auth", "")
 		return
 	}
-	ok(w, r, map[string]any{"id": admin.Id, "username": admin.Username})
+	ok(w, r, map[string]any{"id": strconv.FormatInt(admin.Id, 10), "username": admin.Username})
 }
 
 // Capabilities describes only capabilities available in the new product domain.

@@ -21,7 +21,7 @@ paths:
               schema:
                 type: object
                 properties:
-                  id: {type: integer}
+                  id: {type: string}
                   username: {type: string}
   /home:
     get:
@@ -61,13 +61,13 @@ paths:
               properties:
                 entry_url: {type: string, format: uri, maxLength: 2048}
                 entry_type: {type: string, enum: [web, json]}
-                name: {type: string, maxLength: 120}
+                name: {type: string, maxLength: 160}
       responses:
         '201':
           description: 草稿已创建
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/DraftResponse'}
+              schema: {$ref: '#/components/schemas/Collector'}
         '400': {$ref: '#/components/responses/Error'}
         '409': {$ref: '#/components/responses/Error'}
     get:
@@ -82,6 +82,20 @@ paths:
                 properties:
                   items: {type: array, items: {$ref: '#/components/schemas/Collector'}}
                   has_more: {type: boolean}
+  /collectors/{collector_id}/copies:
+    parameters:
+      - $ref: '#/components/parameters/CollectorId'
+    post:
+      summary: 复制方案为新的独立草稿，不复制运行或数据
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '201':
+          description: 副本已创建
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Collector'}
+        '404': {$ref: '#/components/responses/Error'}
   /collectors/{collector_id}/draft:
     parameters:
       - $ref: '#/components/parameters/CollectorId'
@@ -92,7 +106,7 @@ paths:
           description: 草稿
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/DraftResponse'}
+              schema: {$ref: '#/components/schemas/Collector'}
         '404': {$ref: '#/components/responses/Error'}
     put:
       summary: 按 revision 更新草稿
@@ -112,7 +126,7 @@ paths:
           description: 新 revision
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/DraftResponse'}
+              schema: {$ref: '#/components/schemas/Collector'}
         '409': {$ref: '#/components/responses/Error'}
   /collectors/{collector_id}/archive:
     parameters:
@@ -355,7 +369,7 @@ components:
       type: object
       required: [id, name, entry_url, entry_type, status, revision, definition]
       properties:
-        id: {type: integer}
+        id: {type: string}
         name: {type: string}
         entry_url: {type: string, format: uri}
         entry_type: {type: string, enum: [web, json]}
@@ -438,3 +452,4 @@ components:
         stage: {type: string}
         step_id: {type: string}
         path: {type: string}
+        latest: {$ref: '#/components/schemas/Collector'}
