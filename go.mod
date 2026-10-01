@@ -4,7 +4,9 @@ go 1.26.0
 
 require (
 	github.com/PuerkitoBio/goquery v1.13.0
+	github.com/andybalholm/cascadia v1.3.4
 	github.com/antchfx/htmlquery v1.3.4
+	github.com/antchfx/xpath v1.3.3
 	github.com/asaskevich/EventBus v0.0.0-20200907212545-49d423059eef
 	github.com/cristalhq/jwt/v5 v5.4.0
 	github.com/dop251/goja v0.0.0-20260917113740-793a2a65c13b
@@ -22,12 +24,10 @@ require (
 	google.golang.org/protobuf v1.36.12
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	modernc.org/mathutil v1.7.1
-	xorm.io/xorm v1.4.1
+	xorm.io/xorm v1.4.2
 )
 
 require (
-	github.com/andybalholm/cascadia v1.3.4 // indirect
-	github.com/antchfx/xpath v1.3.3 // indirect
 	github.com/cenkalti/hub v1.0.1-0.20160527103212-11382a9960d3 // indirect
 	github.com/cenkalti/rpc2 v0.0.0-20180727162946-9642ea02d0aa // indirect
 	github.com/dlclark/regexp2/v2 v2.5.2 // indirect
