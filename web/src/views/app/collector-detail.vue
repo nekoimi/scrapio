@@ -1,16 +1,41 @@
 <template>
-  <div class="app-page"><div class="eyebrow">SCRAPIO / V2.2 / DRAFT</div><h1>{{ draft?.name || '采集方案' }}</h1><p class="lead">入口：{{ draft?.entry_url }} · revision {{ draft?.revision }}</p><section class="app-card"><label for="collector-name">方案名称</label><input id="collector-name" v-model="name" class="full-input" /><label for="collector-definition">定义 JSON</label><textarea id="collector-definition" v-model="definitionText" class="definition-editor" spellcheck="false" /><div class="editor-actions"><button :disabled="saving" @click="save(false)">{{ saving ? '保存中…' : '保存草稿' }}</button><button class="secondary-action" :disabled="!dirty || saving" @click="undoUnsaved">撤销未保存修改</button><button class="secondary-action" :disabled="saving || checking || dirty || !draft || !!conflictLatest" @click="validate">{{ checking ? '检查中…' : '检查草稿结构' }}</button><router-link to="/app/collectors">返回方案列表</router-link><span class="save-state" aria-live="polite">{{ saveState }}</span></div><p class="muted">草稿会自动保存；保存使用 revision 检查，冲突时本地编辑不会被覆盖。结构检查只验证当前定义格式，不访问目标网站。</p><div v-if="draft" class="validation-state" :data-state="draft.validation_status || 'not_validated'"><strong>结构检查：{{ validationLabel }}</strong><ul v-if="draft.validation_errors?.length"><li v-for="item in draft.validation_errors" :key="item">{{ item }}</li></ul></div><div v-if="conflictLatest" class="conflict-box" role="alert"><strong>服务器上的草稿已更新</strong><p>本地编辑仍保留在当前页面。加载服务器版本会用 revision {{ conflictLatest.revision }} 覆盖当前编辑内容。</p><button @click="loadLatest">加载服务器版本</button></div></section><section class="app-card editor-browser"><div class="editor-browser-head"><div><h2>浏览器会话</h2><p class="muted">会话只绑定当前草稿版本；暂不支持点选或执行网页动作。</p></div><div class="editor-actions"><button v-if="!browserSession" :disabled="!draft || draft.entry_type !== 'web' || dirty || saving || connecting" @click="openBrowserSession">{{ connecting ? '连接中…' : '打开浏览器会话' }}</button><button v-else-if="browserSession.needs_reopen" class="secondary-action" :disabled="connecting || closing || dirty || saving" @click="browserSession.status === 'disconnected' ? resumeBrowserSession() : reopenBrowserSession()">{{ connecting ? '处理中…' : browserSession.status === 'disconnected' ? '尝试恢复' : '重新打开' }}</button><button v-if="browserSession" class="secondary-action" :disabled="closing" @click="closeBrowserSession">{{ closing ? '关闭中…' : '关闭会话' }}</button></div></div><div v-if="browserSession" class="browser-session-meta"><span :data-state="browserSession.status">{{ browserStatus }}</span><span>有效期至 {{ new Date(browserSession.expires_at).toLocaleTimeString() }}</span><span>revision {{ browserSession.draft_revision }}</span><span v-if="draft && browserSession.draft_revision !== draft.revision" class="status-warn">方案已更新，请关闭并重新连接</span></div><label v-if="browserSession" for="browser-current-url">当前页面地址</label><input v-if="browserSession" id="browser-current-url" class="full-input" :value="browserSession.current_url" readonly /><p v-if="draft?.entry_type === 'json'" class="muted">JSON 入口不创建浏览器会话。</p><img v-if="frameObjectUrl" class="browser-session-frame" :src="frameObjectUrl" alt="当前浏览器页面画面" /><p v-if="browserMessage" class="app-error" role="status">{{ browserMessage }}</p></section><p v-if="message" class="status-good">{{ message }}</p><p v-if="error" class="app-error" role="alert">{{ error }}</p></div>
+  <div class="app-page"><div class="eyebrow">SCRAPIO / V2.2 / DRAFT</div><h1>{{ draft?.name || '采集方案' }}</h1><p class="lead">入口：{{ draft?.entry_url }} · revision {{ draft?.revision }}</p><section class="app-card"><label for="collector-name">方案名称</label><input id="collector-name" v-model="name" class="full-input" /><label for="collector-definition">定义 JSON</label><textarea id="collector-definition" v-model="definitionText" class="definition-editor" spellcheck="false" /><div class="editor-actions"><button :disabled="saving" @click="save(false)">{{ saving ? '保存中…' : '保存草稿' }}</button><button class="secondary-action" :disabled="!dirty || saving" @click="undoUnsaved">撤销未保存修改</button><button class="secondary-action" :disabled="saving || checking || dirty || !draft || !!conflictLatest" @click="validate">{{ checking ? '检查中…' : '检查草稿结构' }}</button><router-link to="/app/collectors">返回方案列表</router-link><span class="save-state" aria-live="polite">{{ saveState }}</span></div><p class="muted">草稿会自动保存；保存使用 revision 检查，冲突时本地编辑不会被覆盖。结构检查只验证当前定义格式，不访问目标网站。</p><div v-if="draft" class="validation-state" :data-state="draft.validation_status || 'not_validated'"><strong>结构检查：{{ validationLabel }}</strong><ul v-if="draft.validation_errors?.length"><li v-for="item in draft.validation_errors" :key="item">{{ item }}</li></ul></div><div v-if="conflictLatest" class="conflict-box" role="alert"><strong>服务器上的草稿已更新</strong><p>本地编辑仍保留在当前页面。加载服务器版本会用 revision {{ conflictLatest.revision }} 覆盖当前编辑内容。</p><button @click="loadLatest">加载服务器版本</button></div></section><section class="app-card editor-browser"><div class="editor-browser-head"><div><h2>浏览器会话</h2><p class="muted">浏览/录制会执行真实网页动作；记录和字段点选将在 A05 接入。</p></div><div class="editor-actions"><button v-if="!browserSession" :disabled="!draft || draft.entry_type !== 'web' || dirty || saving || connecting" @click="openBrowserSession">{{ connecting ? '连接中…' : '打开浏览器会话' }}</button><button v-else-if="browserSession.needs_reopen" class="secondary-action" :disabled="connecting || closing || dirty || saving" @click="browserSession.status === 'disconnected' ? resumeBrowserSession() : reopenBrowserSession()">{{ connecting ? '处理中…' : browserSession.status === 'disconnected' ? '尝试恢复' : '重新打开' }}</button><button v-if="browserSession" class="secondary-action" :disabled="closing" @click="closeBrowserSession">{{ closing ? '关闭中…' : '关闭会话' }}</button></div></div><div v-if="browserSession" class="browser-session-meta"><span :data-state="browserSession.status">{{ browserStatus }}</span><span>有效期至 {{ new Date(browserSession.expires_at).toLocaleTimeString() }}</span><span>revision {{ browserSession.draft_revision }}</span><span v-if="draft && browserSession.draft_revision !== draft.revision" class="status-warn">草稿已更新；下次动作将校验当前版本，入口改变时需重连</span></div><label v-if="browserSession" for="browser-current-url">当前页面地址</label><input v-if="browserSession" id="browser-current-url" class="full-input" :value="browserSession.current_url" readonly /><p v-if="draft?.entry_type === 'json'" class="muted">JSON 入口不创建浏览器会话。</p><img v-if="frameObjectUrl" class="browser-session-frame" :src="frameObjectUrl" alt="当前浏览器页面画面；点击准备网页动作" @click="prepareFrameClick" /><p v-if="browserMessage" class="app-error" role="status">{{ browserMessage }}</p><BrowserActions v-if="draft" ref="actionsPanel" :draft="draft" :session="browserSession" :dirty="dirty" :saving="saving" @draft-saved="applyActionDraft" @session-state="setBrowserSession" /></section><p v-if="message" class="status-good">{{ message }}</p><p v-if="error" class="app-error" role="alert">{{ error }}</p></div>
 </template>
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
+import BrowserActions from './browser-actions.vue';
 import { appApi, type BrowserSession, type Collector } from './api';
+const actionsPanel = ref<InstanceType<typeof BrowserActions>>();
 const route = useRoute(); const draft = ref<Collector>(); const name = ref(''); const definitionText = ref(''); const saving = ref(false); const checking = ref(false); const dirty = ref(false); const message = ref(''); const error = ref(''); const conflictLatest = ref<Collector>(); const saveState = ref('');
 let saveTimer: ReturnType<typeof setTimeout> | undefined; let loaded = false; let suppressChanges = false; let savedName = ''; let savedDefinition = '';
 const validationLabel = computed(() => ({ not_validated: '未检查', valid: '通过', invalid: '未通过', stale: '已过期' }[draft.value?.validation_status || 'not_validated']));
 const browserStatus = computed(() => ({ ready: '已连接', disconnected: '已断开', expired: '已过期', closed: '已关闭', failed: '连接失败', creating: '连接中' }[browserSession.value?.status || ''] || '未知状态'));
 const changedFieldLabels: Record<string, string> = { name: '名称', entry_url: '入口地址', definition: '采集定义' };
-const browserSession = ref<BrowserSession>(); const frameObjectUrl = ref(''); const browserMessage = ref(''); const connecting = ref(false); const closing = ref(false); let heartbeatTimer: ReturnType<typeof setInterval> | undefined; let lastSessionStorageKey = ''; let eventsController: AbortController | undefined; let eventsSessionID = ''; let sessionEpoch = 0; let disposed = false;
+const browserSession = ref<BrowserSession>(); const frameObjectUrl = ref(''); const framePageStateID = ref(''); const browserMessage = ref(''); const connecting = ref(false); const closing = ref(false); let heartbeatTimer: ReturnType<typeof setInterval> | undefined; let lastSessionStorageKey = ''; let eventsController: AbortController | undefined; let eventsSessionID = ''; let sessionEpoch = 0; let disposed = false;
+function applyActionDraft(latest: Collector) {
+  if (dirty.value || saving.value) {
+    conflictLatest.value = latest;
+    saveState.value = '服务器新增动作；本地修改已保留';
+    return;
+  }
+  suppressChanges = true;
+  draft.value = latest;
+  name.value = latest.name;
+  definitionText.value = formatDefinition(latest.definition);
+  savedName = name.value;
+  savedDefinition = definitionText.value;
+  saveState.value = '已保存';
+  queueMicrotask(() => { suppressChanges = false; });
+}
+function prepareFrameClick(event: MouseEvent) {
+  const img = event.currentTarget as HTMLImageElement;
+  if (!img.naturalWidth || !browserSession.value?.available) return;
+  const box = img.getBoundingClientRect();
+  const x = (event.clientX - box.left - img.clientLeft) / img.clientWidth * img.naturalWidth;
+  const y = (event.clientY - box.top - img.clientTop) / img.clientHeight * img.naturalHeight;
+  actionsPanel.value?.frameClick(x, y, framePageStateID.value);
+}
 function formatDefinition(value: Collector['definition']) { return JSON.stringify(value, null, 2); }
 onMounted(async () => { try { draft.value = await appApi.collector(String(route.params.id)); name.value = draft.value.name; definitionText.value = formatDefinition(draft.value.definition); savedName = name.value; savedDefinition = definitionText.value; loaded = true; saveState.value = '已保存'; lastSessionStorageKey = `scrapio:v22:session:${draft.value.id}`; const sessionId = sessionStorage.getItem(lastSessionStorageKey); if (sessionId) await restoreBrowserSession(sessionId); } catch { error.value = '无法读取草稿。'; } });
 watch([name, definitionText], () => { if (!loaded || suppressChanges) return; dirty.value = true; message.value = ''; saveState.value = '有未保存修改'; if (conflictLatest.value) return; if (saveTimer) clearTimeout(saveTimer); saveTimer = setTimeout(() => save(true), 900); });
@@ -19,6 +44,7 @@ async function validate() { if (!draft.value || dirty.value || checking.value ||
 function clearFrame() {
   if (frameObjectUrl.value) URL.revokeObjectURL(frameObjectUrl.value);
   frameObjectUrl.value = '';
+  framePageStateID.value = '';
 }
 function clearSession() {
   sessionEpoch++;
@@ -98,6 +124,7 @@ async function refreshFrame(session: BrowserSession) {
     if (!isCurrent(session, epoch) || browserSession.value?.page_state_id !== session.page_state_id || !browserSession.value.available) return;
     clearFrame();
     frameObjectUrl.value = URL.createObjectURL(blob);
+    framePageStateID.value = session.page_state_id;
   } catch {
     if (isCurrent(session, epoch)) browserMessage.value = '页面画面已变化或暂时不可用，请恢复会话状态。';
   }

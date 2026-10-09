@@ -114,6 +114,38 @@ message EditorSessionResponse {
   bytes screenshot = 13;
 }
 
+message EditorCommandRequest {
+  string protocol_version = 1;
+  string request_id = 2;
+  string session_id = 3;
+  string command_id = 4;
+  string page_state_id = 5;
+  string type = 6;
+  string locator_strategy = 7;
+  string locator_expression = 8;
+  string value = 9;
+  int32 timeout_ms = 10;
+  bool confirmed = 11;
+  bool has_position = 12;
+  double x = 13;
+  double y = 14;
+}
+
+message EditorCommandResponse {
+  bool success = 1;
+  string protocol_version = 2;
+  string command_id = 3;
+  string status = 4;
+  string error_code = 5;
+  string error = 6;
+  string before_page_state_id = 7;
+  string after_page_state_id = 8;
+  string final_url = 9;
+  int64 duration_ms = 10;
+  string locator_strategy = 11;
+  string locator_expression = 12;
+}
+
 service PageFetchService {
   rpc Fetch(FetchRequest) returns (FetchResponse);
   rpc FetchJavDB(FetchRequest) returns (FetchResponse);
@@ -125,4 +157,6 @@ service PageFetchService {
   rpc HeartbeatEditorSession(EditorSessionRequest) returns (EditorSessionResponse);
   rpc CloseEditorSession(EditorSessionRequest) returns (EditorSessionResponse);
   rpc FrameEditorSession(EditorSessionRequest) returns (EditorSessionResponse);
+  rpc ExecuteEditorCommand(EditorCommandRequest) returns (EditorCommandResponse);
+  rpc GetEditorCommand(EditorCommandRequest) returns (EditorCommandResponse);
 }

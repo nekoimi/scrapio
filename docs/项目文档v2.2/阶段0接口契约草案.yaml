@@ -1,10 +1,10 @@
 openapi: 3.0.3
 info:
   title: scrapio v2.2 editor contract spike
-  version: 0.2.0-a02-a03
+  version: 0.3.0-a04
   description: >-
-    A02/A03 开发契约：独立草稿与 editor.v1 会话已实现并进行本机集成验证；标记 planned 的元素检查、命令、定位器接口留给 A04/A05，尚不可调用。远程部署验收另行记录。旧
-    /api/v1、/api/v2 保持独立。JSON 成功响应为 {data,request_id}；错误为 {error,request_id}。
+    A02/A03/A04 开发契约：独立草稿、editor.v1 会话、动作回执与检查点已接入。标记 planned 的元素检查/定位器接口留给 A05。远程部署验收另行记录。旧 /api/v1、/api/v2
+    保持独立。JSON 成功响应为 {data,request_id}；错误为 {error,request_id}。
 servers:
   - url: /api/v3
 security:
@@ -440,7 +440,7 @@ paths:
           $ref: '#/components/responses/Error'
         '410':
           $ref: '#/components/responses/Error'
-      description: 服务传输异常返回 disconnected；页面丢失或过期返回 410。重建入口需要新会话，检查点重放属于 A04。
+      description: 服务传输异常返回 disconnected；页面丢失或过期返回 410。resume 不执行动作；需从检查点恢复时明确创建新会话并逐条发送新的命令。
       x-implementation-status: implemented
   /browser-sessions/{session_id}/frame:
     parameters:
@@ -483,7 +483,7 @@ paths:
         '200':
           description: >-
             event: session，data 为未包裹的 SessionResponse。每条连接从当前快照开始，约每 3 秒检查状态，15 秒
-            keepalive；事件编号仅连接内递增。无历史持久化，无 Last-Event-ID 回放，断线重新读取最新状态。
+            keepalive；事件编号仅连接内递增。无历史持久化，无 Last-Event-ID 回放，断线重新读取最新状态。 动作回执通过 commands 资源查询；不混入截图或动作重试。
           content:
             text/event-stream:
               schema:
@@ -598,7 +598,7 @@ paths:
     parameters:
       - $ref: '#/components/parameters/SessionId'
     post:
-      summary: 执行一次明确的浏览器命令
+      summary: 接受一次明确的编辑动作并返回持久化命令 ID
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -609,27 +609,65 @@ paths:
               $ref: '#/components/schemas/CommandRequest'
       responses:
         '202':
-          description: 命令已接受，页面变更由状态事件确认
+          description: 命令已登记，可能已经执行完成
           content:
             application/json:
               schema:
                 type: object
                 required:
-                  - command_id
-                  - status
+                  - data
+                  - request_id
                 properties:
-                  command_id:
+                  data:
+                    $ref: '#/components/schemas/CommandResult'
+                  request_id:
                     type: string
-                  status:
-                    type: string
-                    enum:
-                      - queued
-                      - running
-                      - succeeded
-                      - failed
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
         '409':
           $ref: '#/components/responses/Error'
-      x-implementation-status: planned
+        '410':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      x-implementation-status: implemented
+      description: >-
+        返回 202 后 GET 查询回执。每个会话同时最多一个 queued/running/uncertain 命令；相同 owner/session/key 的并发重试返回同一 ID，修改规范化输入返回
+        409。输入不确定或进程重启后只查询，绝不自动重发。成功录制按 expected_revision 与动作回执事务提交；草稿冲突保留动作成功回执并报告录制失败。
+    get:
+      summary: 最近 50 条会话动作日志（跨刷新可查询）
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: 按创建时间倒序的最近回执
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - request_id
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/CommandResult'
+                      limit:
+                        type: integer
+                        example: 50
+                  request_id:
+                    type: string
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
   /browser-sessions/{session_id}/commands/{command_id}:
     parameters:
       - $ref: '#/components/parameters/SessionId'
@@ -639,15 +677,27 @@ paths:
         schema:
           type: string
     get:
-      summary: 查询动作回执
+      summary: 查询动作回执；超时/不确定时向浏览器查询结果，不重复执行
       responses:
         '200':
-          description: 动作结果
+          description: 持久化状态及回执
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/CommandResult'
-      x-implementation-status: planned
+                type: object
+                required:
+                  - data
+                  - request_id
+                properties:
+                  data:
+                    $ref: '#/components/schemas/CommandResult'
+                  request_id:
+                    type: string
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+      x-implementation-status: implemented
   /browser-sessions/{session_id}/heartbeat:
     parameters:
       - $ref: '#/components/parameters/SessionId'
@@ -675,6 +725,104 @@ paths:
         '503':
           $ref: '#/components/responses/Error'
       x-implementation-status: implemented
+  /collectors/{collector_id}/checkpoints:
+    parameters:
+      - $ref: '#/components/parameters/CollectorId'
+    get:
+      summary: 当前用户的方案检查点，最多 100 个
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: 快照列表
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - request_id
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/EditorCheckpoint'
+                  request_id:
+                    type: string
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+    post:
+      summary: 将草稿入口与至 through_step_id 的动作前缀保存为不可变快照
+      x-implementation-status: implemented
+      description: >-
+        仅支持 navigate/action，最多 100 步；校验 revision、step_id 唯一及动作参数。前端从新会话入口顺序重放快照；明确确认点击/输入，失败或 uncertain
+        停止，不自动恢复重放；不改变草稿或写正式数据。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - expected_revision
+                - through_step_id
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 160
+                expected_revision:
+                  type: integer
+                  minimum: 1
+                through_step_id:
+                  type: string
+      responses:
+        '201':
+          description: 检查点已保存
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - request_id
+                properties:
+                  data:
+                    $ref: '#/components/schemas/EditorCheckpoint'
+                  request_id:
+                    type: string
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+  /collectors/{collector_id}/checkpoints/{checkpoint_id}:
+    parameters:
+      - $ref: '#/components/parameters/CollectorId'
+      - in: path
+        name: checkpoint_id
+        required: true
+        schema:
+          type: string
+          format: uuid
+    delete:
+      summary: 删除当前用户的方案检查点
+      x-implementation-status: implemented
+      responses:
+        '204':
+          description: 已删除
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
 components:
   securitySchemes:
     bearerAuth:
@@ -944,10 +1092,15 @@ components:
       type: object
       required:
         - page_state_id
+        - expected_revision
         - type
       properties:
         page_state_id:
           type: string
+          maxLength: 256
+        expected_revision:
+          type: integer
+          minimum: 1
         type:
           type: string
           enum:
@@ -961,23 +1114,61 @@ components:
             - scroll
         locator:
           $ref: '#/components/schemas/Locator'
+        position:
+          type: object
+          required:
+            - x
+            - 'y'
+          properties:
+            x:
+              type: number
+              minimum: 0
+              maximum: 3840
+            'y':
+              type: number
+              minimum: 0
+              maximum: 2160
+          description: 仅 click 支持，使用当前截图内容对应的 viewport CSS 坐标；与 locator 互斥。
         value:
           type: string
-          description: 不允许保存密码；敏感值只能使用凭据引用
-        credential_ref:
-          type: string
+          maxLength: 4096
+          description: >-
+            navigate 为 URL；普通 input 文本；scroll 为像素整数；无 locator 的 wait 为等待毫秒。密码/验证码/敏感字段输入拒绝；待 D04 凭据支持。input
+            文本不保存进命令日志。
         timeout_ms:
           type: integer
           minimum: 100
           maximum: 30000
+          default: 10000
+        confirmed:
+          type: boolean
+          default: false
+          description: click/input 必须显式确认。
+        record:
+          type: boolean
+          default: false
+        step_id:
+          type: string
+          maxLength: 128
+          description: record=true 时必填；成功后用于加入草稿。
     CommandResult:
       type: object
       required:
         - command_id
+        - session_id
         - status
+        - type
+        - request
+        - result
+        - created_at
+        - deadline_at
       properties:
         command_id:
           type: string
+          format: uuid
+        session_id:
+          type: string
+          format: uuid
         status:
           type: string
           enum:
@@ -985,14 +1176,20 @@ components:
             - running
             - succeeded
             - failed
-        before_page_state_id:
+            - uncertain
+        type:
           type: string
-        after_page_state_id:
+        request:
+          $ref: '#/components/schemas/CommandRequest'
+        result:
+          $ref: '#/components/schemas/EditorActionResult'
+        created_at:
           type: string
-        duration_ms:
-          type: integer
-        error:
-          $ref: '#/components/schemas/ErrorBody'
+          format: date-time
+        deadline_at:
+          type: string
+          format: date-time
+      description: request 为日志视图，input.value 已移除。result 是动作回执；recording_status 独立表示草稿录制结果，动作已执行但录制冲突不伪装动作失败。
     ErrorResponse:
       type: object
       required:
@@ -1024,3 +1221,61 @@ components:
           type: string
         latest:
           $ref: '#/components/schemas/Collector'
+    EditorActionResult:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+            - ''
+            - running
+            - succeeded
+            - failed
+            - uncertain
+        before_page_state_id:
+          type: string
+        after_page_state_id:
+          type: string
+        final_url:
+          type: string
+        duration_ms:
+          type: integer
+        error_code:
+          type: string
+        error:
+          type: string
+        locator:
+          $ref: '#/components/schemas/Locator'
+        recording_status:
+          type: string
+          enum:
+            - recorded
+            - conflict
+        recording_error:
+          type: string
+        recorded_revision:
+          type: integer
+    EditorCheckpoint:
+      type: object
+      required:
+        - checkpoint_id
+        - name
+        - draft_revision
+        - through_step_id
+        - snapshot
+        - created_at
+      properties:
+        checkpoint_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        draft_revision:
+          type: integer
+        through_step_id:
+          type: string
+        snapshot:
+          $ref: '#/components/schemas/Definition'
+        created_at:
+          type: string
+          format: date-time

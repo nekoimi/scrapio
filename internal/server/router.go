@@ -81,6 +81,12 @@ func newRouter(ctx context.Context, cfg *config.Config) *mux.Router {
 		v3Api.HandleFunc("/browser-sessions/{session_id}/resume", v3.ResumeBrowserSession(browserService)).Methods("POST")
 		v3Api.HandleFunc("/browser-sessions/{session_id}/events", v3.BrowserSessionEvents(browserService)).Methods("GET")
 		v3Api.HandleFunc("/browser-sessions/{session_id}/frame", v3.GetBrowserSessionFrame(browserService)).Methods("GET")
+		v3Api.HandleFunc("/browser-sessions/{session_id}/commands", v3.CreateBrowserCommand(browserService)).Methods("POST")
+		v3Api.HandleFunc("/browser-sessions/{session_id}/commands", v3.ListBrowserCommands).Methods("GET")
+		v3Api.HandleFunc("/browser-sessions/{session_id}/commands/{command_id}", v3.GetBrowserCommand(browserService)).Methods("GET")
+		v3Api.HandleFunc("/collectors/{collector_id}/checkpoints", v3.CollectorCheckpoints).Methods("GET", "POST")
+		v3Api.HandleFunc("/collectors/{collector_id}/checkpoints/{checkpoint_id}", v3.CollectorCheckpoints).Methods("DELETE")
+
 		v3Api.HandleFunc("/collectors/{collector_id}/archive", v3.ArchiveCollector).Methods("POST")
 
 		v1Api := apiRoute.PathPrefix("/v1").Subrouter()

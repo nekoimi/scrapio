@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/nekoimi/scrapio/internal/drission_rod"
+	"github.com/nekoimi/scrapio/internal/editor"
 )
 
 // Me keeps the v2.2 identity contract independent from legacy menu roles.
@@ -40,13 +41,21 @@ func CapabilitiesWithBrowser(browser *drission_rod.DrissionRod) http.HandlerFunc
 			ready = browser.ProbeEditor(ctx) == nil
 			cancel()
 		}
+		actions := []string{}
+		if ready {
+			ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+			if browser.ProbeEditorCommands(ctx) == nil {
+				actions = editor.Actions
+			}
+			cancel()
+		}
 		reason := "浏览器服务未连接"
 		if ready {
-			reason = "editor.v1 服务已连接；页面创建仍需验证浏览器可用性；交互动作尚未开放"
+			reason = "editor.v1 已连接；动作能力见 supported_actions，页面创建需浏览器可用"
 		}
 		ok(w, r, map[string]any{
 			"editor_protocol": "editor.v1", "browser_ready": false, "editor_service_connected": ready,
-			"supported_actions": []string{}, "supports_live_inspection": false,
+			"supported_actions": actions, "supports_live_inspection": false,
 			"definition_versions": []int{1}, "reason": reason,
 		})
 	}

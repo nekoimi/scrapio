@@ -29,6 +29,8 @@ const (
 	PageFetchService_HeartbeatEditorSession_FullMethodName = "/grpc.PageFetchService/HeartbeatEditorSession"
 	PageFetchService_CloseEditorSession_FullMethodName     = "/grpc.PageFetchService/CloseEditorSession"
 	PageFetchService_FrameEditorSession_FullMethodName     = "/grpc.PageFetchService/FrameEditorSession"
+	PageFetchService_ExecuteEditorCommand_FullMethodName   = "/grpc.PageFetchService/ExecuteEditorCommand"
+	PageFetchService_GetEditorCommand_FullMethodName       = "/grpc.PageFetchService/GetEditorCommand"
 )
 
 // PageFetchServiceClient is the client API for PageFetchService service.
@@ -45,6 +47,8 @@ type PageFetchServiceClient interface {
 	HeartbeatEditorSession(ctx context.Context, in *EditorSessionRequest, opts ...grpc.CallOption) (*EditorSessionResponse, error)
 	CloseEditorSession(ctx context.Context, in *EditorSessionRequest, opts ...grpc.CallOption) (*EditorSessionResponse, error)
 	FrameEditorSession(ctx context.Context, in *EditorSessionRequest, opts ...grpc.CallOption) (*EditorSessionResponse, error)
+	ExecuteEditorCommand(ctx context.Context, in *EditorCommandRequest, opts ...grpc.CallOption) (*EditorCommandResponse, error)
+	GetEditorCommand(ctx context.Context, in *EditorCommandRequest, opts ...grpc.CallOption) (*EditorCommandResponse, error)
 }
 
 type pageFetchServiceClient struct {
@@ -155,6 +159,26 @@ func (c *pageFetchServiceClient) FrameEditorSession(ctx context.Context, in *Edi
 	return out, nil
 }
 
+func (c *pageFetchServiceClient) ExecuteEditorCommand(ctx context.Context, in *EditorCommandRequest, opts ...grpc.CallOption) (*EditorCommandResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(EditorCommandResponse)
+	err := c.cc.Invoke(ctx, PageFetchService_ExecuteEditorCommand_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *pageFetchServiceClient) GetEditorCommand(ctx context.Context, in *EditorCommandRequest, opts ...grpc.CallOption) (*EditorCommandResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(EditorCommandResponse)
+	err := c.cc.Invoke(ctx, PageFetchService_GetEditorCommand_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // PageFetchServiceServer is the server API for PageFetchService service.
 // All implementations must embed UnimplementedPageFetchServiceServer
 // for forward compatibility.
@@ -169,6 +193,8 @@ type PageFetchServiceServer interface {
 	HeartbeatEditorSession(context.Context, *EditorSessionRequest) (*EditorSessionResponse, error)
 	CloseEditorSession(context.Context, *EditorSessionRequest) (*EditorSessionResponse, error)
 	FrameEditorSession(context.Context, *EditorSessionRequest) (*EditorSessionResponse, error)
+	ExecuteEditorCommand(context.Context, *EditorCommandRequest) (*EditorCommandResponse, error)
+	GetEditorCommand(context.Context, *EditorCommandRequest) (*EditorCommandResponse, error)
 	mustEmbedUnimplementedPageFetchServiceServer()
 }
 
@@ -208,6 +234,12 @@ func (UnimplementedPageFetchServiceServer) CloseEditorSession(context.Context, *
 }
 func (UnimplementedPageFetchServiceServer) FrameEditorSession(context.Context, *EditorSessionRequest) (*EditorSessionResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method FrameEditorSession not implemented")
+}
+func (UnimplementedPageFetchServiceServer) ExecuteEditorCommand(context.Context, *EditorCommandRequest) (*EditorCommandResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ExecuteEditorCommand not implemented")
+}
+func (UnimplementedPageFetchServiceServer) GetEditorCommand(context.Context, *EditorCommandRequest) (*EditorCommandResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetEditorCommand not implemented")
 }
 func (UnimplementedPageFetchServiceServer) mustEmbedUnimplementedPageFetchServiceServer() {}
 func (UnimplementedPageFetchServiceServer) testEmbeddedByValue()                          {}
@@ -410,6 +442,42 @@ func _PageFetchService_FrameEditorSession_Handler(srv interface{}, ctx context.C
 	return interceptor(ctx, in, info, handler)
 }
 
+func _PageFetchService_ExecuteEditorCommand_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(EditorCommandRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PageFetchServiceServer).ExecuteEditorCommand(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PageFetchService_ExecuteEditorCommand_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PageFetchServiceServer).ExecuteEditorCommand(ctx, req.(*EditorCommandRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PageFetchService_GetEditorCommand_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(EditorCommandRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PageFetchServiceServer).GetEditorCommand(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PageFetchService_GetEditorCommand_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PageFetchServiceServer).GetEditorCommand(ctx, req.(*EditorCommandRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // PageFetchService_ServiceDesc is the grpc.ServiceDesc for PageFetchService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -456,6 +524,14 @@ var PageFetchService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "FrameEditorSession",
 			Handler:    _PageFetchService_FrameEditorSession_Handler,
+		},
+		{
+			MethodName: "ExecuteEditorCommand",
+			Handler:    _PageFetchService_ExecuteEditorCommand_Handler,
+		},
+		{
+			MethodName: "GetEditorCommand",
+			Handler:    _PageFetchService_GetEditorCommand_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

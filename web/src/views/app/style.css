@@ -66,3 +66,41 @@
 .conflict-box button { border: 0; border-radius: 7px; background: #8b5b22; color: white; padding: 9px 13px; cursor: pointer; }
 .app-error button { margin-left: 10px; }
 @media (max-width: 760px) { .scrapio-app { display: block; } .app-side { width: 100%; padding: 14px; } .app-brand { padding-bottom: 12px; } .app-side nav { display: flex; overflow-x: auto; } .app-side nav a { white-space: nowrap; } .nav-caption, .side-bottom { display: none; } .app-page { padding: 32px 20px; } .app-grid { grid-template-columns: 1fr; } }
+
+/* Editor action panel shares the new product's neutral blue palette. */
+.editor-action-workspace { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 22px; margin-top: 24px; border-top: 1px solid #e4e8ef; padding-top: 22px; }
+.editor-step-pane { background: #f7f9fc; border: 1px solid #e4e8ef; border-radius: 10px; padding: 16px; min-width: 0; }
+.pane-heading { display: flex; justify-content: space-between; align-items: center; }
+.editor-action-workspace h3 { font-size: 15px; margin: 0 0 12px; }
+.pane-heading span, .editor-action-workspace small { color: #788398; font-size: 11px; overflow-wrap: anywhere; }
+.editor-action-workspace button { border: 1px solid #dce2ed; background: #fff; border-radius: 6px; padding: 7px 10px; cursor: pointer; color: #344567; }
+.editor-action-workspace button:disabled, .editor-actions button:disabled { opacity: .45; cursor: not-allowed; }
+.editor-action-workspace .editor-actions button { background: #4567c4; color: white; }
+.editor-action-workspace .editor-actions .secondary-action { background: #edf0f5; color: #3f4a5d; }
+.editor-action-workspace .muted { font-size: 12px; line-height: 1.6; }
+.step-list { list-style: none; padding: 0; display: grid; gap: 9px; max-height: 420px; overflow-y: auto; }
+.step-list li { border: 1px solid #dce2ed; border-radius: 8px; background: #fff; padding: 10px; }
+.step-list li.selected { border-color: #4567c4; box-shadow: 0 0 0 1px #4567c433; }
+.step-list .step-title { background: none; border: 0; padding: 0; text-align: left; overflow-wrap: anywhere; width: 100%; font-weight: 600; }
+.step-list small { display: block; margin: 7px 0; }
+.step-controls { display: flex; gap: 5px; flex-wrap: wrap; }
+.step-controls button { padding: 4px 7px; font-size: 11px; }
+.editor-mode-tabs { display: flex; gap: 7px; flex-wrap: wrap; }
+.editor-mode-tabs button[aria-selected="true"] { color: #fff; background: #4567c4; border-color: #4567c4; }
+.mode-description { color: #647086; font-size: 12px; line-height: 1.7; }
+.command-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.editor-command-pane input, .editor-command-pane select { display: block; width: 100%; border: 1px solid #d5dce8; background: #fff; border-radius: 7px; padding: 10px; margin-top: 7px; font: inherit; font-weight: 400; }
+.editor-command-pane label { margin-bottom: 15px; }
+.editor-action-workspace .editor-actions { flex-wrap: wrap; gap: 9px; }
+.position-notice { background: #edf2ff; color: #3d568a; border-radius: 7px; padding: 10px; }
+.command-receipt { border: 1px solid #dce2ed; background: #f7f9fc; border-radius: 9px; padding: 14px; margin-top: 18px; overflow-wrap: anywhere; }
+.command-receipt p { font-size: 12px; line-height: 1.6; }
+.command-receipt button { display: block; margin-top: 12px; }
+.command-history { margin-top: 18px; font-size: 12px; }
+.command-history summary { cursor: pointer; }
+.command-history div { display: flex; align-items: center; justify-content: space-between; gap: 9px; padding: 8px 0; }
+.checkpoint-row { padding: 12px 0; border-top: 1px solid #e4e8ef; font-size: 12px; }
+.checkpoint-row strong, .checkpoint-row small { display: block; margin-bottom: 7px; }
+.checkpoint-row button { margin-right: 5px; }
+.browser-session-frame { min-height: 0; max-height: none; height: auto; cursor: crosshair; }
+@media (max-width: 1050px) { .editor-action-workspace { grid-template-columns: 1fr; } .command-form-grid { grid-template-columns: 1fr; } }
