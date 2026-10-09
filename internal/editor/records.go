@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/nekoimi/scrapio/internal/field"
 	"regexp"
 )
 
 type FieldRule struct {
+	field.Options
 	Name      string   `json:"name"`
 	Locator   *Locator `json:"locator,omitempty"`
 	Extract   string   `json:"extract"`
@@ -54,11 +56,23 @@ func (p RecordPlan) Validate() error {
 	namePattern := regexp.MustCompile(`^[\p{L}_][\p{L}\p{N}_-]{0,63}$`)
 	for role, fields := range [][]FieldRule{p.Fields, p.DetailFields} {
 		seen := map[string]bool{}
+		keys := map[string]bool{}
 		for _, f := range fields {
+			if err := f.Options.Validate(); err != nil {
+				return fmt.Errorf("field %s: %w", f.Name, err)
+			}
 			if !namePattern.MatchString(f.Name) || seen[f.Name] {
 				return fmt.Errorf("invalid or duplicate field name: %s", f.Name)
 			}
 			seen[f.Name] = true
+			key := f.Key
+			if key == "" {
+				key = f.Name
+			}
+			if keys[key] {
+				return errors.New("field_key must be unique within a page role")
+			}
+			keys[key] = true
 			if f.Locator != nil && !validLocator(f.Locator, role == 0 && p.Mode == "repeated") {
 				return fmt.Errorf("invalid relative locator for field %s", f.Name)
 			}

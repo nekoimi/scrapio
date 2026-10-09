@@ -147,3 +147,9 @@
 .json-node-row small { max-width: 360px; overflow: hidden; text-overflow: ellipsis; }
 .json-field-row { display: grid; grid-template-columns: 1fr 2fr auto; gap: 10px; margin: 8px 0; }
 @media (max-width: 700px) { .json-field-row { grid-template-columns: 1fr; } }
+.field-options { grid-column: 1 / -1; padding: 12px; background: #f5f7fb; border: 1px solid #e1e6ef; border-radius: 8px; }
+.field-options[open] { outline: 2px solid #dbe6ff; }
+.field-options .command-form-grid { margin-top: 12px; }
+.field-options input[type=checkbox] { width: auto; margin-right: 8px; }
+.extraction-preview pre { max-height: 180px; max-width: 400px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+.extraction-preview td small { display: block; color: #6b7280; margin-top: 6px; }

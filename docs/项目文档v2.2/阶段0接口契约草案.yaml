@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
   title: scrapio v2.2 editor contract spike
-  version: 0.6.0-a07
-  description: A02～A07 开发契约：草稿、会话、动作、点选、记录路径及 HTTP/离线快照和 JSON 基础检查。发版实环境验收另行记录；完整 previews、trials 与正式数据写入尚未实现。
+  version: 0.7.0-b01
+  description: A02～B01 开发契约：草稿、会话、动作、点选、记录路径、HTTP/浏览器/离线快照与共用提取预览。发版实环境验收另行记录；样例引用、完整 trials 与正式数据写入尚未实现。
 servers:
   - url: /api/v3
 security:
@@ -1002,6 +1002,106 @@ paths:
         '500':
           $ref: '#/components/responses/Error'
       x-implementation-status: implemented
+  /collectors/{collector_id}/previews:
+    parameters:
+      - $ref: '#/components/parameters/CollectorId'
+    post:
+      summary: 以保存的草稿和固定快照做提取与即时预览
+      description: |
+        只加载当前 owner 的成功 capture，且必须属于同一方案；expected_revision 必须等于当前草稿。
+        服务端从草稿加载 step_id 对应的 record_set/json_records，不接受客户端替换规则。
+        同一 Extract 解释器用于后续试采/正式提取。字段诊断和候选不会写正式记录/投递插件，也不访问网站。
+        可以用旧快照验证新规则；返回 input/definition 哈希、规则和快照 revision、解释器版本。
+        HTML 的 list/detail 角色显式指定，不在此接口打开详情或下一页；sample_id 引用留给 B02，目前拒绝。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [expected_revision, capture_id, step_id]
+              properties:
+                expected_revision:
+                  type: integer
+                  minimum: 1
+                capture_id:
+                  type: string
+                  format: uuid
+                step_id:
+                  type: string
+                  maxLength: 128
+                stage:
+                  type: string
+                  enum: [list, detail]
+                  default: list
+      responses:
+        '200':
+          description: 有界候选记录、逐字段原值/转换值/诊断，零条或全部无效也返回真实计数
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, request_id]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/ExtractionPreview'
+                  request_id:
+                    type: string
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      x-implementation-status: implemented
+  /browser-sessions/{session_id}/captures:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+    post:
+      summary: 保存当前交互页面的有界 HTML 快照；只读，无导航/点击
+      description: |
+        绑定 owner/方案/revision/session/page_state，浏览器加锁检查序列化前后版本，过期输入拒绝。
+        使用 InspectEditorPage 的 snapshot 操作；独立 probe-snapshot 能力，不需要改变 protobuf 消息。
+        日志先持久化，输入同 key 复用；快照失败也返回 failed DTO，丢失响应使用 captures/by-key 查询，不重发。
+        返回规范化 HTML、document.baseURI、当前 URL 和原 page_state；输入值/已知秘密属性/脚本样式移除。
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [expected_revision, page_state_id]
+              properties:
+                expected_revision:
+                  type: integer
+                  minimum: 1
+                page_state_id:
+                  type: string
+                  maxLength: 256
+      responses:
+        '201':
+          description: 快照 DTO；检查 status/error_stage，不能把 HTTP 201 当作取样成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CaptureEnvelope'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      x-implementation-status: implemented
 components:
   securitySchemes:
     bearerAuth:
@@ -1044,6 +1144,146 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
   schemas:
+    JSONFieldRule:
+      type: object
+      additionalProperties: false
+      required: [name, pointer]
+      properties:
+        name:
+          type: string
+          maxLength: 64
+        pointer:
+          type: string
+          maxLength: 2048
+        field_key:
+          type: string
+          maxLength: 128
+          description: 同页面角色内唯一的稳定键；旧规则省略时回退名称，表单保存时补齐，重命名保留键。
+        type:
+          type: string
+          enum: ['', string, integer, number, boolean, date, datetime, json]
+          description: 缺省保持 JSON 原类型/HTML 文本；整数为 int64，JSON 原值保留大整数。
+        required:
+          type: boolean
+        multiple:
+          type: boolean
+          description: HTML 逐匹配元素转换；JSON Pointer 选数组时逐项转换。单值 HTML 多命中无效。
+        clean:
+          type: string
+          enum: ['', trim, whitespace]
+        regex:
+          type: string
+          maxLength: 512
+          description: RE2，清洗后取第一个捕获组或完整匹配；无匹配报错。
+        date_format:
+          type: string
+          maxLength: 64
+          description: Go layout；date 缺省 2006-01-02，datetime 缺省 RFC3339；自定义无时区按 UTC。
+    ExtractionPreview:
+      type: object
+      properties:
+        collector_id:
+          type: string
+        revision:
+          type: integer
+        capture_id:
+          type: string
+        capture_revision:
+          type: integer
+        content_hash:
+          type: string
+        definition_hash:
+          type: string
+        source_url:
+          type: string
+        page_state_id:
+          type: string
+        result:
+          $ref: '#/components/schemas/ExtractionResult'
+    ExtractionResult:
+      type: object
+      description: 预览最多 20 记录，字段最多 50 匹配/8 KiB 原值，总输出最多 2 MiB；截断不静默变成有效候选。
+      properties:
+        interpreter_version:
+          type: string
+          example: extract.v1
+        stage:
+          type: string
+          enum: [list, detail]
+        step_id:
+          type: string
+        match_count:
+          type: integer
+          description: JSON 数组总数；HTML 最多计数 1000，match_count_lower_bound 为 true 时是下限。
+        match_count_lower_bound:
+          type: boolean
+          description: 是否只完成部分范围计数；与实际预览记录的截取状态分开。
+        truncated:
+          type: boolean
+        valid_count:
+          type: integer
+        invalid_count:
+          type: integer
+        network_accessed:
+          type: boolean
+          enum: [false]
+        dry_run:
+          type: boolean
+          enum: [true]
+        warnings:
+          type: array
+          items:
+            type: string
+        records:
+          type: array
+          maxItems: 20
+          items:
+            type: object
+            properties:
+              index:
+                type: integer
+              valid:
+                type: boolean
+              values:
+                type: object
+                additionalProperties: true
+              fields:
+                type: array
+                maxItems: 30
+                items:
+                  $ref: '#/components/schemas/ExtractionField'
+    ExtractionField:
+      type: object
+      properties:
+        field_key:
+          type: string
+        name:
+          type: string
+        match_count:
+          type: integer
+        raw_values:
+          type: array
+          maxItems: 50
+          items: {}
+        raw_json:
+          type: string
+          description: 原值数组的 JSON 字符串，供客户端精确展示大整数。
+        value: {}
+        value_json:
+          type: string
+          description: 转换值的 JSON 字符串，客户端不依赖 JavaScript 数字精度。
+        errors:
+          type: array
+          items:
+            type: string
+        valid:
+          type: boolean
+        truncated:
+          type: boolean
+        pointer:
+          type: string
+        locator:
+          $ref: '#/components/schemas/Locator'
     HTTPEntryRequest:
       type: object
       additionalProperties: false
@@ -1093,17 +1333,7 @@ components:
           type: array
           maxItems: 30
           items:
-            type: object
-            additionalProperties: false
-            required: [name, pointer]
-            properties:
-              name:
-                type: string
-                maxLength: 64
-                description: 唯一字段名；字母或下划线开头。
-              pointer:
-                type: string
-                maxLength: 2048
+            $ref: '#/components/schemas/JSONFieldRule'
     CaptureInput:
       type: object
       required: [collector_id, expected_revision, source, format]
@@ -1136,6 +1366,13 @@ components:
     InputCapture:
       type: object
       properties:
+        session_id:
+          type: string
+        page_state_id:
+          type: string
+        base_url:
+          type: string
+          description: 浏览器保存 document.baseURI，HTTP/离线为空时从文档 base 标签与 final_url 解析链接。
         capture_id:
           type: string
           format: uuid
@@ -1145,7 +1382,7 @@ components:
           type: integer
         source:
           type: string
-          enum: [http, offline]
+          enum: [http, offline, browser]
         format:
           type: string
           enum: [json, html]
@@ -1242,6 +1479,12 @@ components:
             type: string
         supports_live_inspection:
           type: boolean
+        supports_snapshot_capture:
+          type: boolean
+          description: snapshot 独立探测，旧 A06 浏览器服务返回 false。
+        supports_extraction_preview:
+          type: boolean
+          description: Go 固定快照提取，不依赖浏览器服务。
         supports_http_capture:
           type: boolean
           description: Go HTTP 获取能力，独立于浏览器探测结果。
@@ -1837,6 +2080,30 @@ components:
         - extract
       additionalProperties: false
       properties:
+        field_key:
+          type: string
+          maxLength: 128
+          description: 同页面角色内唯一的稳定键；旧规则省略时回退名称，表单保存时补齐，重命名保留键。
+        type:
+          type: string
+          enum: ['', string, integer, number, boolean, date, datetime, json]
+          description: 缺省保持 JSON 原类型/HTML 文本；整数为 int64，JSON 原值保留大整数。
+        required:
+          type: boolean
+        multiple:
+          type: boolean
+          description: HTML 逐匹配元素转换；JSON Pointer 选数组时逐项转换。单值 HTML 多命中无效。
+        clean:
+          type: string
+          enum: ['', trim, whitespace]
+        regex:
+          type: string
+          maxLength: 512
+          description: RE2，清洗后取第一个捕获组或完整匹配；无匹配报错。
+        date_format:
+          type: string
+          maxLength: 64
+          description: Go layout；date 缺省 2006-01-02，datetime 缺省 RFC3339；自定义无时区按 UTC。
         name:
           type: string
           maxLength: 64

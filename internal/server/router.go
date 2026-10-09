@@ -73,6 +73,8 @@ func newRouter(ctx context.Context, cfg *config.Config) *mux.Router {
 		v3Api.HandleFunc("/captures/{capture_id}", v3.GetCapture).Methods("GET")
 		v3Api.HandleFunc("/captures/{capture_id}/json-checks", v3.CheckCaptureJSON).Methods("POST")
 		v3Api.HandleFunc("/collectors", v3.CreateCollector).Methods("POST")
+		v3Api.HandleFunc("/collectors/{collector_id}/previews", v3.PreviewCollector).Methods("POST")
+		v3Api.HandleFunc("/browser-sessions/{session_id}/captures", v3.CaptureBrowserPage(browserService)).Methods("POST")
 		v3Api.HandleFunc("/collectors", v3.ListCollectors).Methods("GET")
 		v3Api.HandleFunc("/collectors/{collector_id}/copies", v3.CopyCollector).Methods("POST")
 		v3Api.HandleFunc("/collectors/{collector_id}/draft", v3.GetCollectorDraft).Methods("GET")

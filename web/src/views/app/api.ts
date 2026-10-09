@@ -3,6 +3,8 @@ import { Session } from '/@/utils/storage';
 
 export interface Identity { id: string; username: string }
 export interface Capabilities {
+	 supports_snapshot_capture?: boolean;
+	 supports_extraction_preview?: boolean;
 	 supports_http_capture?: boolean;
 	 supports_offline_capture?: boolean;
 	 supports_json_capture_check?: boolean;
@@ -55,14 +57,17 @@ export interface LocatorCheck {
 export interface ElementInspection { page_state_id: string; element: InspectedElement; locators: (LocatorCheck & { kind: string; warning: string })[]; warnings: string[] }
 export interface DOMChildren { page_state_id: string; root: InspectedElement; items: InspectedElement[]; next_offset: number | null; total: number; warnings: string[] }
 export interface PageHighlight { page_state_id: string; elements: InspectedElement[]; kind: 'hover' | 'selected' | 'similar' }
-export interface FieldRule { name:string; locator?:EditorLocator; extract:'text'|'link'|'image'|'attribute'; attribute?:string }
+export interface FieldOptions {field_key?:string;type?:'string'|'integer'|'number'|'boolean'|'date'|'datetime'|'json';required?:boolean;multiple?:boolean;clean?:'trim'|'whitespace';regex?:string;date_format?:string}
+export interface FieldRule extends FieldOptions { name:string; locator?:EditorLocator; extract:'text'|'link'|'image'|'attribute'; attribute?:string }
 export interface RecordPlan { mode:'single'|'repeated'; locator?:EditorLocator; max_records:number; fields:FieldRule[]; detail?:{locator:EditorLocator;return_strategy:'back'|'navigate-list';max_details:number}; detail_fields?:FieldRule[]; next_page?:{locator:EditorLocator;kind:'link'|'click';max_pages:number} }
 export interface SelectionRule { target:'record'|'field'|'detail'|'next'; locator:EditorLocator; scope?:EditorLocator; extract?:FieldRule['extract'] }
 export interface FieldPreview { name:string;value:string;raw_values:string[];match_count:number;truncated:boolean;errors:string[];source?:{element_id:string;bounds:InspectedElement['bounds']} }
 export interface RecordPreview {page_state_id:string;stage:'list'|'detail';current_url:string;records:{index:number;fields:FieldPreview[];values:Record<string,string>}[];detail_urls:{record_index:number;url?:string;error?:string;raw_url:string}[];next_pages:{kind:'link'|'click';url?:string;error?:string;disabled:boolean}[];record_match_count:number;truncated:boolean;warnings:string[];network_accessed:boolean;dry_run:boolean}
 export interface HTTPEntryRequest {method:'GET'|'POST';query:Record<string,string>;headers:Record<string,string>;body?:unknown;credential_ref?:string;timeout_ms:number}
-export interface JSONRecordPlan {array_pointer:string;max_records:number;fields:{name:string;pointer:string}[]}
-export interface InputCapture {capture_id:string;collector_id:string;draft_revision:number;source:'http'|'offline';format:'json'|'html';status:'running'|'succeeded'|'failed'|'uncertain';final_url:string;status_code:number;content_type:string;content:string;content_hash:string;byte_count:number;error_code:string;error_stage:string;network_accessed:boolean|null;dry_run:boolean;sanitized:boolean;created_at:string;deadline_at:string}
+export interface JSONRecordPlan {array_pointer:string;max_records:number;fields:(FieldOptions&{name:string;pointer:string})[]}
+export interface InputCapture {capture_id:string;collector_id:string;draft_revision:number;source:'http'|'offline'|'browser';format:'json'|'html';status:'running'|'succeeded'|'failed'|'uncertain';final_url:string;base_url:string;session_id:string;page_state_id:string;status_code:number;content_type:string;content:string;content_hash:string;byte_count:number;error_code:string;error_stage:string;network_accessed:boolean|null;dry_run:boolean;sanitized:boolean;created_at:string;deadline_at:string}
+export interface ExtractedField {name:string;field_key:string;match_count:number;raw_values:unknown[];raw_json:string;value_json:string;value:unknown;errors:string[];valid:boolean;truncated:boolean;locator?:EditorLocator;pointer?:string}
+export interface ExtractionPreview {collector_id:string;revision:number;capture_id:string;capture_revision:number;content_hash:string;definition_hash:string;source_url:string;page_state_id:string;result:{interpreter_version:string;stage:'list'|'detail';step_id:string;match_count:number;match_count_lower_bound:boolean;truncated:boolean;valid_count:number;invalid_count:number;records:{index:number;fields:ExtractedField[];values:Record<string,unknown>;valid:boolean}[];warnings:string[];network_accessed:boolean;dry_run:boolean}}
 export interface JSONCaptureCheck {capture_id:string;content_hash:string;revision:number;records:{index:number;fields:{name:string;pointer:string;found:boolean;raw_value:string}[]}[];match_count:number;truncated:boolean;network_accessed:boolean;dry_run:boolean}
 
 async function get<T>(url: string): Promise<T> {
@@ -137,6 +142,8 @@ export const appApi = {
   createCapture:(input:{collector_id:string;expected_revision:number;source:'http'|'offline';format:'json'|'html';content?:string;confirmed:boolean},key:string)=>request({url:'/api/v3/captures',method:'post',data:input,headers:{'Idempotency-Key':key}}).then((response:any)=>response.data as InputCapture),
   capture:(id:string)=>get<InputCapture>(`/api/v3/captures/${id}`),
   captureByKey:(key:string)=>request({url:'/api/v3/captures/by-key',method:'get',headers:{'Idempotency-Key':key}}).then((response:any)=>response.data as InputCapture),
+	previewCollector:(id:string,captureID:string,revision:number,stepID:string,stage:'list'|'detail')=>request({url:`/api/v3/collectors/${id}/previews`,method:'post',data:{capture_id:captureID,expected_revision:revision,step_id:stepID,stage}}).then((response:any)=>response.data as ExtractionPreview),
+	captureBrowserPage:(id:string,revision:number,pageState:string,key:string)=>request({url:`/api/v3/browser-sessions/${id}/captures`,method:'post',data:{expected_revision:revision,page_state_id:pageState},headers:{'Idempotency-Key':key}}).then((response:any)=>response.data as InputCapture),
   checkCaptureJSON:(id:string,revision:number,stepID:string)=>request({url:`/api/v3/captures/${id}/json-checks`,method:'post',data:{expected_revision:revision,step_id:stepID}}).then((response:any)=>response.data as JSONCaptureCheck),
   domChildren: (id: string, pageState: string, elementId = '', offset = 0) => get<DOMChildren>(`/api/v3/browser-sessions/${id}/dom?page_state_id=${encodeURIComponent(pageState)}&element_id=${encodeURIComponent(elementId)}&offset=${offset}&limit=50`),
 };

@@ -185,7 +185,8 @@ function leaveFrame() { selectionPanel.value?.leaveFrame(); }
 function applyLocator(locator:EditorLocator) { mode.value='browse'; actionType.value='click'; position.value=undefined; strategy.value=locator.strategy; expression.value=locator.expression; notice.value='已填入验证过的定位器；执行前仍需确认。'; }
 watch(mode,()=>{selectionPanel.value?.leaveFrame();emit('highlight',{elements:[],page_state_id:props.session?.page_state_id || '',kind:'selected'});});
 function hasUnsavedChanges(){return !!recordPanel.value?.localDirty;}
-defineExpose({ frameClick, frameHover, leaveFrame, hasUnsavedChanges });
+function focusField(stepID:string,key:string,role:string){recordPanel.value?.focusField(stepID,key,role);}
+defineExpose({ frameClick, frameHover, leaveFrame, hasUnsavedChanges, focusField });
 
 async function refreshHistory(id = props.session?.session_id) {
   if (!id) { history.value = []; return; }

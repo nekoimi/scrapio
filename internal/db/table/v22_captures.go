@@ -3,6 +3,9 @@ package table
 import "time"
 
 type V22Capture struct {
+	SessionId       string `xorm:"session_id"`
+	PageStateId     string `xorm:"page_state_id"`
+	BaseURL         string `xorm:"base_url"`
 	Id              string `xorm:"varchar(36) pk"`
 	OwnerId         int64  `xorm:"owner_id"`
 	CollectorId     int64  `xorm:"collector_id"`

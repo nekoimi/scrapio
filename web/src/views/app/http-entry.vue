@@ -84,7 +84,8 @@
 						v-model="field.pointer"
 						placeholder="相对指针，如 /title"
 						aria-label="字段 JSON Pointer"
-					/><button @click="plan.fields.splice(index, 1)">删除</button>
+					/><button @click="plan.fields.splice(index, 1)">删除</button><button :disabled="index === 0" @click="moveField(index, -1)">↑</button
+					><button :disabled="index === plan.fields.length - 1" @click="moveField(index, 1)">↓</button><FieldOptions :field="field" />
 				</div>
 				<button @click="plan.fields.push({ name: `field_${plan.fields.length + 1}`, pointer: '' })">添加字段</button
 				><button :disabled="!planDirty && !!stepID" @click="savePlan">保存 JSON 记录规则</button>
@@ -113,7 +114,7 @@
 					</tbody>
 				</table>
 			</div>
-			<p class="muted">仅展示快照中的基础原值与命中情况；转换/必填/多值和正式执行在阶段 B 接入。</p>
+			<p class="muted">此处只显示 Pointer 基础原值；类型、清洗、必填与多值结果见下方“提取与即时预览”。</p>
 		</section>
 		<p v-if="message" class="app-error" role="status">{{ message }}</p>
 	</section>
@@ -122,9 +123,10 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, nextTick, ref, watch } from 'vue';
 import JsonTreeNode from './json-tree-node.vue';
+import FieldOptions from './field-options.vue';
 import { appApi, type Collector, type HTTPEntryRequest, type InputCapture, type JSONRecordPlan, type JSONCaptureCheck } from './api';
 const props = defineProps<{ draft: Collector; blocked: boolean }>();
-const emit = defineEmits<{ (event: 'draft-saved', draft: Collector): void }>();
+const emit = defineEmits<{ (event: 'draft-saved', draft: Collector): void; (event: 'capture-saved', capture: InputCapture): void }>();
 const busy = ref(false),
 	message = ref(''),
 	entryURL = ref(''),
@@ -193,7 +195,12 @@ function loadDraft() {
 				Object.keys(rawPlan).some((k) => !['array_pointer', 'max_records', 'fields'].includes(k)) ||
 				rawPlan.fields.some(
 					(f: any) =>
-						!f || Object.keys(f).some((k) => !['name', 'pointer'].includes(k)) || typeof f.name !== 'string' || typeof f.pointer !== 'string'
+						!f ||
+						Object.keys(f).some(
+							(k) => !['name', 'pointer', 'field_key', 'type', 'required', 'multiple', 'clean', 'regex', 'date_format'].includes(k)
+						) ||
+						typeof f.name !== 'string' ||
+						typeof f.pointer !== 'string'
 				)));
 	plan.value = rawPlan && Array.isArray(rawPlan.fields) ? JSON.parse(JSON.stringify(rawPlan)) : { array_pointer: '', max_records: 10, fields: [] };
 	stepID.value = step?.step_id || '';
@@ -273,6 +280,7 @@ function applyCapture(value: InputCapture) {
 	capture.value = value;
 	captureID.value = value.capture_id;
 	sessionStorage.setItem(key(), value.capture_id);
+	emit('capture-saved', value);
 	check.value = undefined;
 	tree.value = value.status === 'succeeded' && value.format === 'json' ? JSON.parse(value.content) : undefined;
 }
@@ -370,6 +378,7 @@ async function savePlan() {
 	try {
 		const id = stepID.value || `json-${crypto.randomUUID()}`,
 			previous = props.draft.definition.steps.find((s: any) => s.step_id === id);
+		for (const field of plan.value.fields) field.field_key ||= `field-${crypto.randomUUID()}`;
 		const next = { ...previous, step_id: id, type: 'json_records', config: JSON.parse(JSON.stringify(plan.value)) };
 		await update({
 			...props.draft.definition,
@@ -421,5 +430,21 @@ onBeforeUnmount(() => {
 function hasUnsavedChanges() {
 	return requestDirty.value || planDirty.value;
 }
-defineExpose({ hasUnsavedChanges });
+function moveField(index: number, offset: number) {
+	const next = index + offset;
+	if (next < 0 || next >= plan.value.fields.length) return;
+	[plan.value.fields[index], plan.value.fields[next]] = [plan.value.fields[next], plan.value.fields[index]];
+}
+function focusField(id: string, key: string) {
+	if (id !== stepID.value) {
+		message.value = '请在 JSON 编辑中选择对应记录步骤';
+		return;
+	}
+	const el = document.getElementById(`v22-field-list-${key}`) as HTMLDetailsElement | null;
+	if (el) {
+		el.open = true;
+		el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+	}
+}
+defineExpose({ hasUnsavedChanges, acceptCapture: applyCapture, focusField });
 </script>

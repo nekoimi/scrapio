@@ -38,6 +38,8 @@ type HTTPRequest struct {
 	TimeoutMS     int               `json:"timeout_ms"`
 }
 type Input struct {
+	SessionID        string `json:"session_id,omitempty"`
+	PageStateID      string `json:"page_state_id,omitempty"`
 	CollectorID      string `json:"collector_id"`
 	ExpectedRevision int    `json:"expected_revision"`
 	Source           string `json:"source"`
@@ -46,6 +48,7 @@ type Input struct {
 	Content          string `json:"content,omitempty"`
 }
 type Result struct {
+	BaseURL         string
 	NetworkAccessed bool
 	Status          string
 	Content         string
@@ -124,8 +127,17 @@ func containsSecret(value any) bool {
 	return false
 }
 func (i *Input) Validate() error {
-	if i.ExpectedRevision < 1 || i.Source != "http" && i.Source != "offline" || i.Format != "json" && i.Format != "html" || len(i.Content) > MaxBytes {
+	if i.ExpectedRevision < 1 || i.Source != "http" && i.Source != "offline" && i.Source != "browser" || i.Format != "json" && i.Format != "html" || len(i.Content) > MaxBytes {
 		return errors.New("revision, http/offline source, json/html format and bounded content required")
+	}
+	if i.Source == "browser" {
+		if i.Format != "html" || i.SessionID == "" || len(i.SessionID) > 36 || i.PageStateID == "" || len(i.PageStateID) > 256 || i.Content != "" {
+			return errors.New("browser snapshot requires an owned session and current page state")
+		}
+		return nil
+	}
+	if i.SessionID != "" || i.PageStateID != "" {
+		return errors.New("session/page state belong to browser snapshots only")
 	}
 	if i.Source == "http" && (!i.Confirmed || i.Content != "") {
 		return errors.New("HTTP capture requires explicit confirmation")

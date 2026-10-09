@@ -63,7 +63,7 @@ func Create(ownerID int64, collector *table.V22Collector, key string, input capt
 	if current.Revision != input.ExpectedRevision || current.Definition != collector.Definition {
 		return nil, false, &v22_collector_repo.RevisionConflict{Latest: current}
 	}
-	row := &table.V22Capture{Id: uuid.NewString(), OwnerId: ownerID, CollectorId: collector.Id, DraftRevision: collector.Revision, IdempotencyKey: key, Fingerprint: fingerprint, Request: capture.Journal(input, request, collector.EntryURL), Source: input.Source, Format: input.Format, Status: "running", CreatedAt: time.Now(), DeadlineAt: time.Now().Add(25 * time.Second)}
+	row := &table.V22Capture{SessionId: input.SessionID, PageStateId: input.PageStateID, Id: uuid.NewString(), OwnerId: ownerID, CollectorId: collector.Id, DraftRevision: collector.Revision, IdempotencyKey: key, Fingerprint: fingerprint, Request: capture.Journal(input, request, collector.EntryURL), Source: input.Source, Format: input.Format, Status: "running", CreatedAt: time.Now(), DeadlineAt: time.Now().Add(25 * time.Second)}
 	if _, err := s.InsertOne(row); err != nil {
 		return nil, false, err
 	}
@@ -73,8 +73,8 @@ func Create(ownerID int64, collector *table.V22Collector, key string, input capt
 	return row, true, nil
 }
 func Complete(row *table.V22Capture, result capture.Result) error {
-	update := &table.V22Capture{Status: result.Status, FinalURL: result.FinalURL, ContentType: result.ContentType, StatusCode: result.StatusCode, Content: result.Content, ContentHash: result.Hash, ByteCount: result.Bytes, ErrorCode: result.ErrorCode, ErrorStage: result.ErrorStage, NetworkAccessed: result.NetworkAccessed}
-	_, err := db.Instance().Where("id=? AND status IN ('running','uncertain')", row.Id).Cols("status", "final_url", "content_type", "status_code", "content", "content_hash", "byte_count", "error_code", "error_stage", "network_accessed").Update(update)
+	update := &table.V22Capture{BaseURL: result.BaseURL, Status: result.Status, FinalURL: result.FinalURL, ContentType: result.ContentType, StatusCode: result.StatusCode, Content: result.Content, ContentHash: result.Hash, ByteCount: result.Bytes, ErrorCode: result.ErrorCode, ErrorStage: result.ErrorStage, NetworkAccessed: result.NetworkAccessed}
+	_, err := db.Instance().Where("id=? AND status IN ('running','uncertain')", row.Id).Cols("base_url", "status", "final_url", "content_type", "status_code", "content", "content_hash", "byte_count", "error_code", "error_stage", "network_accessed").Update(update)
 	return err
 }
 func Get(ownerID int64, id string) (*table.V22Capture, error) {

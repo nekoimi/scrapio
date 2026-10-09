@@ -30,7 +30,11 @@ func (d *DrissionRod) InspectEditorPage(ctx context.Context, sessionID, requestI
 	var result struct {
 		PageStateID string `json:"page_state_id"`
 	}
-	if len(response.ResultJson) > 1024*1024 || json.Unmarshal([]byte(response.ResultJson), &result) != nil || result.PageStateID != input.PageStateID {
+	limit := 1024 * 1024
+	if operation == "snapshot" {
+		limit = 2 * 1024 * 1024
+	}
+	if len(response.ResultJson) > limit || json.Unmarshal([]byte(response.ResultJson), &result) != nil || result.PageStateID != input.PageStateID {
 		return nil, &BrowserError{Code: "INVALID_RESPONSE", Message: "invalid or stale inspection response"}
 	}
 	return json.RawMessage(response.ResultJson), nil
@@ -47,6 +51,14 @@ func (d *DrissionRod) ProbeEditorInspection(ctx context.Context) error {
 func (d *DrissionRod) ProbeEditorRecords(ctx context.Context) error {
 	_, err := d.InspectEditorPage(ctx, "protocol-probe", "protocol-probe", "record-preview", editor.Inspection{PageStateID: "protocol-probe"})
 	if e, ok := err.(*BrowserError); ok && e.Code == "RECORD_PREVIEW_SUPPORTED" {
+		return nil
+	}
+	return err
+}
+
+func (d *DrissionRod) ProbeEditorSnapshot(ctx context.Context) error {
+	_, err := d.InspectEditorPage(ctx, "protocol-probe", "protocol-probe", "snapshot", editor.Inspection{PageStateID: "protocol-probe"})
+	if e, ok := err.(*BrowserError); ok && e.Code == "SNAPSHOT_SUPPORTED" {
 		return nil
 	}
 	return err

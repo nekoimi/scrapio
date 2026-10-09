@@ -44,6 +44,7 @@ func CapabilitiesWithBrowser(browser *drission_rod.DrissionRod) http.HandlerFunc
 		actions := []string{}
 		inspection := false
 		records := false
+		snapshots := false
 		if ready {
 			ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 			if browser.ProbeEditorCommands(ctx) == nil {
@@ -57,6 +58,9 @@ func CapabilitiesWithBrowser(browser *drission_rod.DrissionRod) http.HandlerFunc
 				ctx, cancel = context.WithTimeout(r.Context(), 2*time.Second)
 				records = browser.ProbeEditorRecords(ctx) == nil
 				cancel()
+				ctx, cancel = context.WithTimeout(r.Context(), 2*time.Second)
+				snapshots = browser.ProbeEditorSnapshot(ctx) == nil
+				cancel()
 			}
 		}
 		reason := "浏览器服务未连接"
@@ -69,7 +73,8 @@ func CapabilitiesWithBrowser(browser *drission_rod.DrissionRod) http.HandlerFunc
 			"supports_record_preview": records,
 			"supports_http_capture":   true, "supports_offline_capture": true,
 			"supports_json_capture_check": true,
-			"definition_versions":         []int{1}, "reason": reason,
+			"supports_snapshot_capture":   snapshots, "supports_extraction_preview": true,
+			"definition_versions": []int{1}, "reason": reason,
 		})
 	}
 }

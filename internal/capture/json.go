@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"github.com/nekoimi/scrapio/internal/field"
 	"regexp"
 	"strconv"
 	"strings"
 )
 
 type JSONField struct {
+	field.Options
 	Name    string `json:"name"`
 	Pointer string `json:"pointer"`
 }
@@ -47,11 +49,23 @@ func (p JSONPlan) Validate() error {
 		return errors.New("array pointer, max_records (1..20) and bounded fields required")
 	}
 	seen := map[string]bool{}
+	keys := map[string]bool{}
 	for _, field := range p.Fields {
+		if err := field.Options.Validate(); err != nil {
+			return err
+		}
 		if !regexp.MustCompile(`^[\p{L}_][\p{L}\p{N}_-]{0,63}$`).MatchString(field.Name) || seen[field.Name] || !validPointer(field.Pointer) {
 			return errors.New("unique field names and JSON pointers required")
 		}
 		seen[field.Name] = true
+		key := field.Key
+		if key == "" {
+			key = field.Name
+		}
+		if keys[key] {
+			return errors.New("field_key must be unique")
+		}
+		keys[key] = true
 	}
 	return nil
 }

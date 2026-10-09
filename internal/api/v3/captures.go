@@ -21,7 +21,7 @@ func captureDTO(row *table.V22Capture) map[string]any {
 	if row.Source == "http" && !row.NetworkAccessed && (row.Status == "running" || row.ErrorStage == "recovery") {
 		networkAccessed = nil
 	}
-	return map[string]any{"capture_id": row.Id, "collector_id": strconv.FormatInt(row.CollectorId, 10), "draft_revision": row.DraftRevision, "source": row.Source, "format": row.Format, "status": row.Status, "final_url": row.FinalURL, "status_code": row.StatusCode, "content_type": row.ContentType, "content": row.Content, "content_hash": row.ContentHash, "byte_count": row.ByteCount, "error_code": row.ErrorCode, "error_stage": row.ErrorStage, "created_at": row.CreatedAt, "deadline_at": row.DeadlineAt, "network_accessed": networkAccessed, "dry_run": true, "sanitized": true}
+	return map[string]any{"capture_id": row.Id, "session_id": row.SessionId, "page_state_id": row.PageStateId, "base_url": row.BaseURL, "collector_id": strconv.FormatInt(row.CollectorId, 10), "draft_revision": row.DraftRevision, "source": row.Source, "format": row.Format, "status": row.Status, "final_url": row.FinalURL, "status_code": row.StatusCode, "content_type": row.ContentType, "content": row.Content, "content_hash": row.ContentHash, "byte_count": row.ByteCount, "error_code": row.ErrorCode, "error_stage": row.ErrorStage, "created_at": row.CreatedAt, "deadline_at": row.DeadlineAt, "network_accessed": networkAccessed, "dry_run": true, "sanitized": true}
 }
 func captureError(w http.ResponseWriter, r *http.Request, err error) {
 	var revision *v22_collector_repo.RevisionConflict
@@ -51,6 +51,10 @@ func CreateCapture(cfg *config.Config) http.HandlerFunc {
 		}
 		if err := input.Validate(); err != nil {
 			fail(w, r, 400, "INVALID_ARGUMENT", err.Error(), false, "capture", "")
+			return
+		}
+		if input.Source == "browser" {
+			fail(w, r, 400, "INVALID_ARGUMENT", "浏览器快照请使用会话 captures 接口", false, "capture", "")
 			return
 		}
 		id, err := strconv.ParseInt(input.CollectorID, 10, 64)

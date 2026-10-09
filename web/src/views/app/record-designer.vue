@@ -54,7 +54,9 @@
 					><span v-else>记录容器自身</span>
 					<button @click="field.locator = field.locator ? undefined : { strategy: 'css', expression: '' }">
 						{{ field.locator ? '改用容器自身' : '指定子元素' }}</button
-					><button @click="group.fields.splice(index, 1)">删除</button>
+					><button @click="group.fields.splice(index, 1)">删除</button
+					><button :disabled="index === 0" @click="moveField(group.fields, index, -1)">↑</button
+					><button :disabled="index === group.fields.length - 1" @click="moveField(group.fields, index, 1)">↓</button><FieldOptions :field="field" :role="group.role" />
 				</div>
 			</template>
 			<div class="editor-actions">
@@ -182,7 +184,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import FieldOptions from './field-options.vue';
 import {
 	appApi,
 	type BrowserSession,
@@ -266,7 +269,10 @@ const unsupported = computed(
 		malformed.value ||
 		Object.keys(plan.value).some((key) => !['mode', 'locator', 'max_records', 'fields', 'detail', 'detail_fields', 'next_page'].includes(key)) ||
 		[...plan.value.fields, ...(plan.value.detail_fields || [])].some((field) =>
-			Object.keys(field).some((key) => !['name', 'locator', 'extract', 'attribute'].includes(key))
+			Object.keys(field).some(
+				(key) =>
+					!['name', 'locator', 'extract', 'attribute', 'field_key', 'type', 'required', 'multiple', 'clean', 'regex', 'date_format'].includes(key)
+			)
 		) ||
 		(!!plan.value.detail && Object.keys(plan.value.detail).some((key) => !['locator', 'return_strategy', 'max_details'].includes(key))) ||
 		(!!plan.value.next_page && Object.keys(plan.value.next_page).some((key) => !['locator', 'kind', 'max_pages'].includes(key)))
@@ -412,6 +418,7 @@ async function save() {
 	try {
 		const id = stepID.value || `records-${crypto.randomUUID()}`;
 		const previous = props.draft.definition.steps.find((s: any) => s.step_id === id);
+		for (const field of [...plan.value.fields, ...(plan.value.detail_fields || [])]) field.field_key ||= `field-${crypto.randomUUID()}`;
 		const next = { ...previous, step_id: id, type: 'record_set', config: JSON.parse(JSON.stringify(plan.value)) };
 		const steps = previous ? props.draft.definition.steps.map((s: any) => (s.step_id === id ? next : s)) : [...props.draft.definition.steps, next];
 		const draft = await appApi.updateCollector(props.draft.id, {
@@ -602,5 +609,21 @@ onBeforeUnmount(() => {
 	disposed = true;
 	epoch++;
 });
-defineExpose({ applySelection, localDirty, recordScope, detailPage });
+function moveField(fields: FieldRule[], index: number, offset: number) {
+	const next = index + offset;
+	if (next < 0 || next >= fields.length) return;
+	[fields[index], fields[next]] = [fields[next], fields[index]];
+}
+async function focusField(id: string, key: string, role:string) {
+	if (id !== stepID.value) {
+		chooseStep(id);
+		await nextTick();
+	}
+	const el = document.getElementById(`v22-field-${role}-${key}`) as HTMLDetailsElement | null;
+	if (el) {
+		el.open = true;
+		el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+	}
+}
+defineExpose({ applySelection, localDirty, recordScope, detailPage, focusField });
 </script>

@@ -55,7 +55,7 @@ func TestJSONPointerAndPrecision(t *testing.T) {
 	if value, ok := Resolve(value, ""); !ok || value == nil {
 		t.Fatal("root array pointer rejected")
 	}
-	for _, raw := range []string{`{"array_pointer":null,"max_records":1,"fields":[]}`, `{"array_pointer":"","max_records":1,"fields":[{"name":"id"}]}`, `{"array_pointer":"","max_records":1,"fields":[],"unknown":true}`, `{"array_pointer":"","max_records":1,"fields":[{"name":"id","pointer":"","type":"integer"}]}`} {
+	for _, raw := range []string{`{"array_pointer":null,"max_records":1,"fields":[]}`, `{"array_pointer":"","max_records":1,"fields":[{"name":"id"}]}`, `{"array_pointer":"","max_records":1,"fields":[],"unknown":true}`, `{"array_pointer":"","max_records":1,"fields":[{"name":"id","pointer":"","unknown_option":true}]}`} {
 		if _, err := DecodePlan([]byte(raw)); err == nil {
 			t.Fatal("unknown rule silently ignored")
 		}
