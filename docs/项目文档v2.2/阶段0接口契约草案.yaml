@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
   title: scrapio v2.2 editor contract spike
-  version: 0.7.0-b01
-  description: A02～B01 开发契约：草稿、会话、动作、点选、记录路径、HTTP/浏览器/离线快照与共用提取预览。发版实环境验收另行记录；样例引用、完整 trials 与正式数据写入尚未实现。
+  version: 0.8.0-b02
+  description: A02～B02 开发契约：草稿、会话、动作、点选、快照、共用提取、样例与检查证据。发版实环境验收另行记录；完整 trials 与正式数据写入尚未实现。
 servers:
   - url: /api/v3
 security:
@@ -1012,18 +1012,24 @@ paths:
         服务端从草稿加载 step_id 对应的 record_set/json_records，不接受客户端替换规则。
         同一 Extract 解释器用于后续试采/正式提取。字段诊断和候选不会写正式记录/投递插件，也不访问网站。
         可以用旧快照验证新规则；返回 input/definition 哈希、规则和快照 revision、解释器版本。
-        HTML 的 list/detail 角色显式指定，不在此接口打开详情或下一页；sample_id 引用留给 B02，目前拒绝。
+        HTML 的 list/detail 角色显式指定，不在此接口打开详情或下一页；capture_id 与 sample_id 二选一。样例引用固定其输入、步骤和角色；这里只预览，持久检查使用 samples/checks。
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [expected_revision, capture_id, step_id]
+              required: [expected_revision]
+              oneOf:
+                - required: [capture_id, step_id]
+                - required: [sample_id]
               properties:
                 expected_revision:
                   type: integer
                   minimum: 1
+                sample_id:
+                  type: string
+                  format: uuid
                 capture_id:
                   type: string
                   format: uuid
@@ -1102,6 +1108,323 @@ paths:
         '500':
           $ref: '#/components/responses/Error'
       x-implementation-status: implemented
+  /collectors/{collector_id}/samples:
+    parameters:
+      - $ref: '#/components/parameters/CollectorId'
+    post:
+      summary: 从成功快照保存有界样例，固定步骤与角色
+      description: |
+        同 owner/方案快照，当前草稿 revision 校验，最多 100 样例/方案。相同请求键复用；截图默认排除。
+        include_screenshot 需 screenshot_reviewed；只读取同 session/page_state 画面，归一化 masks 黑色覆盖后重编码 PNG，原图不落库。
+        复制取样前完成动作的最多 50 条回执摘要，省略输入值/URL/任意错误文本；不重放动作。
+        样例持有快照外键保护，删除样例不会删除原 capture；检查与截图随样例删除。
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSample'
+      responses:
+        '201':
+          description: 保存样例；响应丢失后先按原请求键查询
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/SavedSample'
+                  request_id:
+                    type: string
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      x-implementation-status: implemented
+    get:
+      summary: 当前 owner 下方案样例的稳定游标分页
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 25
+        - in: query
+          name: cursor
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 不加载截图二进制或原输入正文
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/SamplePage'
+                  request_id:
+                    type: string
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      x-implementation-status: implemented
+  /samples/by-key:
+    get:
+      summary: 按原请求键恢复已保存样例，无浏览器访问
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: 不存在返回 404，客户端不自动重新截图
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/SavedSample'
+                  request_id:
+                    type: string
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      x-implementation-status: implemented
+  /samples/{sample_id}:
+    parameters:
+      - $ref: '#/components/parameters/SampleId'
+    get:
+      summary: 读取样例及其保留的输入快照
+      responses:
+        '200':
+          description: 包含 capture，截图另行授权读取
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/SavedSample'
+                  request_id:
+                    type: string
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      x-implementation-status: implemented
+    patch:
+      summary: 乐观锁编辑样例名称、预期及保留保护
+      description: expected_revision 是样例 revision；不能替换输入/步骤/角色/截图。旧检查证据不改写。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSample'
+      responses:
+        '200':
+          description: 修改后 revision 增加，旧检查过期
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/SavedSample'
+                  request_id:
+                    type: string
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      x-implementation-status: implemented
+    delete:
+      summary: 合法删除未受保护样例及其截图/检查，保留原 capture
+      parameters:
+        - in: query
+          name: expected_revision
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: 保护返回 SAMPLE_PROTECTED；版本竞争返回 SAMPLE_CONFLICT
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/SampleDeletion'
+                  request_id:
+                    type: string
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      x-implementation-status: implemented
+  /samples/{sample_id}/screenshot:
+    parameters:
+      - $ref: '#/components/parameters/SampleId'
+    get:
+      summary: 授权读取重编码和已确认遮挡的 PNG
+      responses:
+        '200':
+          description: 检查保存哈希，Cache-Control no-store
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+      x-implementation-status: implemented
+  /samples/{sample_id}/checks:
+    parameters:
+      - $ref: '#/components/parameters/SampleId'
+    post:
+      summary: 以当前保存草稿验证单样例并保存检查证据
+      description: |
+        不访问网站/重放动作/写正式记录。绑定 collector/sample revision、输入/定义/预期哈希与解释器，保存定义和预期副本、全部字段诊断。
+        无断言为 unconfigured；显式预期的字段错误可通过，未预期错误失败；截断或移除的字段/步骤失败。失败提取也保存证据。
+        每个样例保留最近 20 次检查；修改样例/草稿不改旧结果，客户端按 revision/hash 标过期。
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SampleCheckInput'
+      responses:
+        '201':
+          description: passed / failed / unconfigured，失败不是正式运行失败
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/SampleCheck'
+                  request_id:
+                    type: string
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      x-implementation-status: implemented
+    get:
+      summary: 最近 20 次检查摘要，不加载提取结果/定义/预期正文
+      responses:
+        '200':
+          description: 有界检查历史
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/SampleCheckPage'
+                  request_id:
+                    type: string
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      x-implementation-status: implemented
+  /samples/{sample_id}/checks/{check_id}:
+    parameters:
+      - $ref: '#/components/parameters/SampleId'
+      - in: path
+        name: check_id
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      summary: 读取不可变检查证据与逐字段诊断
+      responses:
+        '200':
+          description: 样例/owner 绑定；已超出保留范围返回 404
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/SampleCheck'
+                  request_id:
+                    type: string
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      x-implementation-status: implemented
 components:
   securitySchemes:
     bearerAuth:
@@ -1110,6 +1433,13 @@ components:
       name: Authorization
       description: 沿用现有登录返回的原始 JWT，不添加 Bearer 前缀；也支持 token cookie。
   parameters:
+    SampleId:
+      in: path
+      name: sample_id
+      required: true
+      schema:
+        type: string
+        format: uuid
     CaptureId:
       in: path
       name: capture_id
@@ -1144,6 +1474,320 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
   schemas:
+    SampleMask:
+      type: object
+      required: [x, y, width, height]
+      description: 相对于截图尺寸的比例，矩形必须完整位于 0..1 范围内，最多 50 个。
+      properties:
+        x:
+          type: number
+          minimum: 0
+          maximum: 1
+        y:
+          type: number
+          minimum: 0
+          maximum: 1
+        width:
+          type: number
+          minimum: 0
+          maximum: 1
+        height:
+          type: number
+          minimum: 0
+          maximum: 1
+    SampleExpected:
+      type: object
+      additionalProperties: false
+      description: 无断言为未配置；fields 使用稳定键，值保持 JSON 数字精度，errors 精确比较错误码集合。
+      properties:
+        record_count:
+          type: integer
+          minimum: 0
+          maximum: 1000000
+        valid_count:
+          type: integer
+          minimum: 0
+          maximum: 1000000
+        invalid_count:
+          type: integer
+          minimum: 0
+          maximum: 1000000
+        fields:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            additionalProperties: false
+            required: [record_index, field_key]
+            properties:
+              record_index:
+                type: integer
+                minimum: 0
+                maximum: 19
+              field_key:
+                type: string
+                maxLength: 128
+              value: {}
+              errors:
+                type: array
+                maxItems: 20
+                uniqueItems: true
+                items:
+                  type: string
+                  maxLength: 64
+    CreateSample:
+      type: object
+      additionalProperties: false
+      required: [name, capture_id, expected_revision, step_id, stage, kind]
+      oneOf:
+        - required: [expected]
+        - required: [expected_json]
+      properties:
+        name:
+          type: string
+          maxLength: 160
+        capture_id:
+          type: string
+          format: uuid
+        expected_revision:
+          type: integer
+          minimum: 1
+        step_id:
+          type: string
+          maxLength: 128
+        stage:
+          type: string
+          enum: [list, detail]
+        kind:
+          type: string
+          enum: [normal, missing_field]
+        expected:
+          $ref: '#/components/schemas/SampleExpected'
+        expected_json:
+          type: string
+          description: 保留精度的 SampleExpected JSON 文本，与 expected 二选一，最多 64 KiB。
+        protected:
+          type: boolean
+        include_screenshot:
+          type: boolean
+          default: false
+        screenshot_reviewed:
+          type: boolean
+          default: false
+        masks:
+          type: array
+          maxItems: 50
+          items:
+            $ref: '#/components/schemas/SampleMask'
+    UpdateSample:
+      type: object
+      additionalProperties: false
+      required: [expected_revision]
+      properties:
+        expected_revision:
+          type: integer
+          minimum: 1
+        name:
+          type: string
+          maxLength: 160
+        expected:
+          $ref: '#/components/schemas/SampleExpected'
+        expected_json:
+          type: string
+        protected:
+          type: boolean
+    SavedSample:
+      type: object
+      properties:
+        sample_id:
+          type: string
+          format: uuid
+        collector_id:
+          type: string
+        capture_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        stage:
+          type: string
+          enum: [list, detail]
+        step_id:
+          type: string
+        kind:
+          type: string
+          enum: [normal, missing_field]
+        revision:
+          type: integer
+        saved_revision:
+          type: integer
+        definition_hash:
+          type: string
+        expected:
+          $ref: '#/components/schemas/SampleExpected'
+        expected_json:
+          type: string
+        expected_hash:
+          type: string
+        protected:
+          type: boolean
+        input_retained:
+          type: boolean
+          enum: [true]
+        actions:
+          type: array
+          maxItems: 50
+          items:
+            type: object
+            properties:
+              command_id:
+                type: string
+              type:
+                type: string
+              status:
+                type: string
+              before_page_state_id:
+                type: string
+              after_page_state_id:
+                type: string
+              error_code:
+                type: string
+              created_at:
+                type: string
+                format: date-time
+        actions_truncated:
+          type: boolean
+        screenshot_url:
+          type: string
+        screenshot_hash:
+          type: string
+        screenshot_policy:
+          type: string
+          enum: [excluded, user-reviewed-masked-png.v1]
+        masks:
+          type: array
+          items:
+            $ref: '#/components/schemas/SampleMask'
+        capture:
+          $ref: '#/components/schemas/InputCapture'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    SamplePage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/SavedSample'
+        has_more:
+          type: boolean
+        next_cursor:
+          type: string
+    SampleDeletion:
+      type: object
+      properties:
+        sample_id:
+          type: string
+        deleted:
+          type: boolean
+        capture_deleted:
+          type: boolean
+          enum: [false]
+        checks_deleted:
+          type: boolean
+          enum: [true]
+    SampleCheckInput:
+      type: object
+      additionalProperties: false
+      required: [expected_revision, sample_revision]
+      properties:
+        expected_revision:
+          type: integer
+          minimum: 1
+          description: 当前方案 revision。
+        sample_revision:
+          type: integer
+          minimum: 1
+    SampleCheck:
+      type: object
+      properties:
+        check_id:
+          type: string
+          format: uuid
+        sample_id:
+          type: string
+          format: uuid
+        sample_revision:
+          type: integer
+        collector_revision:
+          type: integer
+        definition_hash:
+          type: string
+        content_hash:
+          type: string
+        expected_hash:
+          type: string
+        interpreter_version:
+          type: string
+        status:
+          type: string
+          enum: [passed, failed, unconfigured]
+        error_code:
+          type: string
+        error_message:
+          type: string
+        expected_json:
+          type: string
+        definition_json:
+          type: string
+        result:
+          $ref: '#/components/schemas/ExtractionResult'
+        comparison:
+          type: object
+          properties:
+            status:
+              type: string
+              enum: [passed, failed, unconfigured]
+            assertion_count:
+              type: integer
+            differences:
+              type: array
+              items:
+                type: object
+                properties:
+                  code:
+                    type: string
+                  record_index:
+                    type: integer
+                  field_key:
+                    type: string
+                  expected_json:
+                    type: string
+                  actual_json:
+                    type: string
+        network_accessed:
+          type: boolean
+          enum: [false]
+        dry_run:
+          type: boolean
+          enum: [true]
+        created_at:
+          type: string
+          format: date-time
+    SampleCheckPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/SampleCheck'
+        retention_limit:
+          type: integer
+          enum: [20]
     JSONFieldRule:
       type: object
       additionalProperties: false
@@ -1182,6 +1826,10 @@ components:
     ExtractionPreview:
       type: object
       properties:
+        sample_id:
+          type: string
+        sample_revision:
+          type: integer
         collector_id:
           type: string
         revision:
@@ -1482,6 +2130,10 @@ components:
         supports_snapshot_capture:
           type: boolean
           description: snapshot 独立探测，旧 A06 浏览器服务返回 false。
+        supports_samples:
+          type: boolean
+        supports_sample_checks:
+          type: boolean
         supports_extraction_preview:
           type: boolean
           description: Go 固定快照提取，不依赖浏览器服务。

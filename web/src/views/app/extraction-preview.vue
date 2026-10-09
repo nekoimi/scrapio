@@ -52,7 +52,9 @@
 			<p class="muted">
 				{{ preview.result.interpreter_version }} · 规则 revision {{ preview.revision }} · {{ preview.result.stage }} · 哈希 {{ preview.content_hash }}
 			</p>
-			<p class="muted">来源页面：{{ preview.source_url || '离线输入' }}<span v-if="preview.page_state_id"> · 页版本 {{ preview.page_state_id }}</span></p>
+			<p class="muted">
+				来源页面：{{ preview.source_url || '离线输入' }}<span v-if="preview.page_state_id"> · 页版本 {{ preview.page_state_id }}</span>
+			</p>
 			<div class="record-preview-table">
 				<table>
 					<thead>
@@ -84,11 +86,34 @@
 			</div>
 			<p v-for="warning in preview.result.warnings" :key="warning" class="muted">{{ errorLabel(warning) }}</p>
 		</section>
+		<SamplePanel
+			ref="samplePanel"
+			:draft="draft"
+			:capture="capture"
+			:session="session"
+			:step-id="stepID"
+			:stage="stage"
+			:blocked="blocked || busy"
+			:preview="preview"
+			:preview-stale="stale"
+			@use-sample="useSample"
+			@focus-field="(step, key, role) => emit('focus-field', step, key, role)"
+		/>
 	</section>
 </template>
 <script setup lang="ts">
 import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue';
 import { appApi, type Collector, type BrowserSession, type InputCapture, type ExtractionPreview, type ExtractedField } from './api';
+import SamplePanel from './sample-panel.vue';
+import type { SavedSample } from './api';
+const samplePanel = ref<InstanceType<typeof SamplePanel>>();
+function useSample(value: SavedSample) {
+	if (!value.capture) return;
+	stepID.value = value.step_id;
+	stage.value = value.stage;
+	emit('capture-selected', value.capture);
+}
+defineExpose({ hasUnsavedChanges: () => !!samplePanel.value?.hasUnsavedChanges() });
 const props = defineProps<{ draft: Collector; session?: BrowserSession; capture?: InputCapture; blocked: boolean }>();
 const emit = defineEmits<{
 	(event: 'capture-selected', capture: InputCapture): void;

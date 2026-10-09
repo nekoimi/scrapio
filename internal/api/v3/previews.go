@@ -9,6 +9,7 @@ import (
 	"github.com/nekoimi/scrapio/internal/pkg/request"
 	"github.com/nekoimi/scrapio/internal/repo/v22_capture_repo"
 	"github.com/nekoimi/scrapio/internal/repo/v22_collector_repo"
+	"github.com/nekoimi/scrapio/internal/repo/v22_sample_repo"
 	"net/http"
 	"strconv"
 	"time"
@@ -33,8 +34,30 @@ func PreviewCollector(w http.ResponseWriter, r *http.Request) {
 		SampleID         string `json:"sample_id"`
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, 8192)
-	if request.Parse(r, &input) != nil || input.SampleID != "" || input.ExpectedRevision < 1 || input.StepID == "" || len(input.StepID) > 128 {
-		fail(w, r, 400, "INVALID_ARGUMENT", "需要 revision、capture_id 和 step_id；样例引用在 B02 接入", false, "preview", "")
+	if request.Parse(r, &input) != nil || input.ExpectedRevision < 1 || (input.CaptureID == "") == (input.SampleID == "") || len(input.StepID) > 128 {
+		fail(w, r, 400, "INVALID_ARGUMENT", "需要 revision 与 capture_id/sample_id 二选一", false, "preview", "")
+		return
+	}
+	var sampleRevision int
+	if input.SampleID != "" {
+		row, sampleErr := v22_sample_repo.Get(admin.Id, input.SampleID)
+		if sampleErr != nil {
+			sampleError(w, r, sampleErr)
+			return
+		}
+		if row.CollectorId != id {
+			sampleError(w, r, v22_sample_repo.ErrNotFound)
+			return
+		}
+		if input.StepID != "" && input.StepID != row.StepId || input.Stage != "" && input.Stage != row.Stage {
+			fail(w, r, 400, "INVALID_ARGUMENT", "样例步骤与角色不可替换", false, "preview", "")
+			return
+		}
+		input.CaptureID, input.StepID, input.Stage = row.CaptureId, row.StepId, row.Stage
+		sampleRevision = row.Revision
+	}
+	if input.StepID == "" {
+		fail(w, r, 400, "INVALID_ARGUMENT", "需要 step_id", false, "preview", "")
 		return
 	}
 	if input.Stage == "" {
@@ -90,5 +113,5 @@ func PreviewCollector(w http.ResponseWriter, r *http.Request) {
 		fail(w, r, 400, "EXTRACTION_FAILED", err.Error(), false, "preview", input.StepID)
 		return
 	}
-	ok(w, r, map[string]any{"collector_id": strconv.FormatInt(id, 10), "revision": collector.Revision, "capture_id": snapshot.Id, "capture_revision": snapshot.DraftRevision, "content_hash": snapshot.ContentHash, "definition_hash": capture.Hash([]byte(collector.Definition)), "source_url": snapshot.FinalURL, "page_state_id": snapshot.PageStateId, "result": result})
+	ok(w, r, map[string]any{"collector_id": strconv.FormatInt(id, 10), "revision": collector.Revision, "capture_id": snapshot.Id, "capture_revision": snapshot.DraftRevision, "content_hash": snapshot.ContentHash, "definition_hash": capture.Hash([]byte(collector.Definition)), "source_url": snapshot.FinalURL, "page_state_id": snapshot.PageStateId, "sample_id": input.SampleID, "sample_revision": sampleRevision, "result": result})
 }

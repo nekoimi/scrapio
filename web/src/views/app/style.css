@@ -153,3 +153,9 @@
 .field-options input[type=checkbox] { width: auto; margin-right: 8px; }
 .extraction-preview pre { max-height: 180px; max-width: 400px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
 .extraction-preview td small { display: block; color: #6b7280; margin-top: 6px; }
+.sample-panel{margin-top:24px;padding-top:20px;border-top:1px solid var(--app-border,#dbe2ea)}
+.sample-mask-stage{position:relative;width:fit-content;max-width:100%;touch-action:none;cursor:crosshair;line-height:0;margin:12px 0}
+.sample-mask-stage img{display:block;max-width:100%;pointer-events:none;user-select:none}
+.sample-image-mask{position:absolute;background:#000;pointer-events:none}
+.sample-saved-image{display:block;max-width:100%;margin-top:12px}
+.sample-panel pre{white-space:pre-wrap;overflow-wrap:anywhere;max-width:440px}

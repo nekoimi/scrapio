@@ -74,6 +74,7 @@ func CapabilitiesWithBrowser(browser *drission_rod.DrissionRod) http.HandlerFunc
 			"supports_http_capture":   true, "supports_offline_capture": true,
 			"supports_json_capture_check": true,
 			"supports_snapshot_capture":   snapshots, "supports_extraction_preview": true,
+			"supports_samples": true, "supports_sample_checks": true,
 			"definition_versions": []int{1}, "reason": reason,
 		})
 	}

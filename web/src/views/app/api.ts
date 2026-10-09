@@ -3,6 +3,8 @@ import { Session } from '/@/utils/storage';
 
 export interface Identity { id: string; username: string }
 export interface Capabilities {
+	 supports_samples?: boolean;
+	 supports_sample_checks?: boolean;
 	 supports_snapshot_capture?: boolean;
 	 supports_extraction_preview?: boolean;
 	 supports_http_capture?: boolean;
@@ -69,6 +71,11 @@ export interface InputCapture {capture_id:string;collector_id:string;draft_revis
 export interface ExtractedField {name:string;field_key:string;match_count:number;raw_values:unknown[];raw_json:string;value_json:string;value:unknown;errors:string[];valid:boolean;truncated:boolean;locator?:EditorLocator;pointer?:string}
 export interface ExtractionPreview {collector_id:string;revision:number;capture_id:string;capture_revision:number;content_hash:string;definition_hash:string;source_url:string;page_state_id:string;result:{interpreter_version:string;stage:'list'|'detail';step_id:string;match_count:number;match_count_lower_bound:boolean;truncated:boolean;valid_count:number;invalid_count:number;records:{index:number;fields:ExtractedField[];values:Record<string,unknown>;valid:boolean}[];warnings:string[];network_accessed:boolean;dry_run:boolean}}
 export interface JSONCaptureCheck {capture_id:string;content_hash:string;revision:number;records:{index:number;fields:{name:string;pointer:string;found:boolean;raw_value:string}[]}[];match_count:number;truncated:boolean;network_accessed:boolean;dry_run:boolean}
+export interface SampleMask {x:number;y:number;width:number;height:number}
+export interface SavedSample {sample_id:string;collector_id:string;capture_id:string;name:string;stage:'list'|'detail';step_id:string;kind:'normal'|'missing_field';revision:number;saved_revision:number;definition_hash:string;expected:unknown;expected_json:string;expected_hash:string;actions:{command_id:string;type:string;status:string;before_page_state_id:string;after_page_state_id:string;error_code:string;created_at:string}[];actions_truncated:boolean;protected:boolean;input_retained:boolean;screenshot_url:string;screenshot_hash:string;screenshot_policy:string;masks:SampleMask[];created_at:string;updated_at:string;capture?:InputCapture}
+export interface SampleDifference {code:string;record_index?:number;field_key?:string;expected_json?:string;actual_json?:string}
+export interface SampleCheck {check_id:string;sample_id:string;sample_revision:number;collector_revision:number;definition_hash:string;content_hash:string;expected_hash:string;interpreter_version:string;status:'passed'|'failed'|'unconfigured';error_code:string;error_message?:string;definition_json?:string;created_at:string;expected_json?:string;result?:ExtractionPreview['result'];comparison?:{status:string;assertion_count:number;differences:SampleDifference[]}}
+export interface CreateSampleInput {name:string;capture_id:string;expected_revision:number;step_id:string;stage:'list'|'detail';kind:'normal'|'missing_field';expected_json:string;protected:boolean;include_screenshot:boolean;screenshot_reviewed:boolean;masks:SampleMask[]}
 
 async function get<T>(url: string): Promise<T> {
   const response: any = await request({ url, method: 'get' });
@@ -114,6 +121,17 @@ async function streamBrowserSession(id: string, signal: AbortSignal, onSession: 
 }
 
 export const appApi = {
+  samples:(id:string,cursor='')=>get<{items:SavedSample[];has_more:boolean;next_cursor:string}>(`/api/v3/collectors/${id}/samples?limit=25${cursor?`&cursor=${encodeURIComponent(cursor)}`:''}`),
+  sample:(id:string)=>get<SavedSample>(`/api/v3/samples/${id}`),
+  createSample:(id:string,data:CreateSampleInput,key:string)=>request({url:`/api/v3/collectors/${id}/samples`,method:'post',data,headers:{'Idempotency-Key':key}}).then((response:any)=>response.data as SavedSample),
+  updateSample:(id:string,data:{expected_revision:number;name?:string;expected_json?:string;protected?:boolean})=>request({url:`/api/v3/samples/${id}`,method:'patch',data}).then((response:any)=>response.data as SavedSample),
+  sampleByKey:(key:string)=>request({url:'/api/v3/samples/by-key',method:'get',headers:{'Idempotency-Key':key}}).then((response:any)=>response.data as SavedSample),
+  deleteSample:(id:string,revision:number)=>request({url:`/api/v3/samples/${id}?expected_revision=${revision}`,method:'delete'}),
+  sampleChecks:(id:string)=>get<{items:SampleCheck[];retention_limit:number}>(`/api/v3/samples/${id}/checks`),
+  sampleCheck:(id:string,checkID:string)=>get<SampleCheck>(`/api/v3/samples/${id}/checks/${checkID}`),
+  checkSample:(id:string,revision:number,sampleRevision:number,key:string)=>request({url:`/api/v3/samples/${id}/checks`,method:'post',data:{expected_revision:revision,sample_revision:sampleRevision},headers:{'Idempotency-Key':key}}).then((response:any)=>response.data as SampleCheck),
+  sampleScreenshot:(url:string)=>request({url,method:'get',responseType:'blob'}).then((response:any)=>response as Blob),
+  previewSample:(id:string,sampleID:string,revision:number)=>request({url:`/api/v3/collectors/${id}/previews`,method:'post',data:{sample_id:sampleID,expected_revision:revision}}).then((response:any)=>response.data as ExtractionPreview),
   me: () => get<Identity>('/api/v3/me'),
   capabilities: () => get<Capabilities>('/api/v3/capabilities'),
   home: () => get<HomeState>('/api/v3/home'),
