@@ -44,6 +44,10 @@ func CreateCollector(w http.ResponseWriter, r *http.Request) {
 	}
 	row, err := v22_collector_repo.Create(admin.Id, input, r.Header.Get("Idempotency-Key"))
 	if err != nil {
+		if errors.Is(err, v22_collector_repo.ErrIdempotencyConflict) {
+			fail(w, r, http.StatusConflict, "IDEMPOTENCY_CONFLICT", err.Error(), false, "create", "Idempotency-Key")
+			return
+		}
 		fail(w, r, http.StatusBadRequest, "INVALID_ARGUMENT", err.Error(), false, "validate", "")
 		return
 	}
@@ -94,7 +98,9 @@ func CopyCollector(w http.ResponseWriter, r *http.Request) {
 	}
 	row, err := v22_collector_repo.Copy(admin.Id, id, r.Header.Get("Idempotency-Key"))
 	if err != nil {
-		if err.Error() == "collector not found" {
+		if errors.Is(err, v22_collector_repo.ErrIdempotencyConflict) {
+			fail(w, r, http.StatusConflict, "IDEMPOTENCY_CONFLICT", err.Error(), false, "copy", "Idempotency-Key")
+		} else if err.Error() == "collector not found" {
 			fail(w, r, http.StatusNotFound, "NOT_FOUND", err.Error(), false, "copy", "collector_id")
 		} else {
 			fail(w, r, http.StatusInternalServerError, "INTERNAL", err.Error(), true, "copy", "")

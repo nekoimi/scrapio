@@ -19,11 +19,16 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	PageFetchService_Fetch_FullMethodName          = "/grpc.PageFetchService/Fetch"
-	PageFetchService_FetchJavDB_FullMethodName     = "/grpc.PageFetchService/FetchJavDB"
-	PageFetchService_FetchSehuatang_FullMethodName = "/grpc.PageFetchService/FetchSehuatang"
-	PageFetchService_Execute_FullMethodName        = "/grpc.PageFetchService/Execute"
-	PageFetchService_Health_FullMethodName         = "/grpc.PageFetchService/Health"
+	PageFetchService_Fetch_FullMethodName                  = "/grpc.PageFetchService/Fetch"
+	PageFetchService_FetchJavDB_FullMethodName             = "/grpc.PageFetchService/FetchJavDB"
+	PageFetchService_FetchSehuatang_FullMethodName         = "/grpc.PageFetchService/FetchSehuatang"
+	PageFetchService_Execute_FullMethodName                = "/grpc.PageFetchService/Execute"
+	PageFetchService_Health_FullMethodName                 = "/grpc.PageFetchService/Health"
+	PageFetchService_CreateEditorSession_FullMethodName    = "/grpc.PageFetchService/CreateEditorSession"
+	PageFetchService_GetEditorSession_FullMethodName       = "/grpc.PageFetchService/GetEditorSession"
+	PageFetchService_HeartbeatEditorSession_FullMethodName = "/grpc.PageFetchService/HeartbeatEditorSession"
+	PageFetchService_CloseEditorSession_FullMethodName     = "/grpc.PageFetchService/CloseEditorSession"
+	PageFetchService_FrameEditorSession_FullMethodName     = "/grpc.PageFetchService/FrameEditorSession"
 )
 
 // PageFetchServiceClient is the client API for PageFetchService service.
@@ -35,6 +40,11 @@ type PageFetchServiceClient interface {
 	FetchSehuatang(ctx context.Context, in *FetchRequest, opts ...grpc.CallOption) (*FetchResponse, error)
 	Execute(ctx context.Context, in *BrowserJobRequest, opts ...grpc.CallOption) (*BrowserJobResponse, error)
 	Health(ctx context.Context, in *BrowserHealthRequest, opts ...grpc.CallOption) (*BrowserHealthResponse, error)
+	CreateEditorSession(ctx context.Context, in *EditorSessionCreateRequest, opts ...grpc.CallOption) (*EditorSessionResponse, error)
+	GetEditorSession(ctx context.Context, in *EditorSessionRequest, opts ...grpc.CallOption) (*EditorSessionResponse, error)
+	HeartbeatEditorSession(ctx context.Context, in *EditorSessionRequest, opts ...grpc.CallOption) (*EditorSessionResponse, error)
+	CloseEditorSession(ctx context.Context, in *EditorSessionRequest, opts ...grpc.CallOption) (*EditorSessionResponse, error)
+	FrameEditorSession(ctx context.Context, in *EditorSessionRequest, opts ...grpc.CallOption) (*EditorSessionResponse, error)
 }
 
 type pageFetchServiceClient struct {
@@ -95,6 +105,56 @@ func (c *pageFetchServiceClient) Health(ctx context.Context, in *BrowserHealthRe
 	return out, nil
 }
 
+func (c *pageFetchServiceClient) CreateEditorSession(ctx context.Context, in *EditorSessionCreateRequest, opts ...grpc.CallOption) (*EditorSessionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(EditorSessionResponse)
+	err := c.cc.Invoke(ctx, PageFetchService_CreateEditorSession_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *pageFetchServiceClient) GetEditorSession(ctx context.Context, in *EditorSessionRequest, opts ...grpc.CallOption) (*EditorSessionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(EditorSessionResponse)
+	err := c.cc.Invoke(ctx, PageFetchService_GetEditorSession_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *pageFetchServiceClient) HeartbeatEditorSession(ctx context.Context, in *EditorSessionRequest, opts ...grpc.CallOption) (*EditorSessionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(EditorSessionResponse)
+	err := c.cc.Invoke(ctx, PageFetchService_HeartbeatEditorSession_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *pageFetchServiceClient) CloseEditorSession(ctx context.Context, in *EditorSessionRequest, opts ...grpc.CallOption) (*EditorSessionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(EditorSessionResponse)
+	err := c.cc.Invoke(ctx, PageFetchService_CloseEditorSession_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *pageFetchServiceClient) FrameEditorSession(ctx context.Context, in *EditorSessionRequest, opts ...grpc.CallOption) (*EditorSessionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(EditorSessionResponse)
+	err := c.cc.Invoke(ctx, PageFetchService_FrameEditorSession_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // PageFetchServiceServer is the server API for PageFetchService service.
 // All implementations must embed UnimplementedPageFetchServiceServer
 // for forward compatibility.
@@ -104,6 +164,11 @@ type PageFetchServiceServer interface {
 	FetchSehuatang(context.Context, *FetchRequest) (*FetchResponse, error)
 	Execute(context.Context, *BrowserJobRequest) (*BrowserJobResponse, error)
 	Health(context.Context, *BrowserHealthRequest) (*BrowserHealthResponse, error)
+	CreateEditorSession(context.Context, *EditorSessionCreateRequest) (*EditorSessionResponse, error)
+	GetEditorSession(context.Context, *EditorSessionRequest) (*EditorSessionResponse, error)
+	HeartbeatEditorSession(context.Context, *EditorSessionRequest) (*EditorSessionResponse, error)
+	CloseEditorSession(context.Context, *EditorSessionRequest) (*EditorSessionResponse, error)
+	FrameEditorSession(context.Context, *EditorSessionRequest) (*EditorSessionResponse, error)
 	mustEmbedUnimplementedPageFetchServiceServer()
 }
 
@@ -128,6 +193,21 @@ func (UnimplementedPageFetchServiceServer) Execute(context.Context, *BrowserJobR
 }
 func (UnimplementedPageFetchServiceServer) Health(context.Context, *BrowserHealthRequest) (*BrowserHealthResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Health not implemented")
+}
+func (UnimplementedPageFetchServiceServer) CreateEditorSession(context.Context, *EditorSessionCreateRequest) (*EditorSessionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateEditorSession not implemented")
+}
+func (UnimplementedPageFetchServiceServer) GetEditorSession(context.Context, *EditorSessionRequest) (*EditorSessionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetEditorSession not implemented")
+}
+func (UnimplementedPageFetchServiceServer) HeartbeatEditorSession(context.Context, *EditorSessionRequest) (*EditorSessionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method HeartbeatEditorSession not implemented")
+}
+func (UnimplementedPageFetchServiceServer) CloseEditorSession(context.Context, *EditorSessionRequest) (*EditorSessionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CloseEditorSession not implemented")
+}
+func (UnimplementedPageFetchServiceServer) FrameEditorSession(context.Context, *EditorSessionRequest) (*EditorSessionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method FrameEditorSession not implemented")
 }
 func (UnimplementedPageFetchServiceServer) mustEmbedUnimplementedPageFetchServiceServer() {}
 func (UnimplementedPageFetchServiceServer) testEmbeddedByValue()                          {}
@@ -240,6 +320,96 @@ func _PageFetchService_Health_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _PageFetchService_CreateEditorSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(EditorSessionCreateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PageFetchServiceServer).CreateEditorSession(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PageFetchService_CreateEditorSession_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PageFetchServiceServer).CreateEditorSession(ctx, req.(*EditorSessionCreateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PageFetchService_GetEditorSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(EditorSessionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PageFetchServiceServer).GetEditorSession(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PageFetchService_GetEditorSession_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PageFetchServiceServer).GetEditorSession(ctx, req.(*EditorSessionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PageFetchService_HeartbeatEditorSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(EditorSessionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PageFetchServiceServer).HeartbeatEditorSession(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PageFetchService_HeartbeatEditorSession_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PageFetchServiceServer).HeartbeatEditorSession(ctx, req.(*EditorSessionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PageFetchService_CloseEditorSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(EditorSessionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PageFetchServiceServer).CloseEditorSession(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PageFetchService_CloseEditorSession_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PageFetchServiceServer).CloseEditorSession(ctx, req.(*EditorSessionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PageFetchService_FrameEditorSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(EditorSessionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PageFetchServiceServer).FrameEditorSession(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PageFetchService_FrameEditorSession_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PageFetchServiceServer).FrameEditorSession(ctx, req.(*EditorSessionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // PageFetchService_ServiceDesc is the grpc.ServiceDesc for PageFetchService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -266,6 +436,26 @@ var PageFetchService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Health",
 			Handler:    _PageFetchService_Health_Handler,
+		},
+		{
+			MethodName: "CreateEditorSession",
+			Handler:    _PageFetchService_CreateEditorSession_Handler,
+		},
+		{
+			MethodName: "GetEditorSession",
+			Handler:    _PageFetchService_GetEditorSession_Handler,
+		},
+		{
+			MethodName: "HeartbeatEditorSession",
+			Handler:    _PageFetchService_HeartbeatEditorSession_Handler,
+		},
+		{
+			MethodName: "CloseEditorSession",
+			Handler:    _PageFetchService_CloseEditorSession_Handler,
+		},
+		{
+			MethodName: "FrameEditorSession",
+			Handler:    _PageFetchService_FrameEditorSession_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

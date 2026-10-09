@@ -80,10 +80,49 @@ message BrowserHealthResponse {
   string message = 4;
 }
 
+message EditorSessionCreateRequest {
+  string protocol_version = 1;
+  string request_id = 2;
+  string session_id = 3;
+  string url = 4;
+  int32 ttl_seconds = 5;
+  int32 viewport_width = 6;
+  int32 viewport_height = 7;
+}
+
+message EditorSessionRequest {
+  string protocol_version = 1;
+  string request_id = 2;
+  string session_id = 3;
+  int32 ttl_seconds = 4;
+  string page_state_id = 5;
+}
+
+message EditorSessionResponse {
+  bool success = 1;
+  string protocol_version = 2;
+  string request_id = 3;
+  string session_id = 4;
+  string status = 5;
+  string error_code = 6;
+  string error = 7;
+  int64 expires_at_unix_ms = 8;
+  string page_state_id = 9;
+  string current_url = 10;
+  int32 viewport_width = 11;
+  int32 viewport_height = 12;
+  bytes screenshot = 13;
+}
+
 service PageFetchService {
   rpc Fetch(FetchRequest) returns (FetchResponse);
   rpc FetchJavDB(FetchRequest) returns (FetchResponse);
   rpc FetchSehuatang(FetchRequest) returns (FetchResponse);
   rpc Execute(BrowserJobRequest) returns (BrowserJobResponse);
   rpc Health(BrowserHealthRequest) returns (BrowserHealthResponse);
+  rpc CreateEditorSession(EditorSessionCreateRequest) returns (EditorSessionResponse);
+  rpc GetEditorSession(EditorSessionRequest) returns (EditorSessionResponse);
+  rpc HeartbeatEditorSession(EditorSessionRequest) returns (EditorSessionResponse);
+  rpc CloseEditorSession(EditorSessionRequest) returns (EditorSessionResponse);
+  rpc FrameEditorSession(EditorSessionRequest) returns (EditorSessionResponse);
 }

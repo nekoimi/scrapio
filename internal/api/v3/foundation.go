@@ -1,8 +1,12 @@
 package v3
 
 import (
+	"context"
 	"net/http"
 	"strconv"
+	"time"
+
+	"github.com/nekoimi/scrapio/internal/drission_rod"
 )
 
 // Me keeps the v2.2 identity contract independent from legacy menu roles.
@@ -26,6 +30,26 @@ func Capabilities(w http.ResponseWriter, r *http.Request) {
 		"definition_versions":      []int{},
 		"reason":                   "交互浏览器协议与新采集方案尚未接入",
 	})
+}
+
+func CapabilitiesWithBrowser(browser *drission_rod.DrissionRod) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ready := false
+		if browser != nil {
+			ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+			ready = browser.ProbeEditor(ctx) == nil
+			cancel()
+		}
+		reason := "浏览器服务未连接"
+		if ready {
+			reason = "editor.v1 服务已连接；页面创建仍需验证浏览器可用性；交互动作尚未开放"
+		}
+		ok(w, r, map[string]any{
+			"editor_protocol": "editor.v1", "browser_ready": false, "editor_service_connected": ready,
+			"supported_actions": []string{}, "supports_live_inspection": false,
+			"definition_versions": []int{1}, "reason": reason,
+		})
+	}
 }
 
 // Home exposes an explicit pending state until the v2.2 data domain exists.

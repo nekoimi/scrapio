@@ -12,6 +12,7 @@ import (
 
 	"github.com/nekoimi/scrapio/internal/db"
 	"github.com/nekoimi/scrapio/internal/db/table"
+	"github.com/nekoimi/scrapio/internal/repo/idempotency"
 )
 
 type CreateInput struct {
@@ -19,6 +20,8 @@ type CreateInput struct {
 	EntryURL  string `json:"entry_url"`
 	EntryType string `json:"entry_type"`
 }
+
+var ErrIdempotencyConflict = errors.New("idempotency key was already used for another collector request")
 
 type UpdateInput struct {
 	Name             string          `json:"name"`
@@ -159,13 +162,25 @@ func Create(ownerID int64, input CreateInput, idempotencyKey string) (*table.V22
 		return nil, err
 	}
 	defer s.Rollback()
+	if err := idempotency.Lock(s, ownerID, "collector.create", idempotencyKey); err != nil {
+		return nil, err
+	}
 	if idempotencyKey != "" {
 		var idem table.V22IdempotencyKey
 		if has, err := s.Where("owner_id = ? AND operation = ? AND key = ?", ownerID, "collector.create", idempotencyKey).Get(&idem); err != nil {
 			return nil, err
 		} else if has {
+			var prior struct {
+				Input *CreateInput `json:"input"`
+			}
+			if err := json.Unmarshal([]byte(idem.Response), &prior); err != nil {
+				return nil, err
+			}
+			if prior.Input != nil && *prior.Input != input {
+				return nil, ErrIdempotencyConflict
+			}
 			row := new(table.V22Collector)
-			if has, err := s.ID(idem.ResourceId).Get(row); err != nil || !has {
+			if has, err := s.Where("id = ? AND owner_id = ?", idem.ResourceId, ownerID).Get(row); err != nil || !has {
 				return nil, fmt.Errorf("idempotent collector not found")
 			}
 			return row, nil
@@ -176,7 +191,7 @@ func Create(ownerID int64, input CreateInput, idempotencyKey string) (*table.V22
 		return nil, err
 	}
 	if idempotencyKey != "" {
-		response, _ := json.Marshal(map[string]any{"id": row.Id})
+		response, _ := json.Marshal(map[string]any{"id": row.Id, "input": input})
 		if _, err := s.InsertOne(&table.V22IdempotencyKey{OwnerId: ownerID, Operation: "collector.create", Key: idempotencyKey, ResourceId: row.Id, Response: string(response), CreatedAt: now}); err != nil {
 			return nil, err
 		}
@@ -209,11 +224,23 @@ func Copy(ownerID, id int64, idempotencyKey string) (*table.V22Collector, error)
 		return nil, err
 	}
 	defer s.Rollback()
+	if err := idempotency.Lock(s, ownerID, "collector.copy", idempotencyKey); err != nil {
+		return nil, err
+	}
 	if idempotencyKey != "" {
 		var idem table.V22IdempotencyKey
 		if has, err := s.Where("owner_id = ? AND operation = ? AND key = ?", ownerID, "collector.copy", idempotencyKey).Get(&idem); err != nil {
 			return nil, err
 		} else if has {
+			var prior struct {
+				SourceID int64 `json:"source_id"`
+			}
+			if err := json.Unmarshal([]byte(idem.Response), &prior); err != nil {
+				return nil, err
+			}
+			if prior.SourceID != 0 && prior.SourceID != id {
+				return nil, ErrIdempotencyConflict
+			}
 			row := new(table.V22Collector)
 			if has, err := s.Where("id = ? AND owner_id = ?", idem.ResourceId, ownerID).Get(row); err != nil || !has {
 				return nil, errors.New("idempotent collector not found")
@@ -242,7 +269,7 @@ func Copy(ownerID, id int64, idempotencyKey string) (*table.V22Collector, error)
 		return nil, err
 	}
 	if idempotencyKey != "" {
-		response, _ := json.Marshal(map[string]any{"id": copy.Id})
+		response, _ := json.Marshal(map[string]any{"id": copy.Id, "source_id": id})
 		if _, err := s.InsertOne(&table.V22IdempotencyKey{OwnerId: ownerID, Operation: "collector.copy", Key: idempotencyKey, ResourceId: copy.Id, Response: string(response), CreatedAt: now}); err != nil {
 			return nil, err
 		}

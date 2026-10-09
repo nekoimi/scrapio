@@ -35,3 +35,34 @@ type V22IdempotencyKey struct {
 }
 
 func (V22IdempotencyKey) TableName() string { return "v22_idempotency_keys" }
+
+type V22BrowserSession struct {
+	Id             string     `xorm:"varchar(36) pk" json:"id"`
+	OwnerId        int64      `xorm:"owner_id" json:"owner_id"`
+	CollectorId    int64      `xorm:"collector_id" json:"collector_id"`
+	DraftRevision  int        `xorm:"draft_revision" json:"draft_revision"`
+	TargetURL      string     `xorm:"target_url" json:"target_url"`
+	Status         string     `json:"status"`
+	ExpiresAt      time.Time  `xorm:"expires_at" json:"expires_at"`
+	PageStateId    string     `xorm:"page_state_id" json:"page_state_id"`
+	CurrentURL     string     `xorm:"current_url" json:"current_url"`
+	ViewportWidth  int        `xorm:"viewport_width" json:"viewport_width"`
+	ViewportHeight int        `xorm:"viewport_height" json:"viewport_height"`
+	CreatedAt      time.Time  `xorm:"created_at" json:"created_at"`
+	UpdatedAt      time.Time  `xorm:"updated_at" json:"updated_at"`
+	ClosedAt       *time.Time `xorm:"closed_at" json:"closed_at,omitempty"`
+}
+
+func (V22BrowserSession) TableName() string { return "v22_browser_sessions" }
+
+type V22BrowserSessionKey struct {
+	Id            int64     `json:"id"`
+	OwnerId       int64     `xorm:"owner_id" json:"owner_id"`
+	Key           string    `json:"key"`
+	SessionId     string    `xorm:"session_id" json:"session_id"`
+	CollectorId   int64     `xorm:"collector_id" json:"collector_id"`
+	DraftRevision int       `xorm:"draft_revision" json:"draft_revision"`
+	CreatedAt     time.Time `xorm:"created_at" json:"created_at"`
+}
+
+func (V22BrowserSessionKey) TableName() string { return "v22_browser_session_keys" }

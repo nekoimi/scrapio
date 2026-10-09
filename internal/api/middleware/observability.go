@@ -54,6 +54,9 @@ func (w *statusWriter) Write(body []byte) (int, error) {
 	return w.ResponseWriter.Write(body)
 }
 
+// Preserve streaming through the metrics wrapper without advertising unsupported interfaces.
+func (w *statusWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
+
 // MetricsMiddleware records low-cardinality HTTP metrics without persisting
 // request bodies or credentials.
 func MetricsMiddleware(next http.Handler) http.Handler {

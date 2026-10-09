@@ -10,7 +10,7 @@
       <p class="muted">当前先创建可恢复的草稿；可视化浏览器和正式试采将在后续阶段接入。</p>
     </section>
     <div class="app-grid">
-      <section class="app-card"><h2>浏览器编辑能力</h2><p :class="capabilities?.browser_ready ? 'status-good' : 'status-wait'">{{ capabilities?.browser_ready ? '已就绪' : '尚未就绪' }}</p><p class="muted">{{ capabilities?.reason || (loading ? '检查能力中…' : '能力状态暂不可用') }}</p></section>
+      <section class="app-card"><h2>浏览器编辑能力</h2><p :class="capabilities?.editor_service_connected ? 'status-good' : 'status-wait'">{{ capabilities?.editor_service_connected ? '编辑服务已连接' : '编辑服务未连接' }}</p><p class="muted">{{ capabilities?.reason || (loading ? '检查能力中…' : '能力状态暂不可用') }}</p></section>
       <section class="app-card"><h2>工作区</h2><p class="status-wait">{{ home?.status === 'pending' ? '正在建设' : '暂不可用' }}</p><p class="muted">{{ home?.reason || '新产品数据尚未接入。' }}</p></section>
     </div>
     <p v-if="error" class="app-error" role="alert">{{ error }} <button type="button" @click="reload">重试</button></p>
