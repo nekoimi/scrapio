@@ -24,7 +24,7 @@ require (
 	google.golang.org/protobuf v1.36.12
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	modernc.org/mathutil v1.7.1
-	xorm.io/xorm v1.4.2
+	xorm.io/xorm v1.4.3
 )
 
 require (
