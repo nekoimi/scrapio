@@ -146,6 +146,25 @@ message EditorCommandResponse {
   string locator_expression = 12;
 }
 
+// Read-only page inspection; bounded JSON payloads share one versioned contract.
+message EditorInspectionRequest {
+  string protocol_version = 1;
+  string request_id = 2;
+  string session_id = 3;
+  string page_state_id = 4;
+  string operation = 5; // inspect, dom, locator-check
+  string input_json = 6;
+}
+
+message EditorInspectionResponse {
+  bool success = 1;
+  string protocol_version = 2;
+  string request_id = 3;
+  string error_code = 4;
+  string error = 5;
+  string result_json = 6;
+}
+
 service PageFetchService {
   rpc Fetch(FetchRequest) returns (FetchResponse);
   rpc FetchJavDB(FetchRequest) returns (FetchResponse);
@@ -159,4 +178,5 @@ service PageFetchService {
   rpc FrameEditorSession(EditorSessionRequest) returns (EditorSessionResponse);
   rpc ExecuteEditorCommand(EditorCommandRequest) returns (EditorCommandResponse);
   rpc GetEditorCommand(EditorCommandRequest) returns (EditorCommandResponse);
+  rpc InspectEditorPage(EditorInspectionRequest) returns (EditorInspectionResponse);
 }

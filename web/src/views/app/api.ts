@@ -32,6 +32,26 @@ export interface EditorCheckpoint {
   snapshot: { definition_version: number; entry_url: string; steps: Record<string, any>[] }; created_at: string;
 }
 
+export interface EditorLocator { strategy: 'css' | 'xpath'; expression: string }
+export interface InspectedElement {
+  element_id: string; tag: string; text: string; attributes: Record<string, string>;
+  bounds: { x: number; y: number; width: number; height: number };
+  parent_id: string; child_count: number; boundary: string;
+}
+export interface InspectionInput {
+  page_state_id: string; position?: { x: number; y: number }; element_id?: string;
+  mode?: 'record' | 'field'; relation?: 'self' | 'parent' | 'child'; child_index?: number;
+  expand_similar?: boolean; scope?: EditorLocator; locator?: EditorLocator; previous_fingerprint?: string;
+}
+export interface LocatorCheck {
+  page_state_id: string; locator: EditorLocator; match_count: number; truncated: boolean;
+  elements: InspectedElement[]; sample_values: string[]; fingerprint: string;
+  comparison: 'first-check' | 'unchanged' | 'changed'; warnings: string[]; scope_match_count: number;
+}
+export interface ElementInspection { page_state_id: string; element: InspectedElement; locators: (LocatorCheck & { kind: string; warning: string })[]; warnings: string[] }
+export interface DOMChildren { page_state_id: string; root: InspectedElement; items: InspectedElement[]; next_offset: number | null; total: number; warnings: string[] }
+export interface PageHighlight { page_state_id: string; elements: InspectedElement[]; kind: 'hover' | 'selected' | 'similar' }
+
 async function get<T>(url: string): Promise<T> {
   const response: any = await request({ url, method: 'get' });
   return response.data as T;
@@ -98,4 +118,7 @@ export const appApi = {
   createCheckpoint: (id: string, data: { name: string; expected_revision: number; through_step_id: string }) => request({ url: `/api/v3/collectors/${id}/checkpoints`, method: 'post', data }).then((response: any) => response.data as EditorCheckpoint),
   deleteCheckpoint: (id: string, key: string) => request({ url: `/api/v3/collectors/${id}/checkpoints/${key}`, method: 'delete' }),
   browserFrame: (url: string, pageStateId: string) => request({ url: `${url}?page_state_id=${encodeURIComponent(pageStateId)}`, method: 'get', responseType: 'blob' }).then((response: any) => response as Blob),
+  inspectElement: (id: string, input: InspectionInput) => request({ url: `/api/v3/browser-sessions/${id}/inspect`, method: 'post', data: input }).then((response: any) => response.data as ElementInspection),
+  checkLocator: (id: string, input: InspectionInput) => request({ url: `/api/v3/browser-sessions/${id}/locator-checks`, method: 'post', data: input }).then((response: any) => response.data as LocatorCheck),
+  domChildren: (id: string, pageState: string, elementId = '', offset = 0) => get<DOMChildren>(`/api/v3/browser-sessions/${id}/dom?page_state_id=${encodeURIComponent(pageState)}&element_id=${encodeURIComponent(elementId)}&offset=${offset}&limit=50`),
 };

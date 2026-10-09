@@ -103,4 +103,23 @@
 .checkpoint-row strong, .checkpoint-row small { display: block; margin-bottom: 7px; }
 .checkpoint-row button { margin-right: 5px; }
 .browser-session-frame { min-height: 0; max-height: none; height: auto; cursor: crosshair; }
+.browser-frame-stage { position: relative; width: min(100%, 1280px); overflow: hidden; border: 1px solid #dfe3eb; }
+.browser-frame-stage .browser-session-frame { width: 100%; border: 0; }
+.frame-highlights { position: absolute; inset: 0; pointer-events: none; }
+.frame-highlight { position: absolute; box-sizing: border-box; border: 2px solid #2563eb; background: #2563eb14; }
+.frame-highlight[data-kind="hover"] { border: 2px dashed #475569; background: transparent; z-index: 2; }
+.frame-highlight[data-kind="similar"] { border: 2px dotted #7c3aed; background: #7c3aed12; }
+.frame-highlight span { position: absolute; left: 0; top: 0; background: #fff; color: #334155; font-size: 11px; padding: 1px 4px; white-space: nowrap; }
+.selection-panel { display: grid; gap: 12px; }
+.selection-panel p { margin: 4px 0; }
+.selection-summary, .locator-result { border: 1px solid #dfe3eb; border-radius: 8px; padding: 12px; background: #fafbfe; }
+.selection-summary dl { display: grid; grid-template-columns: 90px minmax(0,1fr); gap: 4px; font-size: 12px; }
+.selection-summary dd { margin: 0; overflow-wrap: anywhere; }
+.locator-candidate { display: grid; gap: 4px; margin-top: 10px; border-top: 1px solid #e2e8f0; padding-top: 8px; }
+.locator-candidate button { text-align: left; overflow-wrap: anywhere; }
+.locator-candidate small, .selection-scope { color: #475569; overflow-wrap: anywhere; }
+.selection-panel .editor-actions label { display: grid; max-width: 120px; font-size: 12px; }
+.dom-node-list { list-style: none; padding: 0; max-height: 300px; overflow: auto; }
+.dom-node-list li { display: flex; justify-content: space-between; gap: 8px; margin: 6px 0; }
+.dom-node-list button { text-align: left; overflow-wrap: anywhere; }
 @media (max-width: 1050px) { .editor-action-workspace { grid-template-columns: 1fr; } .command-form-grid { grid-template-columns: 1fr; } }

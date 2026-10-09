@@ -28,12 +28,13 @@
     <section class="editor-command-pane">
       <div class="editor-mode-tabs" role="tablist" aria-label="网页操作模式">
         <button role="tab" :aria-selected="mode === 'browse'" :disabled="busy || replaying" @click="mode = 'browse'">浏览网页</button>
-        <button role="tab" disabled title="A05 将提供元素选择；不执行网页点击">选择记录 · 待接入</button>
-        <button role="tab" disabled title="A05 将提供字段选择；不执行网页点击">选择字段 · 待接入</button>
+        <button role="tab" :aria-selected="mode === 'record-select'" :disabled="busy || replaying" @click="mode = 'record-select'">选择记录</button>
+        <button role="tab" :aria-selected="mode === 'field-select'" :disabled="busy || replaying" @click="mode = 'field-select'">选择字段</button>
         <button role="tab" :aria-selected="mode === 'record'" :disabled="busy || replaying" @click="mode = 'record'">录制操作</button>
       </div>
-      <p class="mode-description">{{ mode === 'record' ? '录制中：成功动作加入草稿；失败动作只保留回执。' : '浏览模式：执行真实操作，默认不加入草稿。' }} 点击画面会准备点击动作，确认后才执行。</p>
-      <form @submit.prevent="executeForm">
+      <p class="mode-description">{{ selecting ? '选择模式：点选只检查元素，不操作网站。' : mode === 'record' ? '录制中：成功动作加入草稿；失败动作只保留回执。点击画面准备动作，确认后执行。' : '浏览模式：执行真实操作，默认不加入草稿。点击画面准备动作，确认后执行。' }}</p>
+      <BrowserSelection v-show="selecting" ref="selectionPanel" :session="session" :mode="mode === 'field-select' ? 'field' : 'record'" :enabled="inspectionSupported" :blocked="busy || replaying" @highlight="emit('highlight', $event)" @action-locator="applyLocator" />
+      <form v-show="!selecting" @submit.prevent="executeForm">
         <div class="command-form-grid">
           <label>动作<select v-model="actionType" :disabled="busy || replaying" @change="onActionTypeChanged"><option v-for="action in actions" :key="action" :value="action">{{ labels[action] }}</option></select></label>
           <label>最长等待（毫秒）<input v-model.number="timeout" type="number" min="100" max="30000" step="100" /></label>
@@ -72,13 +73,17 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { appApi, type BrowserSession, type Collector, type EditorAction, type EditorCheckpoint, type EditorCommand } from './api';
+import { appApi, type BrowserSession, type Collector, type EditorAction, type EditorCheckpoint, type EditorCommand, type EditorLocator, type PageHighlight } from './api';
+import BrowserSelection from './browser-selection.vue';
 
 const props = defineProps<{ draft: Collector; session?: BrowserSession; dirty: boolean; saving: boolean }>();
-const emit = defineEmits<{ (event: 'draft-saved', draft: Collector): void; (event: 'session-state', session: BrowserSession): void }>();
+const emit = defineEmits<{ (event: 'draft-saved', draft: Collector): void; (event: 'session-state', session: BrowserSession): void; (event:'highlight', value:PageHighlight):void }>();
 const labels: Record<string, string> = { navigate: '打开网址', back: '后退', forward: '前进', refresh: '刷新页面', click: '点击元素', input: '输入文本', wait: '等待', scroll: '滚动' };
 const actions = Object.keys(labels);
-const mode = ref<'browse' | 'record'>('browse');
+const mode = ref<'browse' | 'record' | 'record-select' | 'field-select'>('browse');
+const selecting = computed(() => mode.value === 'record-select' || mode.value === 'field-select');
+const selectionPanel = ref<InstanceType<typeof BrowserSelection>>();
+const inspectionSupported = ref(false);
 const supported = ref<string[]>([]);
 const actionType = ref('navigate');
 const value = ref('');
@@ -164,12 +169,17 @@ async function addLastStep() {
   await saveSteps([...steps.value, actionStep(action)]);
 }
 function frameClick(x: number, y: number, pageStateID: string) {
+  if (selecting.value) { selectionPanel.value?.framePick(x,y,pageStateID); return; }
   if (!canExecute.value || !pageStateID) return;
   positionPageStateID.value = pageStateID;
   position.value = { x, y }; actionType.value = 'click';
   notice.value = '已准备点击动作，请在右侧确认执行；网页还未被点击。';
 }
-defineExpose({ frameClick });
+function frameHover(x:number,y:number,pageStateID:string) { if(selecting.value)selectionPanel.value?.frameHover(x,y,pageStateID); }
+function leaveFrame() { selectionPanel.value?.leaveFrame(); }
+function applyLocator(locator:EditorLocator) { mode.value='browse'; actionType.value='click'; position.value=undefined; strategy.value=locator.strategy; expression.value=locator.expression; notice.value='已填入验证过的定位器；执行前仍需确认。'; }
+watch(mode,()=>{selectionPanel.value?.leaveFrame();emit('highlight',{elements:[],page_state_id:props.session?.page_state_id || '',kind:'selected'});});
+defineExpose({ frameClick, frameHover, leaveFrame });
 
 async function refreshHistory(id = props.session?.session_id) {
   if (!id) { history.value = []; return; }
@@ -301,7 +311,7 @@ watch(() => props.session?.session_id, async (id, old) => {
 });
 onMounted(async () => {
   value.value = props.draft.entry_url;
-  try { supported.value = (await appApi.capabilities()).supported_actions; } catch { supported.value = []; }
+  try { const capabilities=await appApi.capabilities(); supported.value=capabilities.supported_actions; inspectionSupported.value=capabilities.supports_live_inspection; } catch { supported.value = []; }
   await Promise.all([refreshCheckpoints(), refreshHistory()]);
 });
 onBeforeUnmount(() => { disposed = true; generation++; stopReplay.value = true; });

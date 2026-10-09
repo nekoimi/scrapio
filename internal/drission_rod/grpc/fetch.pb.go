@@ -1333,6 +1333,175 @@ func (x *EditorCommandResponse) GetLocatorExpression() string {
 	return ""
 }
 
+// Read-only page inspection; bounded JSON payloads share one versioned contract.
+type EditorInspectionRequest struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	ProtocolVersion string                 `protobuf:"bytes,1,opt,name=protocol_version,json=protocolVersion,proto3" json:"protocol_version,omitempty"`
+	RequestId       string                 `protobuf:"bytes,2,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	SessionId       string                 `protobuf:"bytes,3,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	PageStateId     string                 `protobuf:"bytes,4,opt,name=page_state_id,json=pageStateId,proto3" json:"page_state_id,omitempty"`
+	Operation       string                 `protobuf:"bytes,5,opt,name=operation,proto3" json:"operation,omitempty"` // inspect, dom, locator-check
+	InputJson       string                 `protobuf:"bytes,6,opt,name=input_json,json=inputJson,proto3" json:"input_json,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *EditorInspectionRequest) Reset() {
+	*x = EditorInspectionRequest{}
+	mi := &file_fetch_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EditorInspectionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EditorInspectionRequest) ProtoMessage() {}
+
+func (x *EditorInspectionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_fetch_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EditorInspectionRequest.ProtoReflect.Descriptor instead.
+func (*EditorInspectionRequest) Descriptor() ([]byte, []int) {
+	return file_fetch_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *EditorInspectionRequest) GetProtocolVersion() string {
+	if x != nil {
+		return x.ProtocolVersion
+	}
+	return ""
+}
+
+func (x *EditorInspectionRequest) GetRequestId() string {
+	if x != nil {
+		return x.RequestId
+	}
+	return ""
+}
+
+func (x *EditorInspectionRequest) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+func (x *EditorInspectionRequest) GetPageStateId() string {
+	if x != nil {
+		return x.PageStateId
+	}
+	return ""
+}
+
+func (x *EditorInspectionRequest) GetOperation() string {
+	if x != nil {
+		return x.Operation
+	}
+	return ""
+}
+
+func (x *EditorInspectionRequest) GetInputJson() string {
+	if x != nil {
+		return x.InputJson
+	}
+	return ""
+}
+
+type EditorInspectionResponse struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	Success         bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	ProtocolVersion string                 `protobuf:"bytes,2,opt,name=protocol_version,json=protocolVersion,proto3" json:"protocol_version,omitempty"`
+	RequestId       string                 `protobuf:"bytes,3,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	ErrorCode       string                 `protobuf:"bytes,4,opt,name=error_code,json=errorCode,proto3" json:"error_code,omitempty"`
+	Error           string                 `protobuf:"bytes,5,opt,name=error,proto3" json:"error,omitempty"`
+	ResultJson      string                 `protobuf:"bytes,6,opt,name=result_json,json=resultJson,proto3" json:"result_json,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *EditorInspectionResponse) Reset() {
+	*x = EditorInspectionResponse{}
+	mi := &file_fetch_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EditorInspectionResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EditorInspectionResponse) ProtoMessage() {}
+
+func (x *EditorInspectionResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_fetch_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EditorInspectionResponse.ProtoReflect.Descriptor instead.
+func (*EditorInspectionResponse) Descriptor() ([]byte, []int) {
+	return file_fetch_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *EditorInspectionResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *EditorInspectionResponse) GetProtocolVersion() string {
+	if x != nil {
+		return x.ProtocolVersion
+	}
+	return ""
+}
+
+func (x *EditorInspectionResponse) GetRequestId() string {
+	if x != nil {
+		return x.RequestId
+	}
+	return ""
+}
+
+func (x *EditorInspectionResponse) GetErrorCode() string {
+	if x != nil {
+		return x.ErrorCode
+	}
+	return ""
+}
+
+func (x *EditorInspectionResponse) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+func (x *EditorInspectionResponse) GetResultJson() string {
+	if x != nil {
+		return x.ResultJson
+	}
+	return ""
+}
+
 var File_fetch_proto protoreflect.FileDescriptor
 
 const file_fetch_proto_rawDesc = "" +
@@ -1492,7 +1661,27 @@ const file_fetch_proto_rawDesc = "" +
 	" \x01(\x03R\n" +
 	"durationMs\x12)\n" +
 	"\x10locator_strategy\x18\v \x01(\tR\x0flocatorStrategy\x12-\n" +
-	"\x12locator_expression\x18\f \x01(\tR\x11locatorExpression2\xe9\x06\n" +
+	"\x12locator_expression\x18\f \x01(\tR\x11locatorExpression\"\xe3\x01\n" +
+	"\x17EditorInspectionRequest\x12)\n" +
+	"\x10protocol_version\x18\x01 \x01(\tR\x0fprotocolVersion\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\x02 \x01(\tR\trequestId\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x03 \x01(\tR\tsessionId\x12\"\n" +
+	"\rpage_state_id\x18\x04 \x01(\tR\vpageStateId\x12\x1c\n" +
+	"\toperation\x18\x05 \x01(\tR\toperation\x12\x1d\n" +
+	"\n" +
+	"input_json\x18\x06 \x01(\tR\tinputJson\"\xd4\x01\n" +
+	"\x18EditorInspectionResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12)\n" +
+	"\x10protocol_version\x18\x02 \x01(\tR\x0fprotocolVersion\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\x03 \x01(\tR\trequestId\x12\x1d\n" +
+	"\n" +
+	"error_code\x18\x04 \x01(\tR\terrorCode\x12\x14\n" +
+	"\x05error\x18\x05 \x01(\tR\x05error\x12\x1f\n" +
+	"\vresult_json\x18\x06 \x01(\tR\n" +
+	"resultJson2\xbd\a\n" +
 	"\x10PageFetchService\x120\n" +
 	"\x05Fetch\x12\x12.grpc.FetchRequest\x1a\x13.grpc.FetchResponse\x125\n" +
 	"\n" +
@@ -1506,7 +1695,8 @@ const file_fetch_proto_rawDesc = "" +
 	"\x12CloseEditorSession\x12\x1a.grpc.EditorSessionRequest\x1a\x1b.grpc.EditorSessionResponse\x12M\n" +
 	"\x12FrameEditorSession\x12\x1a.grpc.EditorSessionRequest\x1a\x1b.grpc.EditorSessionResponse\x12O\n" +
 	"\x14ExecuteEditorCommand\x12\x1a.grpc.EditorCommandRequest\x1a\x1b.grpc.EditorCommandResponse\x12K\n" +
-	"\x10GetEditorCommand\x12\x1a.grpc.EditorCommandRequest\x1a\x1b.grpc.EditorCommandResponseB7Z5github.com/nekoimi/scrapio/internal/drission_rod/grpcb\x06proto3"
+	"\x10GetEditorCommand\x12\x1a.grpc.EditorCommandRequest\x1a\x1b.grpc.EditorCommandResponse\x12R\n" +
+	"\x11InspectEditorPage\x12\x1d.grpc.EditorInspectionRequest\x1a\x1e.grpc.EditorInspectionResponseB7Z5github.com/nekoimi/scrapio/internal/drission_rod/grpcb\x06proto3"
 
 var (
 	file_fetch_proto_rawDescOnce sync.Once
@@ -1520,7 +1710,7 @@ func file_fetch_proto_rawDescGZIP() []byte {
 	return file_fetch_proto_rawDescData
 }
 
-var file_fetch_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
+var file_fetch_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_fetch_proto_goTypes = []any{
 	(*FetchRequest)(nil),               // 0: grpc.FetchRequest
 	(*FetchResponse)(nil),              // 1: grpc.FetchResponse
@@ -1536,11 +1726,13 @@ var file_fetch_proto_goTypes = []any{
 	(*EditorSessionResponse)(nil),      // 11: grpc.EditorSessionResponse
 	(*EditorCommandRequest)(nil),       // 12: grpc.EditorCommandRequest
 	(*EditorCommandResponse)(nil),      // 13: grpc.EditorCommandResponse
-	nil,                                // 14: grpc.BrowserJobRequest.HeadersEntry
+	(*EditorInspectionRequest)(nil),    // 14: grpc.EditorInspectionRequest
+	(*EditorInspectionResponse)(nil),   // 15: grpc.EditorInspectionResponse
+	nil,                                // 16: grpc.BrowserJobRequest.HeadersEntry
 }
 var file_fetch_proto_depIdxs = []int32{
 	2,  // 0: grpc.BrowserJobRequest.actions:type_name -> grpc.BrowserAction
-	14, // 1: grpc.BrowserJobRequest.headers:type_name -> grpc.BrowserJobRequest.HeadersEntry
+	16, // 1: grpc.BrowserJobRequest.headers:type_name -> grpc.BrowserJobRequest.HeadersEntry
 	4,  // 2: grpc.BrowserJobResponse.cookies:type_name -> grpc.BrowserCookie
 	5,  // 3: grpc.BrowserJobResponse.action_results:type_name -> grpc.BrowserActionResult
 	0,  // 4: grpc.PageFetchService.Fetch:input_type -> grpc.FetchRequest
@@ -1555,20 +1747,22 @@ var file_fetch_proto_depIdxs = []int32{
 	10, // 13: grpc.PageFetchService.FrameEditorSession:input_type -> grpc.EditorSessionRequest
 	12, // 14: grpc.PageFetchService.ExecuteEditorCommand:input_type -> grpc.EditorCommandRequest
 	12, // 15: grpc.PageFetchService.GetEditorCommand:input_type -> grpc.EditorCommandRequest
-	1,  // 16: grpc.PageFetchService.Fetch:output_type -> grpc.FetchResponse
-	1,  // 17: grpc.PageFetchService.FetchJavDB:output_type -> grpc.FetchResponse
-	1,  // 18: grpc.PageFetchService.FetchSehuatang:output_type -> grpc.FetchResponse
-	6,  // 19: grpc.PageFetchService.Execute:output_type -> grpc.BrowserJobResponse
-	8,  // 20: grpc.PageFetchService.Health:output_type -> grpc.BrowserHealthResponse
-	11, // 21: grpc.PageFetchService.CreateEditorSession:output_type -> grpc.EditorSessionResponse
-	11, // 22: grpc.PageFetchService.GetEditorSession:output_type -> grpc.EditorSessionResponse
-	11, // 23: grpc.PageFetchService.HeartbeatEditorSession:output_type -> grpc.EditorSessionResponse
-	11, // 24: grpc.PageFetchService.CloseEditorSession:output_type -> grpc.EditorSessionResponse
-	11, // 25: grpc.PageFetchService.FrameEditorSession:output_type -> grpc.EditorSessionResponse
-	13, // 26: grpc.PageFetchService.ExecuteEditorCommand:output_type -> grpc.EditorCommandResponse
-	13, // 27: grpc.PageFetchService.GetEditorCommand:output_type -> grpc.EditorCommandResponse
-	16, // [16:28] is the sub-list for method output_type
-	4,  // [4:16] is the sub-list for method input_type
+	14, // 16: grpc.PageFetchService.InspectEditorPage:input_type -> grpc.EditorInspectionRequest
+	1,  // 17: grpc.PageFetchService.Fetch:output_type -> grpc.FetchResponse
+	1,  // 18: grpc.PageFetchService.FetchJavDB:output_type -> grpc.FetchResponse
+	1,  // 19: grpc.PageFetchService.FetchSehuatang:output_type -> grpc.FetchResponse
+	6,  // 20: grpc.PageFetchService.Execute:output_type -> grpc.BrowserJobResponse
+	8,  // 21: grpc.PageFetchService.Health:output_type -> grpc.BrowserHealthResponse
+	11, // 22: grpc.PageFetchService.CreateEditorSession:output_type -> grpc.EditorSessionResponse
+	11, // 23: grpc.PageFetchService.GetEditorSession:output_type -> grpc.EditorSessionResponse
+	11, // 24: grpc.PageFetchService.HeartbeatEditorSession:output_type -> grpc.EditorSessionResponse
+	11, // 25: grpc.PageFetchService.CloseEditorSession:output_type -> grpc.EditorSessionResponse
+	11, // 26: grpc.PageFetchService.FrameEditorSession:output_type -> grpc.EditorSessionResponse
+	13, // 27: grpc.PageFetchService.ExecuteEditorCommand:output_type -> grpc.EditorCommandResponse
+	13, // 28: grpc.PageFetchService.GetEditorCommand:output_type -> grpc.EditorCommandResponse
+	15, // 29: grpc.PageFetchService.InspectEditorPage:output_type -> grpc.EditorInspectionResponse
+	17, // [17:30] is the sub-list for method output_type
+	4,  // [4:17] is the sub-list for method input_type
 	4,  // [4:4] is the sub-list for extension type_name
 	4,  // [4:4] is the sub-list for extension extendee
 	0,  // [0:4] is the sub-list for field type_name
@@ -1585,7 +1779,7 @@ func file_fetch_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_fetch_proto_rawDesc), len(file_fetch_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   15,
+			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -47,7 +47,7 @@ func (c *Command) Validate() error {
 	if c.Locator != nil && (c.Locator.Strategy != "css" && c.Locator.Strategy != "xpath" || c.Locator.Expression == "" || len(c.Locator.Expression) > 2048) {
 		return errors.New("locator requires css/xpath and a bounded expression")
 	}
-	if c.Position != nil && (c.Type != "click" || c.Locator != nil || math.IsNaN(c.Position.X) || math.IsNaN(c.Position.Y) || math.IsInf(c.Position.X, 0) || math.IsInf(c.Position.Y, 0) || c.Position.X < 0 || c.Position.Y < 0 || c.Position.X > 3840 || c.Position.Y > 2160) {
+	if c.Position != nil && (c.Type != "click" || c.Locator != nil || math.IsNaN(c.Position.X) || math.IsNaN(c.Position.Y) || math.IsInf(c.Position.X, 0) || math.IsInf(c.Position.Y, 0) || c.Position.X < 0 || c.Position.Y < 0 || c.Position.X > 8192 || c.Position.Y > 8192) {
 		return errors.New("invalid click position")
 	}
 	switch c.Type {
