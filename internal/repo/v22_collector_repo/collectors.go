@@ -14,6 +14,7 @@ import (
 	"github.com/nekoimi/scrapio/internal/db"
 	"github.com/nekoimi/scrapio/internal/db/table"
 	"github.com/nekoimi/scrapio/internal/editor"
+	"github.com/nekoimi/scrapio/internal/output"
 	"github.com/nekoimi/scrapio/internal/repo/idempotency"
 )
 
@@ -86,6 +87,9 @@ func validationState(row *table.V22Collector) (string, []string) {
 }
 
 func validateDefinition(raw json.RawMessage, entryURL string) ValidationResult {
+	if err := output.ValidateDefinition(raw); err != nil {
+		return ValidationResult{Errors: []string{err.Error()}}
+	}
 	var definition map[string]any
 	if err := json.Unmarshal(raw, &definition); err != nil || definition == nil {
 		return ValidationResult{Errors: []string{"definition must be a JSON object"}}
@@ -299,6 +303,14 @@ func Copy(ownerID, id int64, idempotencyKey string) (*table.V22Collector, error)
 		EntryType: original.EntryType, Status: "draft", Definition: original.Definition,
 		Revision: 1, ValidationSummary: `{"valid":false,"errors":[]}`, CreatedBy: ownerID, UpdatedBy: ownerID, CreatedAt: now, UpdatedAt: now,
 	}
+	// A copied draft must explicitly confirm its own output; do not inherit a
+	// check belonging to another collector or silently share its destination.
+	var copiedDefinition map[string]json.RawMessage
+	if json.Unmarshal([]byte(copy.Definition), &copiedDefinition) == nil {
+		delete(copiedDefinition, "output")
+		raw, _ := json.Marshal(copiedDefinition)
+		copy.Definition = string(raw)
+	}
 	if _, err := s.InsertOne(copy); err != nil {
 		return nil, err
 	}
@@ -424,6 +436,19 @@ func Update(ownerID, id int64, input UpdateInput) (*table.V22Collector, []string
 	}
 	if row.Revision != input.ExpectedRevision {
 		return nil, nil, &RevisionConflict{Latest: row}
+	}
+	var currentRoot, nextRoot map[string]json.RawMessage
+	_ = json.Unmarshal([]byte(row.Definition), &currentRoot)
+	_ = json.Unmarshal(input.Definition, &nextRoot)
+	currentOutput, nextOutput := currentRoot["output"], nextRoot["output"]
+	if len(currentOutput) > 0 || len(nextOutput) > 0 {
+		currentConfig, currentErr := output.DecodeConfig(currentOutput)
+		nextConfig, nextErr := output.DecodeConfig(nextOutput)
+		currentRaw, _ := json.Marshal(currentConfig)
+		nextRaw, _ := json.Marshal(nextConfig)
+		if currentErr != nil || nextErr != nil || string(currentRaw) != string(nextRaw) {
+			return nil, nil, errors.New("output binding must be changed through output checks and confirmation")
+		}
 	}
 	changed := make([]string, 0, 3)
 	if strings.TrimSpace(input.Name) != "" {

@@ -99,12 +99,24 @@
 			@use-sample="useSample"
 			@focus-field="(step, key, role) => emit('focus-field', step, key, role)"
 		/>
+		<OutputPanel
+			ref="outputPanel"
+			:draft="draft"
+			:capture="capture"
+			:step-id="stepID"
+			:stage="stage"
+			:blocked="blocked || busy"
+			@draft-saved="(value) => emit('draft-saved', value)"
+			@focus-field="(step, key, role) => emit('focus-field', step, key, role)"
+		/>
 	</section>
 </template>
 <script setup lang="ts">
 import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue';
 import { appApi, type Collector, type BrowserSession, type InputCapture, type ExtractionPreview, type ExtractedField } from './api';
 import SamplePanel from './sample-panel.vue';
+import OutputPanel from './output-panel.vue';
+const outputPanel = ref<InstanceType<typeof OutputPanel>>();
 import type { SavedSample } from './api';
 const samplePanel = ref<InstanceType<typeof SamplePanel>>();
 function useSample(value: SavedSample) {
@@ -113,9 +125,10 @@ function useSample(value: SavedSample) {
 	stage.value = value.stage;
 	emit('capture-selected', value.capture);
 }
-defineExpose({ hasUnsavedChanges: () => !!samplePanel.value?.hasUnsavedChanges() });
+defineExpose({ hasUnsavedChanges: () => !!samplePanel.value?.hasUnsavedChanges() || !!outputPanel.value?.hasUnsavedChanges() });
 const props = defineProps<{ draft: Collector; session?: BrowserSession; capture?: InputCapture; blocked: boolean }>();
 const emit = defineEmits<{
+	(event: 'draft-saved', draft: Collector): void;
 	(event: 'capture-selected', capture: InputCapture): void;
 	(event: 'focus-field', stepID: string, key: string, role: string): void;
 }>();

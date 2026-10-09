@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
   title: scrapio v2.2 editor contract spike
-  version: 0.8.0-b02
-  description: A02～B02 开发契约：草稿、会话、动作、点选、快照、共用提取、样例与检查证据。发版实环境验收另行记录；完整 trials 与正式数据写入尚未实现。
+  version: 0.9.0-b03
+  description: A02～B03 开发契约：草稿、会话、动作、点选、快照、提取、样例、逻辑表与输出确认。发版实环境验收另行记录；完整 trials 与正式数据写入尚未实现。
 servers:
   - url: /api/v3
 security:
@@ -1425,6 +1425,278 @@ paths:
         '500':
           $ref: '#/components/responses/Error'
       x-implementation-status: implemented
+  /tables:
+    get:
+      summary: 当前 owner 下逻辑表游标分页；limit 1..50/cursor 为前页末尾 ID
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 25
+        - in: query
+          name: cursor
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 实现结果，实环境验收另行记录
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/LogicalTablePage'
+                  request_id:
+                    type: string
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      x-implementation-status: implemented
+    post:
+      summary: 显式创建不可变 Schema v1，工作台默认在确认时建表
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateLogicalTable'
+      responses:
+        '201':
+          description: 实现结果，实环境验收另行记录
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/LogicalTable'
+                  request_id:
+                    type: string
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      x-implementation-status: implemented
+  /tables/{table_id}:
+    parameters:
+      - in: path
+        name: table_id
+        required: true
+        schema:
+          type: string
+    get:
+      summary: 读取 owner 的逻辑表及完整 Schema
+      responses:
+        '200':
+          description: 实现结果，实环境验收另行记录
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/LogicalTable'
+                  request_id:
+                    type: string
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      x-implementation-status: implemented
+  /tables/{table_id}/schema:
+    parameters:
+      - in: path
+        name: table_id
+        required: true
+        schema:
+          type: string
+    get:
+      summary: 读取表元数据与完整 Schema/唯一键
+      responses:
+        '200':
+          description: 实现结果，实环境验收另行记录
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/LogicalTable'
+                  request_id:
+                    type: string
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      x-implementation-status: implemented
+  /collectors/{collector_id}/output-checks:
+    parameters:
+      - $ref: '#/components/parameters/CollectorId'
+    post:
+      summary: 重新提取固定输入并保存输出兼容性/保存预演
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      description: >-
+        成功 capture/sample 与现有/拟建表分别二选一。绑定 owner、草稿、输入、样例及
+        Schema。候选从服务器规则重新提取，不接受客户端伪造候选。同批不同值同键冲突、缺键、类型错误、零条及截断阻止确认。不建表/写记录/观察/修订/插件，不访问网站。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OutputCheckInput'
+      responses:
+        '201':
+          description: 实现结果，实环境验收另行记录
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/OutputCheck'
+                  request_id:
+                    type: string
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      x-implementation-status: implemented
+  /collectors/{collector_id}/output-checks/by-key:
+    parameters:
+      - $ref: '#/components/parameters/CollectorId'
+    get:
+      summary: 按原请求键恢复输出预演
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: 实现结果，实环境验收另行记录
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/OutputCheck'
+                  request_id:
+                    type: string
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      x-implementation-status: implemented
+  /collectors/{collector_id}/output-checks/{check_id}:
+    parameters:
+      - $ref: '#/components/parameters/CollectorId'
+      - in: path
+        name: check_id
+        required: true
+        schema:
+          type: string
+    get:
+      summary: 读取输出预演证据
+      responses:
+        '200':
+          description: 实现结果，实环境验收另行记录
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/OutputCheck'
+                  request_id:
+                    type: string
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      x-implementation-status: implemented
+  /collectors/{collector_id}/output:
+    parameters:
+      - $ref: '#/components/parameters/CollectorId'
+    put:
+      summary: 原子确认建表/绑定/更新草稿，不写正式记录
+      description: expected_revision/check_id，30 分钟有效；重查输入/样例/规则/Schema，相同确认恢复原结果不重复建表。普通草稿 PUT 不允许绕过。预演不预留键，正式运行重新判断数据库状态。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfirmOutput'
+      responses:
+        '200':
+          description: 实现结果，实环境验收另行记录
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Collector'
+                  request_id:
+                    type: string
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      x-implementation-status: implemented
 components:
   securitySchemes:
     bearerAuth:
@@ -1474,6 +1746,314 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
   schemas:
+    LogicalTableField:
+      type: object
+      properties:
+        field_key:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+          enum:
+            - string
+            - integer
+            - number
+            - boolean
+            - date
+            - datetime
+            - json
+        nullable:
+          type: boolean
+        multiple:
+          type: boolean
+      required:
+        - field_key
+        - name
+        - type
+      additionalProperties: false
+    LogicalTableSchema:
+      type: object
+      properties:
+        fields:
+          type: array
+          items:
+            $ref: '#/components/schemas/LogicalTableField'
+          minItems: 1
+          maxItems: 30
+        unique_key:
+          type: array
+          items:
+            type: string
+          minItems: 1
+          maxItems: 5
+          uniqueItems: true
+      required:
+        - fields
+        - unique_key
+      additionalProperties: false
+      description: 唯一键为不同标量字段，不支持 JSON/多值。
+    CreateLogicalTable:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 160
+        schema:
+          $ref: '#/components/schemas/LogicalTableSchema'
+      required:
+        - name
+        - schema
+      additionalProperties: false
+    LogicalTable:
+      type: object
+      properties:
+        table_id:
+          type: string
+        name:
+          type: string
+        schema_version:
+          type: integer
+        schema_hash:
+          type: string
+        schema:
+          $ref: '#/components/schemas/LogicalTableSchema'
+        created_at:
+          type: string
+          format: date-time
+    LogicalTablePage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/LogicalTable'
+        has_more:
+          type: boolean
+        next_cursor:
+          type: string
+    OutputMapping:
+      type: object
+      properties:
+        source_field_key:
+          type: string
+        target_field_key:
+          type: string
+      required:
+        - source_field_key
+        - target_field_key
+      additionalProperties: false
+    OutputIssue:
+      type: object
+      properties:
+        code:
+          type: string
+        source_field_key:
+          type: string
+        target_field_key:
+          type: string
+    OutputCheckInput:
+      type: object
+      properties:
+        expected_revision:
+          type: integer
+          minimum: 1
+        capture_id:
+          type: string
+        sample_id:
+          type: string
+        sample_revision:
+          type: integer
+          minimum: 1
+        step_id:
+          type: string
+          maxLength: 128
+        stage:
+          type: string
+          enum:
+            - list
+            - detail
+        table_id:
+          type: string
+        schema_version:
+          type: integer
+          minimum: 1
+        proposed_table:
+          $ref: '#/components/schemas/CreateLogicalTable'
+        mapping:
+          type: array
+          items:
+            $ref: '#/components/schemas/OutputMapping'
+          minItems: 1
+          maxItems: 30
+        update_policy:
+          type: string
+          enum:
+            - update
+            - keep_existing
+        empty_policy:
+          type: string
+          enum:
+            - preserve_existing
+            - overwrite
+      required:
+        - expected_revision
+        - step_id
+        - stage
+        - mapping
+        - update_policy
+        - empty_policy
+      additionalProperties: false
+      allOf:
+        - oneOf:
+            - required:
+                - capture_id
+            - required:
+                - sample_id
+                - sample_revision
+        - oneOf:
+            - required:
+                - table_id
+                - schema_version
+            - required:
+                - proposed_table
+    OutputDecision:
+      type: object
+      properties:
+        index:
+          type: integer
+        decision:
+          type: string
+          enum:
+            - created
+            - updated
+            - unchanged
+            - invalid
+            - conflict
+        canonical_key:
+          type: string
+        key_json:
+          type: string
+        values:
+          type: object
+          additionalProperties: true
+        values_json:
+          type: string
+        values_hash:
+          type: string
+        record_id:
+          type: string
+        record_revision:
+          type: integer
+        changed_fields:
+          type: array
+          items:
+            type: string
+        issues:
+          type: array
+          items:
+            $ref: '#/components/schemas/OutputIssue'
+        reason:
+          type: string
+    OutputResult:
+      type: object
+      properties:
+        ready:
+          type: boolean
+        compatibility:
+          type: object
+          properties:
+            compatible:
+              type: boolean
+            issues:
+              type: array
+              items:
+                $ref: '#/components/schemas/OutputIssue'
+            warnings:
+              type: array
+              items:
+                $ref: '#/components/schemas/OutputIssue'
+        counts:
+          type: object
+          properties:
+            created:
+              type: integer
+            updated:
+              type: integer
+            unchanged:
+              type: integer
+            invalid:
+              type: integer
+            conflict:
+              type: integer
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/OutputDecision'
+          maxItems: 20
+        warnings:
+          type: array
+          items:
+            type: string
+        network_accessed:
+          type: boolean
+          enum:
+            - false
+        dry_run:
+          type: boolean
+          enum:
+            - true
+    OutputCheck:
+      type: object
+      properties:
+        check_id:
+          type: string
+        collector_id:
+          type: string
+        collector_revision:
+          type: integer
+        definition_hash:
+          type: string
+        capture_id:
+          type: string
+        content_hash:
+          type: string
+        sample_id:
+          type: string
+        sample_revision:
+          type: integer
+        table_id:
+          type: string
+        schema_version:
+          type: integer
+        schema_hash:
+          type: string
+        config:
+          $ref: '#/components/schemas/OutputCheckInput'
+        result:
+          $ref: '#/components/schemas/OutputResult'
+        ready:
+          type: boolean
+        expires_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+      description: 最近 20 次加当前绑定检查；30 分钟可确认。读取 config 已解析 sample 对应 capture，不能原样重发以代替原请求。
+    ConfirmOutput:
+      type: object
+      properties:
+        expected_revision:
+          type: integer
+          minimum: 1
+        check_id:
+          type: string
+          format: uuid
+      required:
+        - expected_revision
+        - check_id
+      additionalProperties: false
     SampleMask:
       type: object
       required: [x, y, width, height]
@@ -2130,6 +2710,10 @@ components:
         supports_snapshot_capture:
           type: boolean
           description: snapshot 独立探测，旧 A06 浏览器服务返回 false。
+        supports_output_checks:
+          type: boolean
+        supports_logical_tables:
+          type: boolean
         supports_samples:
           type: boolean
         supports_sample_checks:

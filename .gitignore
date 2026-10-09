@@ -17,6 +17,8 @@
 
 # Runtime
 output
+!internal/output/
+!internal/output/**
 deploy
 tests/logs
 local

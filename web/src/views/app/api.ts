@@ -3,6 +3,8 @@ import { Session } from '/@/utils/storage';
 
 export interface Identity { id: string; username: string }
 export interface Capabilities {
+ supports_output_checks?:boolean;
+ supports_logical_tables?:boolean;
 	 supports_samples?: boolean;
 	 supports_sample_checks?: boolean;
 	 supports_snapshot_capture?: boolean;
@@ -76,6 +78,13 @@ export interface SavedSample {sample_id:string;collector_id:string;capture_id:st
 export interface SampleDifference {code:string;record_index?:number;field_key?:string;expected_json?:string;actual_json?:string}
 export interface SampleCheck {check_id:string;sample_id:string;sample_revision:number;collector_revision:number;definition_hash:string;content_hash:string;expected_hash:string;interpreter_version:string;status:'passed'|'failed'|'unconfigured';error_code:string;error_message?:string;definition_json?:string;created_at:string;expected_json?:string;result?:ExtractionPreview['result'];comparison?:{status:string;assertion_count:number;differences:SampleDifference[]}}
 export interface CreateSampleInput {name:string;capture_id:string;expected_revision:number;step_id:string;stage:'list'|'detail';kind:'normal'|'missing_field';expected_json:string;protected:boolean;include_screenshot:boolean;screenshot_reviewed:boolean;masks:SampleMask[]}
+export interface TableField {field_key:string;name:string;type:NonNullable<FieldOptions['type']>;nullable:boolean;multiple:boolean}
+export interface TableSchema {fields:TableField[];unique_key:string[]}
+export interface LogicalTable {table_id:string;name:string;schema_version:number;schema:TableSchema;schema_hash:string;created_at:string}
+export interface OutputMapping {source_field_key:string;target_field_key:string}
+export interface OutputCheckInput {expected_revision:number;capture_id?:string;sample_id?:string;sample_revision?:number;step_id:string;stage:'list'|'detail';table_id?:string;schema_version?:number;proposed_table?:{name:string;schema:TableSchema};mapping:OutputMapping[];update_policy:'update'|'keep_existing';empty_policy:'preserve_existing'|'overwrite'}
+export interface OutputIssue {code:string;source_field_key?:string;target_field_key?:string}
+export interface OutputCheck {check_id:string;collector_id:string;collector_revision:number;definition_hash:string;capture_id:string;content_hash:string;sample_id:string;sample_revision:number;table_id:string;schema_version:number;schema_hash:string;config:OutputCheckInput;ready:boolean;expires_at:string;created_at:string;result:{ready:boolean;compatibility:{compatible:boolean;issues:OutputIssue[];warnings:OutputIssue[]};counts:Record<string,number>;rows:{index:number;decision:string;canonical_key:string;key_json:string;values_json:string;values_hash:string;record_id?:string;record_revision?:number;changed_fields:string[];issues:OutputIssue[];reason?:string}[];warnings:string[];network_accessed:boolean;dry_run:boolean}}
 
 async function get<T>(url: string): Promise<T> {
   const response: any = await request({ url, method: 'get' });
@@ -121,6 +130,12 @@ async function streamBrowserSession(id: string, signal: AbortSignal, onSession: 
 }
 
 export const appApi = {
+  tables:(cursor='')=>get<{items:LogicalTable[];next_cursor:string;has_more:boolean}>(`/api/v3/tables?limit=25${cursor?`&cursor=${encodeURIComponent(cursor)}`:''}`),
+  table:(id:string)=>get<LogicalTable>(`/api/v3/tables/${id}`),
+  outputCheck:(id:string,checkID:string)=>get<OutputCheck>(`/api/v3/collectors/${id}/output-checks/${checkID}`),
+  outputCheckByKey:(id:string,key:string)=>request({url:`/api/v3/collectors/${id}/output-checks/by-key`,method:'get',headers:{'Idempotency-Key':key}}).then((response:any)=>response.data as OutputCheck),
+  createOutputCheck:(id:string,input:OutputCheckInput,key:string)=>request({url:`/api/v3/collectors/${id}/output-checks`,method:'post',data:input,headers:{'Idempotency-Key':key}}).then((response:any)=>response.data as OutputCheck),
+  confirmOutput:(id:string,revision:number,checkID:string)=>request({url:`/api/v3/collectors/${id}/output`,method:'put',data:{expected_revision:revision,check_id:checkID}}).then((response:any)=>response.data as Collector),
   samples:(id:string,cursor='')=>get<{items:SavedSample[];has_more:boolean;next_cursor:string}>(`/api/v3/collectors/${id}/samples?limit=25${cursor?`&cursor=${encodeURIComponent(cursor)}`:''}`),
   sample:(id:string)=>get<SavedSample>(`/api/v3/samples/${id}`),
   createSample:(id:string,data:CreateSampleInput,key:string)=>request({url:`/api/v3/collectors/${id}/samples`,method:'post',data,headers:{'Idempotency-Key':key}}).then((response:any)=>response.data as SavedSample),

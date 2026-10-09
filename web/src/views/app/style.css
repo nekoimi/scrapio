@@ -159,3 +159,6 @@
 .sample-image-mask{position:absolute;background:#000;pointer-events:none}
 .sample-saved-image{display:block;max-width:100%;margin-top:12px}
 .sample-panel pre{white-space:pre-wrap;overflow-wrap:anywhere;max-width:440px}
+.output-panel{margin-top:24px;padding-top:20px;border-top:1px solid var(--app-border,#dbe2ea)}
+.output-panel table input:not([type=checkbox]),.output-panel table select{min-width:120px;max-width:180px}
+.output-panel pre{white-space:pre-wrap;overflow-wrap:anywhere;max-width:440px}
