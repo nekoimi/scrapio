@@ -135,3 +135,15 @@
 .field-source { color: #2563eb !important; background: transparent !important; border: 0 !important; padding: 0 !important; text-align: left; }
 .path-candidate { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 8px 0; overflow-wrap: anywhere; }
 @media (max-width: 1050px) { .editor-action-workspace { grid-template-columns: 1fr; } .command-form-grid { grid-template-columns: 1fr; } }
+.http-entry-panel fieldset { border: 1px solid var(--app-border, #dce2eb); border-radius: 10px; padding: 16px; margin: 14px 0; min-width: 0; }
+.http-entry-panel label { display: block; margin: 10px 0; }
+.http-entry-panel textarea { display: block; width: 100%; box-sizing: border-box; resize: vertical; font: 13px/1.6 monospace; }
+.http-entry-panel input { max-width: 100%; }
+.capture-result { padding: 16px; background: #f5f7fb; border-radius: 10px; margin: 16px 0; overflow-wrap: anywhere; }
+.capture-result pre { max-height: 300px; overflow: auto; white-space: pre-wrap; }
+.json-tree { max-height: 400px; overflow: auto; padding: 12px; border: 1px solid #dce2eb; border-radius: 10px; }
+.json-tree-node .json-tree-node { margin-left: 20px; }
+.json-node-row { display: flex; gap: 10px; align-items: center; padding: 5px 0; min-width: max-content; }
+.json-node-row small { max-width: 360px; overflow: hidden; text-overflow: ellipsis; }
+.json-field-row { display: grid; grid-template-columns: 1fr 2fr auto; gap: 10px; margin: 8px 0; }
+@media (max-width: 700px) { .json-field-row { grid-template-columns: 1fr; } }

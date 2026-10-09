@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nekoimi/scrapio/internal/capture"
 	"github.com/nekoimi/scrapio/internal/db"
 	"github.com/nekoimi/scrapio/internal/db/table"
 	"github.com/nekoimi/scrapio/internal/editor"
@@ -107,19 +108,31 @@ func validateDefinition(raw json.RawMessage, entryURL string) ValidationResult {
 		return ValidationResult{Errors: []string{"definition.steps must be an array"}}
 	}
 	seen := map[string]bool{}
+	if raw, exists := definition["http_request"]; exists {
+		data, _ := json.Marshal(raw)
+		if _, err := capture.DecodeRequest(data); err != nil {
+			return ValidationResult{Errors: []string{"http_request must use bounded GET/POST and credential references"}}
+		}
+	}
 	for _, raw := range definition["steps"].([]any) {
 		step, ok := raw.(map[string]any)
 		if !ok {
 			return ValidationResult{Errors: []string{"steps must contain objects"}}
 		}
+		id, validID := step["step_id"].(string)
+		if !validID || id == "" || seen[id] {
+			return ValidationResult{Errors: []string{"step_id is required and unique"}}
+		}
+		seen[id] = true
 		if step["type"] == "record_set" {
-			id, ok := step["step_id"].(string)
-			if !ok || id == "" || seen[id] {
-				return ValidationResult{Errors: []string{"record step_id is required and unique"}}
-			}
-			seen[id] = true
 			if _, err := editor.RecordPlanFromStep(step); err != nil {
 				return ValidationResult{Errors: []string{err.Error()}}
+			}
+		}
+		if step["type"] == "json_records" {
+			data, _ := json.Marshal(step["config"])
+			if _, err := capture.DecodePlan(data); err != nil {
+				return ValidationResult{Errors: []string{"json_records requires an array pointer, fields and bounded record count"}}
 			}
 		}
 	}
@@ -133,6 +146,9 @@ type RevisionConflict struct {
 func (e *RevisionConflict) Error() string { return "draft revision conflict" }
 
 func validateCreate(input CreateInput) error {
+	if _, err := capture.ValidateURL(input.EntryURL); err != nil {
+		return err
+	}
 	u, err := url.Parse(strings.TrimSpace(input.EntryURL))
 	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
 		return errors.New("entry_url must be an absolute http(s) URL")
@@ -365,6 +381,12 @@ func Update(ownerID, id int64, input UpdateInput) (*table.V22Collector, []string
 	var definitionObject map[string]any
 	if err := json.Unmarshal(input.Definition, &definitionObject); err != nil || definitionObject == nil {
 		return nil, nil, errors.New("definition must be a JSON object")
+	}
+	if raw, exists := definitionObject["http_request"]; exists {
+		data, _ := json.Marshal(raw)
+		if _, err := capture.DecodeRequest(data); err != nil {
+			return nil, nil, err
+		}
 	}
 	entryURL := ""
 	hasEntryURL := false

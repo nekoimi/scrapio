@@ -3,6 +3,9 @@ import { Session } from '/@/utils/storage';
 
 export interface Identity { id: string; username: string }
 export interface Capabilities {
+	 supports_http_capture?: boolean;
+	 supports_offline_capture?: boolean;
+	 supports_json_capture_check?: boolean;
   editor_protocol: string;
   browser_ready: boolean;
   editor_service_connected?: boolean;
@@ -57,6 +60,10 @@ export interface RecordPlan { mode:'single'|'repeated'; locator?:EditorLocator; 
 export interface SelectionRule { target:'record'|'field'|'detail'|'next'; locator:EditorLocator; scope?:EditorLocator; extract?:FieldRule['extract'] }
 export interface FieldPreview { name:string;value:string;raw_values:string[];match_count:number;truncated:boolean;errors:string[];source?:{element_id:string;bounds:InspectedElement['bounds']} }
 export interface RecordPreview {page_state_id:string;stage:'list'|'detail';current_url:string;records:{index:number;fields:FieldPreview[];values:Record<string,string>}[];detail_urls:{record_index:number;url?:string;error?:string;raw_url:string}[];next_pages:{kind:'link'|'click';url?:string;error?:string;disabled:boolean}[];record_match_count:number;truncated:boolean;warnings:string[];network_accessed:boolean;dry_run:boolean}
+export interface HTTPEntryRequest {method:'GET'|'POST';query:Record<string,string>;headers:Record<string,string>;body?:unknown;credential_ref?:string;timeout_ms:number}
+export interface JSONRecordPlan {array_pointer:string;max_records:number;fields:{name:string;pointer:string}[]}
+export interface InputCapture {capture_id:string;collector_id:string;draft_revision:number;source:'http'|'offline';format:'json'|'html';status:'running'|'succeeded'|'failed'|'uncertain';final_url:string;status_code:number;content_type:string;content:string;content_hash:string;byte_count:number;error_code:string;error_stage:string;network_accessed:boolean|null;dry_run:boolean;sanitized:boolean;created_at:string;deadline_at:string}
+export interface JSONCaptureCheck {capture_id:string;content_hash:string;revision:number;records:{index:number;fields:{name:string;pointer:string;found:boolean;raw_value:string}[]}[];match_count:number;truncated:boolean;network_accessed:boolean;dry_run:boolean}
 
 async function get<T>(url: string): Promise<T> {
   const response: any = await request({ url, method: 'get' });
@@ -127,5 +134,9 @@ export const appApi = {
   inspectElement: (id: string, input: InspectionInput) => request({ url: `/api/v3/browser-sessions/${id}/inspect`, method: 'post', data: input }).then((response: any) => response.data as ElementInspection),
   checkLocator: (id: string, input: InspectionInput) => request({ url: `/api/v3/browser-sessions/${id}/locator-checks`, method: 'post', data: input }).then((response: any) => response.data as LocatorCheck),
   previewRecords: (id:string, pageState:string, revision:number, stepID:string, stage:'list'|'detail') => request({url:`/api/v3/browser-sessions/${id}/record-previews`,method:'post',data:{page_state_id:pageState,expected_revision:revision,step_id:stepID,stage}}).then((response:any)=>response.data as RecordPreview),
+  createCapture:(input:{collector_id:string;expected_revision:number;source:'http'|'offline';format:'json'|'html';content?:string;confirmed:boolean},key:string)=>request({url:'/api/v3/captures',method:'post',data:input,headers:{'Idempotency-Key':key}}).then((response:any)=>response.data as InputCapture),
+  capture:(id:string)=>get<InputCapture>(`/api/v3/captures/${id}`),
+  captureByKey:(key:string)=>request({url:'/api/v3/captures/by-key',method:'get',headers:{'Idempotency-Key':key}}).then((response:any)=>response.data as InputCapture),
+  checkCaptureJSON:(id:string,revision:number,stepID:string)=>request({url:`/api/v3/captures/${id}/json-checks`,method:'post',data:{expected_revision:revision,step_id:stepID}}).then((response:any)=>response.data as JSONCaptureCheck),
   domChildren: (id: string, pageState: string, elementId = '', offset = 0) => get<DOMChildren>(`/api/v3/browser-sessions/${id}/dom?page_state_id=${encodeURIComponent(pageState)}&element_id=${encodeURIComponent(elementId)}&offset=${offset}&limit=50`),
 };

@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
   title: scrapio v2.2 editor contract spike
-  version: 0.5.0-a06
-  description: A02～A06 开发契约：草稿、会话、动作、只读点选及记录/详情路径。发版实环境验收另行记录；离线 previews、完整 trials 与正式数据写入尚未实现。
+  version: 0.6.0-a07
+  description: A02～A07 开发契约：草稿、会话、动作、点选、记录路径及 HTTP/离线快照和 JSON 基础检查。发版实环境验收另行记录；完整 previews、trials 与正式数据写入尚未实现。
 servers:
   - url: /api/v3
 security:
@@ -883,6 +883,125 @@ paths:
           $ref: '#/components/responses/Error'
         '503':
           $ref: '#/components/responses/Error'
+  /captures:
+    post:
+      summary: 从已保存的草稿请求或离线内容获取独立快照
+      description: |
+        HTTP 必须 confirmed=true；从 collector 当前草稿读取入口和 http_request，校验 expected_revision。
+        创建持久日志后才访问网络，不自动重试。相同 owner/key/input 返回原快照；输入变化返回 409。
+        查询丢失的响应应使用 by-key，查询不执行 HTTP。POST 可能有外部副作用，dry_run 只代表不写正式业务记录。
+        请求体最多 1 MiB + 64 KiB；内容本身最多 1 MiB，JSON 转义后的总请求体仍受上限约束。
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CaptureInput'
+      responses:
+        '201':
+          description: 快照成功、失败、仍在执行或结果不确定；获取失败也保存诊断
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CaptureEnvelope'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      x-implementation-status: implemented
+  /captures/by-key:
+    get:
+      summary: 按原请求键恢复快照状态；绝不重发 HTTP
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: 当前 owner 的原快照；超时 running 变为 uncertain
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CaptureEnvelope'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      x-implementation-status: implemented
+  /captures/{capture_id}:
+    parameters:
+      - $ref: '#/components/parameters/CaptureId'
+    get:
+      summary: 读取当前 owner 的快照及固定内容
+      responses:
+        '200':
+          description: 内容采用基础脱敏和规范化；哈希针对保存内容，不等于原始响应哈希
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CaptureEnvelope'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      x-implementation-status: implemented
+  /captures/{capture_id}/json-checks:
+    parameters:
+      - $ref: '#/components/parameters/CaptureId'
+    post:
+      summary: 以当前保存的 json_records 规则检查已保存 JSON；无网络/正式写入
+      description: 允许旧 revision 快照配当前规则；返回规则 revision、快照 ID 和哈希。只做 JSON Pointer 基础取值，完整转换校验留给 B01。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [expected_revision, step_id]
+              properties:
+                expected_revision:
+                  type: integer
+                  minimum: 1
+                step_id:
+                  type: string
+      responses:
+        '200':
+          description: 数组匹配数、截断标记和逐记录字段原值
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, request_id]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/JSONCaptureCheck'
+                  request_id:
+                    type: string
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      x-implementation-status: implemented
 components:
   securitySchemes:
     bearerAuth:
@@ -891,6 +1010,13 @@ components:
       name: Authorization
       description: 沿用现有登录返回的原始 JWT，不添加 Bearer 前缀；也支持 token cookie。
   parameters:
+    CaptureId:
+      in: path
+      name: capture_id
+      required: true
+      schema:
+        type: string
+        format: uuid
     CollectorId:
       in: path
       name: collector_id
@@ -918,6 +1044,189 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
   schemas:
+    HTTPEntryRequest:
+      type: object
+      additionalProperties: false
+      description: 缺省 GET/10000ms。URL 来自草稿 entry_url；未知配置拒绝；普通参数不能填写已知秘密字段。
+      properties:
+        method:
+          type: string
+          enum: [GET, POST]
+          default: GET
+        query:
+          type: object
+          maxProperties: 30
+          additionalProperties:
+            type: string
+            maxLength: 2048
+        headers:
+          type: object
+          maxProperties: 20
+          additionalProperties:
+            type: string
+            maxLength: 1024
+        body:
+          description: POST JSON 值，最多 64 KiB；不支持 GET body；拒绝密码/token 等已知秘密键。
+        credential_ref:
+          type: string
+          example: '${secret:example_api}'
+          description: 可选；绑定服务端环境变量、owner_ids 和准确 origin，仅运行时注入认证头，不保存实际秘密。
+        timeout_ms:
+          type: integer
+          minimum: 100
+          maximum: 15000
+          default: 10000
+    JSONRecordPlan:
+      type: object
+      additionalProperties: false
+      required: [array_pointer, max_records, fields]
+      description: json_records 步骤 config；RFC 6901，空字符串选根数组，字段 pointer 相对每条记录。
+      properties:
+        array_pointer:
+          type: string
+          maxLength: 2048
+        max_records:
+          type: integer
+          minimum: 1
+          maximum: 20
+        fields:
+          type: array
+          maxItems: 30
+          items:
+            type: object
+            additionalProperties: false
+            required: [name, pointer]
+            properties:
+              name:
+                type: string
+                maxLength: 64
+                description: 唯一字段名；字母或下划线开头。
+              pointer:
+                type: string
+                maxLength: 2048
+    CaptureInput:
+      type: object
+      required: [collector_id, expected_revision, source, format]
+      properties:
+        collector_id:
+          type: string
+        expected_revision:
+          type: integer
+          minimum: 1
+        source:
+          type: string
+          enum: [http, offline]
+        format:
+          type: string
+          enum: [json, html]
+        confirmed:
+          type: boolean
+          description: HTTP 必须 true；离线不要求。
+        content:
+          type: string
+          description: offline 必填，UTF-8 最多 1 MiB；HTTP 不允许传入。日志不保存原始离线内容。
+    CaptureEnvelope:
+      type: object
+      required: [data, request_id]
+      properties:
+        data:
+          $ref: '#/components/schemas/InputCapture'
+        request_id:
+          type: string
+    InputCapture:
+      type: object
+      properties:
+        capture_id:
+          type: string
+          format: uuid
+        collector_id:
+          type: string
+        draft_revision:
+          type: integer
+        source:
+          type: string
+          enum: [http, offline]
+        format:
+          type: string
+          enum: [json, html]
+        status:
+          type: string
+          enum: [running, succeeded, failed, uncertain]
+        final_url:
+          type: string
+        status_code:
+          type: integer
+        content_type:
+          type: string
+        content:
+          type: string
+          description: 已知秘密键和注入秘密回显做基础脱敏；HTML 移除 script/style 与输入值。不是任意敏感内容检测，保留的是规范化内容。
+        content_hash:
+          type: string
+          description: 保存内容的 SHA256。
+        byte_count:
+          type: integer
+          description: 获取到的响应/离线内容字节数；超限时最多读到 1 MiB+1，可能不同于保存内容长度。
+        error_code:
+          type: string
+        error_stage:
+          type: string
+        network_accessed:
+          type: boolean
+          nullable: true
+          description: true 表示已尝试网络，false 表示确认未尝试，null 表示执行中/崩溃恢复且未知。
+        dry_run:
+          type: boolean
+          description: 不写正式业务记录；不表示 HTTP/POST 无外部副作用。
+        sanitized:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        deadline_at:
+          type: string
+          format: date-time
+    JSONCaptureCheck:
+      type: object
+      properties:
+        capture_id:
+          type: string
+        content_hash:
+          type: string
+        revision:
+          type: integer
+        match_count:
+          type: integer
+        truncated:
+          type: boolean
+        network_accessed:
+          type: boolean
+          enum: [false]
+        dry_run:
+          type: boolean
+          enum: [true]
+        records:
+          type: array
+          maxItems: 20
+          items:
+            type: object
+            properties:
+              index:
+                type: integer
+              fields:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                    pointer:
+                      type: string
+                    found:
+                      type: boolean
+                    raw_value:
+                      type: string
+                      description: JSON 编码的原值，保留大整数；超过 2048 字节为截断片段。
     CapabilitiesResponse:
       type: object
       properties:
@@ -932,6 +1241,13 @@ components:
           items:
             type: string
         supports_live_inspection:
+          type: boolean
+        supports_http_capture:
+          type: boolean
+          description: Go HTTP 获取能力，独立于浏览器探测结果。
+        supports_offline_capture:
+          type: boolean
+        supports_json_capture_check:
           type: boolean
         supports_record_preview:
           type: boolean
@@ -1048,6 +1364,8 @@ components:
         entry_url:
           type: string
           format: uri
+        http_request:
+          $ref: '#/components/schemas/HTTPEntryRequest'
         steps:
           type: array
           items:
@@ -1064,6 +1382,8 @@ components:
                   - navigate
                   - action
                   - record
+                  - record_set
+                  - json_records
                   - detail
                   - next_page
                   - extract

@@ -11,6 +11,7 @@ import (
 )
 
 type Config struct {
+	HTTPEntry *HTTPEntryConfig `json:"http_entry,omitempty" mapstructure:"http_entry"`
 	// http服务端口
 	Port int `json:"port,omitempty" mapstructure:"port"`
 	// 应用配置
@@ -40,6 +41,20 @@ type Config struct {
 	DB *DBConfig `json:"db,omitempty" mapstructure:"db"`
 	// 调试 API 配置
 	QuickAPI *QuickAPIConfig `json:"quick_api,omitempty" mapstructure:"quick_api"`
+}
+
+// Credentials are references to deployment-managed environment values, scoped
+// to explicit users and origins. Secret values never live in YAML or responses.
+type HTTPEntryConfig struct {
+	AllowPrivateNetwork bool                           `json:"allow_private_network" mapstructure:"allow_private_network"`
+	Credentials         map[string]HTTPEntryCredential `json:"credentials,omitempty" mapstructure:"credentials"`
+}
+type HTTPEntryCredential struct {
+	Env      string   `json:"env" mapstructure:"env"`
+	Origins  []string `json:"origins" mapstructure:"origins"`
+	OwnerIDs []int64  `json:"owner_ids" mapstructure:"owner_ids"`
+	Header   string   `json:"header" mapstructure:"header"`
+	Prefix   string   `json:"prefix,omitempty" mapstructure:"prefix"`
 }
 
 type LogRotationConfig struct {
@@ -165,6 +180,7 @@ func Load() *Config {
 	v.BindEnv("crawler.exec_on_startup")
 	v.BindEnv("crawler.worker_num")
 	v.BindEnv("retention.document_days")
+	v.BindEnv("http_entry.allow_private_network")
 	v.BindEnv("crawler.drission_rod_grpc_ip")
 	v.BindEnv("crawler.drission_rod_grpc_port")
 	v.BindEnv("db.dsn")

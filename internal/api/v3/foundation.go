@@ -67,7 +67,9 @@ func CapabilitiesWithBrowser(browser *drission_rod.DrissionRod) http.HandlerFunc
 			"editor_protocol": "editor.v1", "browser_ready": false, "editor_service_connected": ready,
 			"supported_actions": actions, "supports_live_inspection": inspection,
 			"supports_record_preview": records,
-			"definition_versions":     []int{1}, "reason": reason,
+			"supports_http_capture":   true, "supports_offline_capture": true,
+			"supports_json_capture_check": true,
+			"definition_versions":         []int{1}, "reason": reason,
 		})
 	}
 }
