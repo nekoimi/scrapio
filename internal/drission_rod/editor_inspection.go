@@ -43,3 +43,11 @@ func (d *DrissionRod) ProbeEditorInspection(ctx context.Context) error {
 	}
 	return err
 }
+
+func (d *DrissionRod) ProbeEditorRecords(ctx context.Context) error {
+	_, err := d.InspectEditorPage(ctx, "protocol-probe", "protocol-probe", "record-preview", editor.Inspection{PageStateID: "protocol-probe"})
+	if e, ok := err.(*BrowserError); ok && e.Code == "RECORD_PREVIEW_SUPPORTED" {
+		return nil
+	}
+	return err
+}

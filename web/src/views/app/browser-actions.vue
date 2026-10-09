@@ -7,6 +7,7 @@
         <li v-for="(step, index) in steps" :key="step.step_id || index" :class="{ selected: selectedStep === index }">
           <button class="step-title" @click="selectStep(index)">{{ index + 1 }}. {{ stepLabel(step) }}</button>
           <small>{{ step.step_id }}</small>
+          <ul v-if="step.type === 'record_set'" class="record-step-outline"><li>{{ step.config?.mode === 'repeated' ? '每条记录 · 有界循环' : '整页一条' }}（最多 {{ step.config?.max_records }} 条）</li><li v-for="field in step.config?.fields || []" :key="field.name">字段：{{ field.name }}</li><li v-if="step.config?.detail">发现详情 → 打开 → 提取 {{ step.config?.detail_fields?.length || 0 }} 个字段 → {{ step.config.detail.return_strategy === 'back' ? '后退列表' : '重开列表' }}</li><li v-if="step.config?.next_page">下一页：{{ step.config.next_page.kind }}（本轮仅验证一次）</li></ul>
           <div class="step-controls">
             <button :disabled="!canEdit || index === 0" @click="moveStep(index, -1)" aria-label="上移步骤">↑</button>
             <button :disabled="!canEdit || index === steps.length - 1" @click="moveStep(index, 1)" aria-label="下移步骤">↓</button>
@@ -27,13 +28,13 @@
     </aside>
     <section class="editor-command-pane">
       <div class="editor-mode-tabs" role="tablist" aria-label="网页操作模式">
-        <button role="tab" :aria-selected="mode === 'browse'" :disabled="busy || replaying" @click="mode = 'browse'">浏览网页</button>
-        <button role="tab" :aria-selected="mode === 'record-select'" :disabled="busy || replaying" @click="mode = 'record-select'">选择记录</button>
-        <button role="tab" :aria-selected="mode === 'field-select'" :disabled="busy || replaying" @click="mode = 'field-select'">选择字段</button>
-        <button role="tab" :aria-selected="mode === 'record'" :disabled="busy || replaying" @click="mode = 'record'">录制操作</button>
+        <button role="tab" :aria-selected="mode === 'browse'" :disabled="busy || recordWorking || replaying" @click="mode = 'browse'">浏览网页</button>
+        <button role="tab" :aria-selected="mode === 'record-select'" :disabled="busy || recordWorking || replaying" @click="mode = 'record-select'">选择记录</button>
+        <button role="tab" :aria-selected="mode === 'field-select'" :disabled="busy || recordWorking || replaying" @click="mode = 'field-select'">选择字段</button>
+        <button role="tab" :aria-selected="mode === 'record'" :disabled="busy || recordWorking || replaying" @click="mode = 'record'">录制操作</button>
       </div>
       <p class="mode-description">{{ selecting ? '选择模式：点选只检查元素，不操作网站。' : mode === 'record' ? '录制中：成功动作加入草稿；失败动作只保留回执。点击画面准备动作，确认后执行。' : '浏览模式：执行真实操作，默认不加入草稿。点击画面准备动作，确认后执行。' }}</p>
-      <BrowserSelection v-show="selecting" ref="selectionPanel" :session="session" :mode="mode === 'field-select' ? 'field' : 'record'" :enabled="inspectionSupported" :blocked="busy || replaying" @highlight="emit('highlight', $event)" @action-locator="applyLocator" />
+      <BrowserSelection v-show="selecting" ref="selectionPanel" :session="session" :mode="mode === 'field-select' ? 'field' : 'record'" :enabled="inspectionSupported" :blocked="busy || recordWorking || replaying" :record-scope="recordPanel?.recordScope" :detail-page="recordPanel?.detailPage" @highlight="emit('highlight', $event)" @action-locator="applyLocator" @rule="recordPanel?.applySelection($event)" />
       <form v-show="!selecting" @submit.prevent="executeForm">
         <div class="command-form-grid">
           <label>动作<select v-model="actionType" :disabled="busy || replaying" @change="onActionTypeChanged"><option v-for="action in actions" :key="action" :value="action">{{ labels[action] }}</option></select></label>
@@ -67,6 +68,7 @@
       </section>
       <button v-if="unknownRequest" :disabled="querying" @click="resolveUnknown">确认上一请求（沿用请求键）</button>
       <details class="command-history"><summary>最近动作（最多 50 条）</summary><div v-for="command in history" :key="command.command_id"><span>{{ labels[command.type] }} · {{ statusLabel(command.status) }}</span><button @click="last = command">查看回执</button></div></details>
+      <RecordDesigner ref="recordPanel" :draft="draft" :session="session" :selected-step="steps[selectedStep]" :enabled="recordsSupported" :blocked="busy || replaying || dirty || saving" :execute="executePathAction" @working="recordWorking = $event" @draft-saved="emit('draft-saved', $event)" @highlight="emit('highlight', $event)" />
     </section>
   </div>
 </template>
@@ -75,6 +77,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { appApi, type BrowserSession, type Collector, type EditorAction, type EditorCheckpoint, type EditorCommand, type EditorLocator, type PageHighlight } from './api';
 import BrowserSelection from './browser-selection.vue';
+import RecordDesigner from './record-designer.vue';
 
 const props = defineProps<{ draft: Collector; session?: BrowserSession; dirty: boolean; saving: boolean }>();
 const emit = defineEmits<{ (event: 'draft-saved', draft: Collector): void; (event: 'session-state', session: BrowserSession): void; (event:'highlight', value:PageHighlight):void }>();
@@ -84,6 +87,8 @@ const mode = ref<'browse' | 'record' | 'record-select' | 'field-select'>('browse
 const selecting = computed(() => mode.value === 'record-select' || mode.value === 'field-select');
 const selectionPanel = ref<InstanceType<typeof BrowserSelection>>();
 const inspectionSupported = ref(false);
+const recordsSupported=ref(false),recordWorking=ref(false);
+const recordPanel=ref<InstanceType<typeof RecordDesigner>>();
 const supported = ref<string[]>([]);
 const actionType = ref('navigate');
 const value = ref('');
@@ -108,13 +113,13 @@ let disposed = false;
 let generation = 0;
 const steps = computed<Record<string, any>[]>(() => Array.isArray(props.draft.definition.steps) ? props.draft.definition.steps : []);
 const busy = computed(() => submitting.value || savingSteps.value || !!pending.value || !!unknownRequest.value);
-const canEdit = computed(() => Array.isArray(props.draft.definition.steps) && !props.dirty && !props.saving && !busy.value && !replaying.value);
+const canEdit = computed(() => Array.isArray(props.draft.definition.steps) && !props.dirty && !props.saving && !busy.value && !recordWorking.value && !replaying.value);
 const canExecute = computed(() => canEdit.value && !!props.session?.available);
 const formValid = computed(() => Number.isInteger(timeout.value) && timeout.value >= 100 && timeout.value <= 30000 && (!(actionType.value === 'input' || actionType.value === 'click') || !!position.value || !!expression.value.trim()));
 
 function statusLabel(status: string) { return ({ queued: '排队中', running: '执行中', succeeded: '成功', failed: '失败', uncertain: '结果未确认' } as Record<string, string>)[status] || status; }
 function executable(step: Record<string, any>) { return step.type === 'navigate' || step.type === 'action' && actions.includes(step.config?.action); }
-function stepLabel(step: Record<string, any>) { return step.type === 'navigate' ? `打开 ${step.config?.url || '网址'}` : labels[step.config?.action] || step.type; }
+function stepLabel(step: Record<string, any>) { return step.type === 'record_set' ? '记录与详情路径' : step.type === 'navigate' ? `打开 ${step.config?.url || '网址'}` : labels[step.config?.action] || step.type; }
 function selectStep(index: number) {
   selectedStep.value = index;
   const step = steps.value[index];
@@ -179,7 +184,8 @@ function frameHover(x:number,y:number,pageStateID:string) { if(selecting.value)s
 function leaveFrame() { selectionPanel.value?.leaveFrame(); }
 function applyLocator(locator:EditorLocator) { mode.value='browse'; actionType.value='click'; position.value=undefined; strategy.value=locator.strategy; expression.value=locator.expression; notice.value='已填入验证过的定位器；执行前仍需确认。'; }
 watch(mode,()=>{selectionPanel.value?.leaveFrame();emit('highlight',{elements:[],page_state_id:props.session?.page_state_id || '',kind:'selected'});});
-defineExpose({ frameClick, frameHover, leaveFrame });
+function hasUnsavedChanges(){return !!recordPanel.value?.localDirty;}
+defineExpose({ frameClick, frameHover, leaveFrame, hasUnsavedChanges });
 
 async function refreshHistory(id = props.session?.session_id) {
   if (!id) { history.value = []; return; }
@@ -225,7 +231,7 @@ async function send(action: Partial<EditorAction>, record: boolean, confirmed = 
   const epoch = generation;
   const current = await refreshState(session.session_id);
   if (disposed || epoch !== generation || !current.available) throw new Error('会话已变化，未派发动作');
-  if (action.position && action.page_state_id !== current.page_state_id) throw new Error('点击画面已过期，请在最新画面上重新选择位置');
+  if (action.page_state_id && action.page_state_id !== current.page_state_id) throw new Error('动作依据的页面已过期，请重新检查后操作');
   const input: EditorAction = { ...action, type: action.type!, timeout_ms: action.timeout_ms || 10000, page_state_id: current.page_state_id, expected_revision: props.draft.revision, confirmed: true, record, ...(record ? { step_id: `step-${crypto.randomUUID()}` } : {}) };
   const key = crypto.randomUUID();
   let command: EditorCommand;
@@ -239,6 +245,7 @@ async function send(action: Partial<EditorAction>, record: boolean, confirmed = 
   position.value = undefined;
   return poll(command, epoch);
 }
+async function executePathAction(action:Partial<EditorAction>) {return send(action,false,true);}
 async function executeForm() {
   if (!canExecute.value || !formValid.value) return;
   submitting.value = true; notice.value = '';
@@ -311,7 +318,7 @@ watch(() => props.session?.session_id, async (id, old) => {
 });
 onMounted(async () => {
   value.value = props.draft.entry_url;
-  try { const capabilities=await appApi.capabilities(); supported.value=capabilities.supported_actions; inspectionSupported.value=capabilities.supports_live_inspection; } catch { supported.value = []; }
+  try { const capabilities=await appApi.capabilities(); supported.value=capabilities.supported_actions; inspectionSupported.value=capabilities.supports_live_inspection; recordsSupported.value=!!capabilities.supports_record_preview; } catch { supported.value = []; }
   await Promise.all([refreshCheckpoints(), refreshHistory()]);
 });
 onBeforeUnmount(() => { disposed = true; generation++; stopReplay.value = true; });

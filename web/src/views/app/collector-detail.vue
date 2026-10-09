@@ -3,10 +3,11 @@
 </template>
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, onBeforeRouteLeave } from 'vue-router';
 import BrowserActions from './browser-actions.vue';
 import { appApi, type BrowserSession, type Collector, type PageHighlight } from './api';
 const actionsPanel = ref<InstanceType<typeof BrowserActions>>();
+onBeforeRouteLeave(()=>!actionsPanel.value?.hasUnsavedChanges()||window.confirm('记录配置尚未保存，离开会丢弃这些修改。确认离开？'));
 const route = useRoute(); const draft = ref<Collector>(); const name = ref(''); const definitionText = ref(''); const saving = ref(false); const checking = ref(false); const dirty = ref(false); const message = ref(''); const error = ref(''); const conflictLatest = ref<Collector>(); const saveState = ref('');
 let saveTimer: ReturnType<typeof setTimeout> | undefined; let loaded = false; let suppressChanges = false; let savedName = ''; let savedDefinition = '';
 const validationLabel = computed(() => ({ not_validated: '未检查', valid: '通过', invalid: '未通过', stale: '已过期' }[draft.value?.validation_status || 'not_validated']));

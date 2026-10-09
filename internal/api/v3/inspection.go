@@ -1,6 +1,7 @@
 package v3
 
 import (
+	"encoding/json"
 	"net/http"
 	"strconv"
 	"time"
@@ -8,6 +9,7 @@ import (
 	"github.com/nekoimi/scrapio/internal/drission_rod"
 	"github.com/nekoimi/scrapio/internal/editor"
 	"github.com/nekoimi/scrapio/internal/pkg/request"
+	"github.com/nekoimi/scrapio/internal/repo/v22_collector_repo"
 	"github.com/nekoimi/scrapio/internal/repo/v22_command_repo"
 )
 
@@ -43,6 +45,44 @@ func InspectBrowserPage(browser *drission_rod.DrissionRod, operation string) htt
 		if err := input.Validate(operation); err != nil {
 			fail(w, r, 400, "INVALID_ARGUMENT", err.Error(), false, "inspect", "")
 			return
+		}
+		if operation == "record-preview" {
+			collector, has, err := v22_collector_repo.Get(admin.Id, session.CollectorId)
+			if err != nil {
+				writeSessionError(w, r, err)
+				return
+			}
+			if !has || collector.Status == "archived" {
+				fail(w, r, 404, "NOT_FOUND", "方案不可用", false, "records", "")
+				return
+			}
+			if collector.Revision != input.ExpectedRevision || collector.EntryURL != session.TargetURL {
+				conflict(w, r, v22_collector_repo.ToDTO(collector))
+				return
+			}
+			var definition struct {
+				Steps []map[string]any `json:"steps"`
+			}
+			if err = json.Unmarshal([]byte(collector.Definition), &definition); err != nil {
+				writeSessionError(w, r, err)
+				return
+			}
+			input.RecordPlan = nil
+			for _, step := range definition.Steps {
+				if step["step_id"] == input.StepID {
+					plan, parseErr := editor.RecordPlanFromStep(step)
+					if parseErr != nil {
+						fail(w, r, 400, "INVALID_ARGUMENT", parseErr.Error(), false, "records", "config")
+						return
+					}
+					input.RecordPlan = &plan
+					break
+				}
+			}
+			if input.RecordPlan == nil || input.Stage == "detail" && input.RecordPlan.Detail == nil {
+				fail(w, r, 400, "INVALID_ARGUMENT", "记录步骤或详情路径不存在", false, "records", "step_id")
+				return
+			}
 		}
 		if session.Status != "ready" || !session.ExpiresAt.After(time.Now()) {
 			fail(w, r, 410, "SESSION_GONE", "会话不可用，请恢复或重新打开", false, "inspect", "")

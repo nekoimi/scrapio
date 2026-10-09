@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
   title: scrapio v2.2 editor contract spike
-  version: 0.4.0-a05
-  description: A02/A03/A04/A05 开发契约：独立草稿、编辑会话、动作录制、检查点与只读元素检查。真实部署与页面联调待发版验收。旧 API 保留兼容能力。
+  version: 0.5.0-a06
+  description: A02～A06 开发契约：草稿、会话、动作、只读点选及记录/详情路径。发版实环境验收另行记录；离线 previews、完整 trials 与正式数据写入尚未实现。
 servers:
   - url: /api/v3
 security:
@@ -844,6 +844,45 @@ paths:
           $ref: '#/components/responses/Error'
         '503':
           $ref: '#/components/responses/Error'
+  /browser-sessions/{session_id}/record-previews:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+    post:
+      summary: 检查当前浏览器页面的已保存记录规则与路径候选，不访问新页面
+      description: >-
+        owner/revision/page_state 绑定；服务端从该草稿 step_id 读取并严格校验 record_set 配置，不信任请求携带的规则。返回基础字段值、逐记录诊断、来源 bounds、去重详情
+        URL、下一页入口；不发起导航或点击、不写正式数据。不等于 B01 的离线字段 previews 或 B04 的完整试采。详情/下一页真实访问复用 commands 并明确确认；默认同 origin，未知结果停止。
+      x-implementation-status: implemented
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecordPreviewRequest'
+      responses:
+        '200':
+          description: 统一包裹的当前页面基础预览
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/RecordPreview'
+                  request_id:
+                    type: string
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '410':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
 components:
   securitySchemes:
     bearerAuth:
@@ -894,6 +933,9 @@ components:
             type: string
         supports_live_inspection:
           type: boolean
+        supports_record_preview:
+          type: boolean
+          description: 额外探测 record-preview 能力；旧 A05 服务返回 false。
         definition_versions:
           type: array
           items:
@@ -1468,3 +1510,234 @@ components:
           type: array
           items:
             type: string
+    RecordFieldRule:
+      type: object
+      required:
+        - name
+        - extract
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          maxLength: 64
+        locator:
+          $ref: '#/components/schemas/Locator'
+          description: 重复项字段相对于各自容器；省略则读取容器自身。重复项 XPath 使用 . 开头。详情/单页可使用整页 XPath。
+        extract:
+          type: string
+          enum:
+            - text
+            - link
+            - image
+            - attribute
+        attribute:
+          type: string
+          maxLength: 64
+          description: attribute 必填，不支持 value 或秘密输入值。
+    RecordPlan:
+      type: object
+      required:
+        - mode
+        - max_records
+        - fields
+      additionalProperties: false
+      properties:
+        mode:
+          type: string
+          enum:
+            - single
+            - repeated
+        locator:
+          $ref: '#/components/schemas/Locator'
+          description: repeated 必填；single 使用整页，禁止指定容器。
+        max_records:
+          type: integer
+          minimum: 1
+          maximum: 20
+        fields:
+          type: array
+          maxItems: 30
+          items:
+            $ref: '#/components/schemas/RecordFieldRule'
+        detail:
+          type: object
+          required:
+            - locator
+            - return_strategy
+            - max_details
+          additionalProperties: false
+          properties:
+            locator:
+              $ref: '#/components/schemas/Locator'
+            return_strategy:
+              type: string
+              enum:
+                - back
+                - navigate-list
+            max_details:
+              type: integer
+              minimum: 1
+              maximum: 5
+        detail_fields:
+          type: array
+          maxItems: 30
+          items:
+            $ref: '#/components/schemas/RecordFieldRule'
+        next_page:
+          type: object
+          required:
+            - locator
+            - kind
+            - max_pages
+          additionalProperties: false
+          properties:
+            locator:
+              $ref: '#/components/schemas/Locator'
+            kind:
+              type: string
+              enum:
+                - link
+                - click
+            max_pages:
+              type: integer
+              enum:
+                - 2
+              description: 编辑验证只访问一次下一页；连续翻页执行属于 C01。
+    RecordStep:
+      type: object
+      required:
+        - step_id
+        - type
+        - config
+      properties:
+        step_id:
+          type: string
+        type:
+          type: string
+          enum:
+            - record_set
+        config:
+          $ref: '#/components/schemas/RecordPlan'
+    RecordPreviewRequest:
+      type: object
+      required:
+        - page_state_id
+        - expected_revision
+        - step_id
+        - stage
+      properties:
+        page_state_id:
+          type: string
+        expected_revision:
+          type: integer
+          minimum: 1
+        step_id:
+          type: string
+          maxLength: 128
+        stage:
+          type: string
+          enum:
+            - list
+            - detail
+    RecordPreview:
+      type: object
+      properties:
+        page_state_id:
+          type: string
+        stage:
+          type: string
+          enum:
+            - list
+            - detail
+        current_url:
+          type: string
+        record_match_count:
+          type: integer
+        truncated:
+          type: boolean
+        network_accessed:
+          type: boolean
+          enum:
+            - false
+        dry_run:
+          type: boolean
+          enum:
+            - true
+        warnings:
+          type: array
+          items:
+            type: string
+        records:
+          type: array
+          maxItems: 20
+          items:
+            type: object
+            properties:
+              index:
+                type: integer
+              values:
+                type: object
+                additionalProperties:
+                  type: string
+              fields:
+                type: array
+                maxItems: 30
+                items:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                    value:
+                      type: string
+                    raw_values:
+                      type: array
+                      maxItems: 3
+                      items:
+                        type: string
+                    match_count:
+                      type: integer
+                    truncated:
+                      type: boolean
+                    errors:
+                      type: array
+                      items:
+                        type: string
+                    source:
+                      type: object
+                      nullable: true
+                      description: 当前页面版本内的元素引用与 PNG bounds，用于字段来源高亮。
+        detail_urls:
+          type: array
+          maxItems: 5
+          items:
+            type: object
+            properties:
+              record_index:
+                type: integer
+              raw_url:
+                type: string
+              url:
+                type: string
+              error:
+                type: string
+              source:
+                type: object
+        next_pages:
+          type: array
+          maxItems: 5
+          items:
+            type: object
+            properties:
+              kind:
+                type: string
+                enum:
+                  - link
+                  - click
+              url:
+                type: string
+              error:
+                type: string
+              disabled:
+                type: boolean
+              source:
+                type: object

@@ -6,18 +6,22 @@ import (
 )
 
 type Inspection struct {
-	PageStateID         string    `json:"page_state_id"`
-	Position            *Position `json:"position,omitempty"`
-	ElementID           string    `json:"element_id,omitempty"`
-	Mode                string    `json:"mode,omitempty"`
-	Relation            string    `json:"relation,omitempty"`
-	ChildIndex          int       `json:"child_index,omitempty"`
-	ExpandSimilar       bool      `json:"expand_similar,omitempty"`
-	Locator             *Locator  `json:"locator,omitempty"`
-	Scope               *Locator  `json:"scope,omitempty"`
-	Offset              int       `json:"offset,omitempty"`
-	Limit               int       `json:"limit,omitempty"`
-	PreviousFingerprint string    `json:"previous_fingerprint,omitempty"`
+	ExpectedRevision    int         `json:"expected_revision,omitempty"`
+	StepID              string      `json:"step_id,omitempty"`
+	Stage               string      `json:"stage,omitempty"`
+	RecordPlan          *RecordPlan `json:"record_plan,omitempty"`
+	PageStateID         string      `json:"page_state_id"`
+	Position            *Position   `json:"position,omitempty"`
+	ElementID           string      `json:"element_id,omitempty"`
+	Mode                string      `json:"mode,omitempty"`
+	Relation            string      `json:"relation,omitempty"`
+	ChildIndex          int         `json:"child_index,omitempty"`
+	ExpandSimilar       bool        `json:"expand_similar,omitempty"`
+	Locator             *Locator    `json:"locator,omitempty"`
+	Scope               *Locator    `json:"scope,omitempty"`
+	Offset              int         `json:"offset,omitempty"`
+	Limit               int         `json:"limit,omitempty"`
+	PreviousFingerprint string      `json:"previous_fingerprint,omitempty"`
 }
 
 func (i *Inspection) Validate(operation string) error {
@@ -57,6 +61,10 @@ func (i *Inspection) Validate(operation string) error {
 	case "locator-check":
 		if i.Locator == nil {
 			return errors.New("locator is required")
+		}
+	case "record-preview":
+		if i.ExpectedRevision < 1 || i.StepID == "" || len(i.StepID) > 128 || i.Stage != "list" && i.Stage != "detail" {
+			return errors.New("revision, step_id and list/detail stage required")
 		}
 	default:
 		return errors.New("unsupported inspection operation")

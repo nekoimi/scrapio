@@ -43,6 +43,7 @@ func CapabilitiesWithBrowser(browser *drission_rod.DrissionRod) http.HandlerFunc
 		}
 		actions := []string{}
 		inspection := false
+		records := false
 		if ready {
 			ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 			if browser.ProbeEditorCommands(ctx) == nil {
@@ -52,6 +53,11 @@ func CapabilitiesWithBrowser(browser *drission_rod.DrissionRod) http.HandlerFunc
 			ctx, cancel = context.WithTimeout(r.Context(), 2*time.Second)
 			inspection = browser.ProbeEditorInspection(ctx) == nil
 			cancel()
+			if inspection {
+				ctx, cancel = context.WithTimeout(r.Context(), 2*time.Second)
+				records = browser.ProbeEditorRecords(ctx) == nil
+				cancel()
+			}
 		}
 		reason := "浏览器服务未连接"
 		if ready {
@@ -60,7 +66,8 @@ func CapabilitiesWithBrowser(browser *drission_rod.DrissionRod) http.HandlerFunc
 		ok(w, r, map[string]any{
 			"editor_protocol": "editor.v1", "browser_ready": false, "editor_service_connected": ready,
 			"supported_actions": actions, "supports_live_inspection": inspection,
-			"definition_versions": []int{1}, "reason": reason,
+			"supports_record_preview": records,
+			"definition_versions":     []int{1}, "reason": reason,
 		})
 	}
 }

@@ -12,6 +12,7 @@ import (
 
 	"github.com/nekoimi/scrapio/internal/db"
 	"github.com/nekoimi/scrapio/internal/db/table"
+	"github.com/nekoimi/scrapio/internal/editor"
 	"github.com/nekoimi/scrapio/internal/repo/idempotency"
 )
 
@@ -104,6 +105,23 @@ func validateDefinition(raw json.RawMessage, entryURL string) ValidationResult {
 	}
 	if _, ok := definition["steps"].([]any); !ok {
 		return ValidationResult{Errors: []string{"definition.steps must be an array"}}
+	}
+	seen := map[string]bool{}
+	for _, raw := range definition["steps"].([]any) {
+		step, ok := raw.(map[string]any)
+		if !ok {
+			return ValidationResult{Errors: []string{"steps must contain objects"}}
+		}
+		if step["type"] == "record_set" {
+			id, ok := step["step_id"].(string)
+			if !ok || id == "" || seen[id] {
+				return ValidationResult{Errors: []string{"record step_id is required and unique"}}
+			}
+			seen[id] = true
+			if _, err := editor.RecordPlanFromStep(step); err != nil {
+				return ValidationResult{Errors: []string{err.Error()}}
+			}
+		}
 	}
 	return ValidationResult{Valid: true, Errors: []string{}}
 }

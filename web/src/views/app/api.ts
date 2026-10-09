@@ -8,6 +8,7 @@ export interface Capabilities {
   editor_service_connected?: boolean;
   supported_actions: string[];
   supports_live_inspection: boolean;
+	 supports_record_preview?: boolean;
   definition_versions: number[];
   reason?: string;
 }
@@ -51,6 +52,11 @@ export interface LocatorCheck {
 export interface ElementInspection { page_state_id: string; element: InspectedElement; locators: (LocatorCheck & { kind: string; warning: string })[]; warnings: string[] }
 export interface DOMChildren { page_state_id: string; root: InspectedElement; items: InspectedElement[]; next_offset: number | null; total: number; warnings: string[] }
 export interface PageHighlight { page_state_id: string; elements: InspectedElement[]; kind: 'hover' | 'selected' | 'similar' }
+export interface FieldRule { name:string; locator?:EditorLocator; extract:'text'|'link'|'image'|'attribute'; attribute?:string }
+export interface RecordPlan { mode:'single'|'repeated'; locator?:EditorLocator; max_records:number; fields:FieldRule[]; detail?:{locator:EditorLocator;return_strategy:'back'|'navigate-list';max_details:number}; detail_fields?:FieldRule[]; next_page?:{locator:EditorLocator;kind:'link'|'click';max_pages:number} }
+export interface SelectionRule { target:'record'|'field'|'detail'|'next'; locator:EditorLocator; scope?:EditorLocator; extract?:FieldRule['extract'] }
+export interface FieldPreview { name:string;value:string;raw_values:string[];match_count:number;truncated:boolean;errors:string[];source?:{element_id:string;bounds:InspectedElement['bounds']} }
+export interface RecordPreview {page_state_id:string;stage:'list'|'detail';current_url:string;records:{index:number;fields:FieldPreview[];values:Record<string,string>}[];detail_urls:{record_index:number;url?:string;error?:string;raw_url:string}[];next_pages:{kind:'link'|'click';url?:string;error?:string;disabled:boolean}[];record_match_count:number;truncated:boolean;warnings:string[];network_accessed:boolean;dry_run:boolean}
 
 async function get<T>(url: string): Promise<T> {
   const response: any = await request({ url, method: 'get' });
@@ -120,5 +126,6 @@ export const appApi = {
   browserFrame: (url: string, pageStateId: string) => request({ url: `${url}?page_state_id=${encodeURIComponent(pageStateId)}`, method: 'get', responseType: 'blob' }).then((response: any) => response as Blob),
   inspectElement: (id: string, input: InspectionInput) => request({ url: `/api/v3/browser-sessions/${id}/inspect`, method: 'post', data: input }).then((response: any) => response.data as ElementInspection),
   checkLocator: (id: string, input: InspectionInput) => request({ url: `/api/v3/browser-sessions/${id}/locator-checks`, method: 'post', data: input }).then((response: any) => response.data as LocatorCheck),
+  previewRecords: (id:string, pageState:string, revision:number, stepID:string, stage:'list'|'detail') => request({url:`/api/v3/browser-sessions/${id}/record-previews`,method:'post',data:{page_state_id:pageState,expected_revision:revision,step_id:stepID,stage}}).then((response:any)=>response.data as RecordPreview),
   domChildren: (id: string, pageState: string, elementId = '', offset = 0) => get<DOMChildren>(`/api/v3/browser-sessions/${id}/dom?page_state_id=${encodeURIComponent(pageState)}&element_id=${encodeURIComponent(elementId)}&offset=${offset}&limit=50`),
 };

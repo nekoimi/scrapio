@@ -35,8 +35,12 @@
       <div class="editor-actions">
         <button v-if="mode === 'record'" :disabled="check.match_count === 0 || check.truncated || busy" @click="useScope">用作当前记录范围</button>
         <button :disabled="!!scope || check.match_count !== 1 || check.truncated || busy" @click="prepareAction">用于点击/等待动作</button>
+        <button v-if="mode === 'record'" :disabled="!available || !check.match_count || check.truncated || busy" @click="saveRule('record')">保存为记录范围</button>
+        <template v-if="mode === 'field'"><select v-model="extractKind" aria-label="提取内容"><option value="text">文本</option><option value="link">链接</option><option value="image">图片地址</option><option value="attribute">属性</option></select><button :disabled="!available || !check.match_count || busy" @click="saveRule('field')">加入字段</button></template>
+        <button :disabled="!available || !check.match_count || busy" @click="saveRule('detail')">作为详情链接</button>
+        <button :disabled="!available || !!scope || check.match_count !== 1 || busy" @click="saveRule('next')">作为下一页入口</button>
       </div>
-      <p class="muted">此处是定位检查与当前选择；记录循环、字段保存和试采在 A06 接入。</p>
+      <p class="muted">选择会填入下方记录配置，保存后才能预览；详情与下一页访问需明确确认。</p>
     </div>
     <details class="dom-browser" @toggle="openDOM">
       <summary>DOM 层级（截图点选的替代入口）</summary>
@@ -53,9 +57,10 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
-import { appApi, type BrowserSession, type DOMChildren, type EditorLocator, type ElementInspection, type InspectionInput, type LocatorCheck, type PageHighlight } from './api';
-const props = defineProps<{ session?: BrowserSession; mode: 'record' | 'field'; enabled: boolean; blocked: boolean }>();
-const emit = defineEmits<{ (event:'highlight', value:PageHighlight):void; (event:'action-locator', value:EditorLocator):void }>();
+import { appApi, type BrowserSession, type DOMChildren, type EditorLocator, type ElementInspection, type InspectionInput, type LocatorCheck, type PageHighlight, type SelectionRule, type FieldRule } from './api';
+const props = defineProps<{ session?: BrowserSession; mode: 'record' | 'field'; enabled: boolean; blocked: boolean; recordScope?:EditorLocator; detailPage?:boolean }>();
+const emit = defineEmits<{ (event:'highlight', value:PageHighlight):void; (event:'action-locator', value:EditorLocator):void; (event:'rule',value:SelectionRule):void }>();
+const extractKind=ref<FieldRule['extract']>('text');
 const selection = ref<ElementInspection>(); const check = ref<LocatorCheck>(); const dom = ref<DOMChildren>();
 const scope = ref<EditorLocator>(); const strategy = ref<'css'|'xpath'>('css'); const expression = ref(''); const childIndex = ref(1);
 const busy = ref(false); const message = ref('');
@@ -113,6 +118,7 @@ async function validateLocator() {
 }
 function useScope(){if(!available.value||!check.value||!check.value.match_count||check.value.truncated)return;scope.value={...check.value.locator};message.value='已设置当前记录范围；切换字段模式后可在范围内点选。';}
 function prepareAction(){if(available.value && check.value && !scope.value && check.value.match_count===1 && !check.value.truncated)emit('action-locator',{...check.value.locator});}
+function saveRule(target:SelectionRule['target']){if(!available.value||!check.value||!check.value.match_count)return;emit('rule',{target,locator:{...check.value.locator},...(props.mode==='field'&&scope.value?{scope:{...scope.value}}:{}),extract:extractKind.value});message.value='已填入记录配置，请检查并保存。';}
 async function loadDOM(id='',offset=0){
   const session=props.session;if(!session||!available.value||busy.value)return;
   if(hoverTimer)clearTimeout(hoverTimer);
@@ -122,6 +128,7 @@ async function loadDOM(id='',offset=0){
 function openDOM(event:Event){if((event.target as HTMLDetailsElement).open && !dom.value)void loadDOM();}
 watch(()=>[props.session?.session_id,props.session?.page_state_id,props.session?.available,props.mode,props.blocked],()=>{clearSelection();if(hoverTimer)clearTimeout(hoverTimer);});
 watch(()=>props.session?.session_id,()=>{scope.value=undefined;evidence.clear();});
+watch(()=>[JSON.stringify(props.recordScope),props.detailPage],()=>{scope.value=props.detailPage?undefined:props.recordScope?{...props.recordScope}:undefined;clearSelection();},{immediate:true});
 onBeforeUnmount(()=>{disposed=true;generation++;if(hoverTimer)clearTimeout(hoverTimer);});
 defineExpose({framePick,frameHover,leaveFrame});
 </script>
