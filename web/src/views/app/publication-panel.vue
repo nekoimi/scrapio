@@ -1,5 +1,6 @@
 <template>
 	<section class="app-card publication-panel">
+		<RegressionPanel ref="regressionPanel" :draft="draft" :versions="versions" :blocked="blocked" @focus-field="(step,key,stage)=>emit('focus-field',step,key,stage)" />
 		<div class="pane-heading">
 			<h2>检查与发布</h2>
 			<button :disabled="busy" @click="reload">刷新试采及版本</button>
@@ -49,10 +50,11 @@
 		<div class="editor-actions">
 			<button :disabled="busy || blocked || !trialId || !!pendingCheck || !!pendingPublish" @click="runCheck">
 				{{ busy ? '处理中…' : '检查当前草稿是否可发布' }}</button
-			><button :disabled="busy || blocked || !check?.ready || stale || !!pendingCheck || !!pendingPublish" @click="publish">
+			><button :disabled="busy || blocked || !check?.ready || stale || !differenceReady || !!pendingCheck || !!pendingPublish" @click="publish">
 				确认发布不可变版本
 			</button>
 		</div>
+		<p v-if="draft.published_version_id && !differenceReady" class="status-warn">发布前请在上方将当前草稿与当前发布版本比较，并确认差异。</p>
 		<p v-if="message" role="status" class="app-error">{{ message }}</p>
 		<section v-if="check">
 			<p :class="check.ready && !stale ? 'status-good' : 'status-warn'">
@@ -96,6 +98,7 @@
 				当前草稿与此版本不同。后续运行使用此版本的固定定义，不使用最新草稿。
 			</p>
 			<p>{{ selectedVersion.note }}</p>
+			<details v-if="selectedVersion.difference_review && Object.keys(selectedVersion.difference_review).length"><summary>发布时差异确认摘要</summary><pre>{{ JSON.stringify(selectedVersion.difference_review,null,2) }}</pre></details>
 			<details>
 				<summary>规则与 Schema 快照</summary>
 				<pre>{{
@@ -122,6 +125,8 @@
 import { computed, onMounted, onBeforeUnmount, ref } from 'vue';
 import { appApi, type Collector, type Trial, type PublishCheck, type PublishedVersion, type PublishIssue } from './api';
 import RunPanel from './run-panel.vue';
+import RegressionPanel from './regression-panel.vue';
+const regressionPanel = ref<InstanceType<typeof RegressionPanel>>();
 const runPanel = ref<InstanceType<typeof RunPanel>>();
 const props = defineProps<{ draft: Collector; blocked: boolean }>();
 const emit = defineEmits<{
@@ -147,6 +152,7 @@ let disposed = false,
 	viewEpoch = 0,
 	timer: ReturnType<typeof setInterval> | undefined;
 const selectedTrial = computed(() => trials.value.find((item) => item.trial_id === trialId.value));
+const differenceReady = computed(()=>!props.draft.published_version_id || !!regressionPanel.value?.reviewID());
 const stale = computed(
 	() =>
 		!check.value ||
@@ -261,7 +267,7 @@ async function applyPublished(value: PublishedVersion) {
 	}
 }
 async function publish() {
-	if (busy.value || stale.value || !check.value?.ready || pendingCheck.value || pendingPublish.value) return;
+	if (busy.value || stale.value || !check.value?.ready || !differenceReady.value || pendingCheck.value || pendingPublish.value) return;
 	if (!window.confirm('确认发布当前检查绑定的规则、Schema、样例和试采范围？发布后版本不可修改，正式运行需另行触发。')) return;
 	busy.value = true;
 	const key = crypto.randomUUID();
@@ -270,7 +276,7 @@ async function publish() {
 	try {
 		const value = await appApi.publishVersion(
 			props.draft.id,
-			{ expected_revision: check.value.collector_revision, check_id: check.value.check_id, note: note.value },
+			{ expected_revision: check.value.collector_revision, check_id: check.value.check_id, note: note.value, comparison_id:regressionPanel.value?.reviewID() || undefined, confirm_differences:!!regressionPanel.value?.reviewID() },
 			key
 		);
 		if (!disposed) await applyPublished(value);
@@ -333,5 +339,5 @@ onBeforeUnmount(() => {
 	viewEpoch++;
 	if (timer) clearInterval(timer);
 });
-defineExpose({ hasUnsavedChanges: () => busy.value || !!pendingCheck.value || !!pendingPublish.value || !!runPanel.value?.hasUnsavedChanges() });
+defineExpose({ hasUnsavedChanges: () => busy.value || !!pendingCheck.value || !!pendingPublish.value || !!runPanel.value?.hasUnsavedChanges() || !!regressionPanel.value?.hasUnsavedChanges() });
 </script>

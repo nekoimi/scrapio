@@ -3,7 +3,14 @@ import { Session } from '/@/utils/storage';
 
 export interface RepairContext {repair_id:string;source_collector_id:string;target_collector_id:string;run_id:string;version_id:string;version_number:number;current_published_version_id:string|null;current_published_version_number:number;target_revision:number;pending_draft:boolean;archived:boolean;mode:string;step_id:string;stage:string;reason:string;failed_step_id:string;failed_stage:string;document_id:string;capture_id:string;evidence_status:'available'|'missing'|'corrupt'|'too_large'|'unsupported';format:string;field_keys:string[];step_compatible:boolean}
 export interface Identity { id: string; username: string }
+export interface RegressionDiff {items:{path:string;before_json:string;after_json:string;before_hash:string;after_hash:string;before_present:boolean;after_present:boolean}[];truncated:boolean}
+export interface RegressionEvaluation {status:string;error_code?:string;record_count:number;valid_count:number;invalid_count:number;comparison?:{status:string;assertion_count:number;differences:(SampleDifference & {expected_hash:string;actual_hash:string;clipped:boolean})[]}}
+export interface RegressionJob {job_id:string;collector_id:string;kind:'regression'|'comparison';collector_revision:number;base_version_id:string;target_version_id:string;base_hash:string;target_hash:string;snapshot_hash:string;status:string;total:number;completed:number;error_code:string;created_at:string;finished_at:string|null;report:{verdict?:string;definition?:RegressionDiff;alignment?:string;samples?:{sample_id:string;name:string;revision:number;step_id:string;stage:string;kind:string;content_hash:string;expected_hash:string;target:RegressionEvaluation;base?:RegressionEvaluation;records?:RegressionDiff}[]}}
+export interface VersionRestore {restore_id:string;collector_id:string;version_id:string;target_collector_id:string;created_at:string}
 export interface Capabilities {
+ supports_sample_regressions?:boolean;
+ supports_version_comparisons?:boolean;
+ supports_version_restores?:boolean;
  supports_publication?:boolean;
  supports_schedules?:boolean;
  supports_api_triggers?:boolean;
@@ -109,7 +116,7 @@ async function get<T>(url: string): Promise<T> {
 
 export interface PublishIssue {code:string;message:string;step_id?:string;field_key?:string;sample_id?:string;stage?:string}
 export interface PublishCheck {check_id:string;collector_id:string;collector_revision:number;trial_id:string;definition_hash:string;manifest_hash:string;capability_hash:string;accept_limited:boolean;ready:boolean;result:{ready:boolean;issues:PublishIssue[];warnings:PublishIssue[]};manifest:{revision:number;schema_hash:string;schema_version:number;output_check_id:string;samples:{sample_id:string;revision:number;step_id:string;stage:string;kind:string;content_hash:string;expected_hash:string}[]};capabilities:Record<string,unknown>;created_at:string;expires_at:string}
-export interface PublishedVersion {version_id:string;collector_id:string;number:number;collector_revision:number;name:string;entry_type:'web'|'json';definition_hash:string;check_id:string;trial_id:string;contract_version:string;interpreter_version:string;capability_hash:string;manifest_hash:string;note:string;published_by:string;created_at:string;run_available:boolean;run_unavailable_reason:string;definition?:Record<string,any>;output_schema?:TableSchema;runtime_config?:TrialInput}
+export interface PublishedVersion {version_id:string;collector_id:string;number:number;collector_revision:number;name:string;entry_type:'web'|'json';definition_hash:string;check_id:string;trial_id:string;contract_version:string;interpreter_version:string;capability_hash:string;manifest_hash:string;note:string;published_by:string;created_at:string;run_available:boolean;run_unavailable_reason:string;definition?:Record<string,any>;output_schema?:TableSchema;runtime_config?:TrialInput;difference_review?:Record<string,unknown>}
 
 export interface TrialInput {expected_revision:number;mode:'live'|'offline';confirmed:boolean;allowed_origins:string[];budget:{seconds:number;pages:number;records:number;details:number};inputs:{step_id:string;stage:'list'|'detail';capture_id:string}[]}
 export interface Trial {trial_id:string;collector_id:string;collector_revision:number;definition_hash:string;status:string;cancel_requested:boolean;current_step_id:string;current_stage:string;event_seq:number;input:TrialInput;summary:{status?:string;stop_reason?:string;failed_step_id?:string;failed_stage?:string;pages?:number;candidates?:number;network_accessed?:boolean;dry_run?:boolean;warnings?:string[];output?:OutputCheck['result']};created_at:string;started_at?:string;finished_at?:string;dry_run:boolean;formal_records_written:boolean}
@@ -186,6 +193,14 @@ export interface DataView {view_id:string;table_id:string;name:string;revision:n
 export interface DataExport {export_id:string;table_id:string;format:'csv'|'json';status:string;progress:number;row_count:number;query:RecordQuery;schema:TableSchema;captured_at:string;created_at:string;finished_at:string|null;expires_at:string;file_bytes:number;file_hash:string;error_code:string}
 export interface ExportInput {format:'csv'|'json';snapshot_id:string;query:RecordQuery;confirmed:boolean}
 export const appApi = {
+ createRegression:(id:string,kind:'regression'|'comparison',data:{expected_revision:number;base_version_id?:string;target_version_id?:string},key:string)=>request({url:`/api/v3/collectors/${id}/${kind==='comparison'?'version-comparisons':'regressions'}`,method:'post',data,headers:{'Idempotency-Key':key},timeout:8000}).then((r:any)=>r.data as RegressionJob),
+ regressions:(id:string)=>request({url:`/api/v3/collectors/${id}/regressions`,method:'get',timeout:8000}).then((r:any)=>r.data as {items:RegressionJob[]}),
+ regression:(id:string)=>request({url:`/api/v3/regressions/${id}`,method:'get',timeout:8000}).then((r:any)=>r.data as RegressionJob),
+ regressionByKey:(key:string)=>request({url:'/api/v3/regressions/by-key',method:'get',headers:{'Idempotency-Key':key},timeout:8000}).then((r:any)=>r.data as RegressionJob),
+ cancelRegression:(id:string)=>request({url:`/api/v3/regressions/${id}/cancel`,method:'post',timeout:8000}).then((r:any)=>r.data as RegressionJob),
+ deleteRegression:(id:string)=>request({url:`/api/v3/regressions/${id}`,method:'delete',timeout:8000}),
+ restoreVersion:(id:string,data:{expected_revision:number;version_id:string;confirmed:boolean},key:string)=>request({url:`/api/v3/collectors/${id}/version-restores`,method:'post',data,headers:{'Idempotency-Key':key},timeout:8000}).then((r:any)=>r.data as VersionRestore),
+ versionRestoreByKey:(key:string)=>request({url:'/api/v3/version-restores/by-key',method:'get',headers:{'Idempotency-Key':key},timeout:8000}).then((r:any)=>r.data as VersionRestore),
  queryRecords:(id:string,query:RecordQuery,cursor='')=>get<QueryPage>(`/api/v3/tables/${id}/records?limit=25&query=${encodeURIComponent(JSON.stringify(query))}&cursor=${encodeURIComponent(cursor)}`),
  dataViews:(id:string)=>get<{items:DataView[];limit:number}>(`/api/v3/tables/${id}/views`),
  saveDataView:(id:string,data:{id:string;name:string;expected_revision:number;query:RecordQuery})=>request({url:`/api/v3/tables/${id}/views`,method:'post',data}).then((r:any)=>r.data as DataView),
@@ -227,7 +242,7 @@ export const appApi = {
   createPublishCheck:(id:string,input:{expected_revision:number;trial_id:string;accept_limited:boolean},key:string)=>request({url:`/api/v3/collectors/${id}/publish-checks`,method:'post',data:input,headers:{'Idempotency-Key':key}}).then((response:any)=>response.data as PublishCheck),
   publishCheck:(id:string,checkID:string)=>get<PublishCheck>(`/api/v3/collectors/${id}/publish-checks/${checkID}`),
   publishCheckByKey:(id:string,key:string)=>request({url:`/api/v3/collectors/${id}/publish-checks/by-key`,method:'get',headers:{'Idempotency-Key':key}}).then((response:any)=>response.data as PublishCheck),
-  publishVersion:(id:string,input:{expected_revision:number;check_id:string;note:string},key:string)=>request({url:`/api/v3/collectors/${id}/versions`,method:'post',data:input,headers:{'Idempotency-Key':key}}).then((response:any)=>response.data as PublishedVersion),
+  publishVersion:(id:string,input:{expected_revision:number;check_id:string;note:string;comparison_id?:string;confirm_differences?:boolean},key:string)=>request({url:`/api/v3/collectors/${id}/versions`,method:'post',data:input,headers:{'Idempotency-Key':key}}).then((response:any)=>response.data as PublishedVersion),
   versions:(id:string,cursor='')=>get<{items:PublishedVersion[];has_more:boolean;next_cursor:string}>(`/api/v3/collectors/${id}/versions?limit=25${cursor?`&cursor=${encodeURIComponent(cursor)}`:''}`),
   version:(id:string)=>get<PublishedVersion>(`/api/v3/versions/${id}`),
   versionByKey:(key:string)=>request({url:'/api/v3/versions/by-key',method:'get',headers:{'Idempotency-Key':key}}).then((response:any)=>response.data as PublishedVersion),

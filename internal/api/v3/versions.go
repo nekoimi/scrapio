@@ -30,7 +30,7 @@ func publicationError(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, v22_version_repo.ErrNotFound):
 		fail(w, r, 404, "NOT_FOUND", "方案、版本或发布证据不存在", false, "publish", "")
 	case errors.Is(err, v22_version_repo.ErrConflict):
-		fail(w, r, 409, "PUBLISH_STALE", "草稿、样例、试采、Schema、能力或请求键已变化，或检查已过期，请重新检查", false, "publish", "")
+		fail(w, r, 409, "PUBLISH_STALE", "草稿、样例、试采、Schema、能力或请求键已变化，或检查已过期；请重新检查并与当前发布版本比较、确认差异", false, "publish", "")
 	case errors.Is(err, v22_version_repo.ErrBlocked):
 		fail(w, r, 409, "PUBLISH_BLOCKED", "发布证据存在阻断项，请重新检查并修正", false, "publish", "")
 	case errors.Is(err, context.DeadlineExceeded), errors.Is(err, context.Canceled):
@@ -96,6 +96,9 @@ func versionDTO(row *table.V22Version, detail bool) map[string]any {
 		value["definition"] = json.RawMessage(row.Definition)
 		value["output_schema"] = json.RawMessage(row.OutputSchema)
 		value["runtime_config"] = json.RawMessage(row.RuntimeConfig)
+		if row.DifferenceReview != "" {
+			value["difference_review"] = json.RawMessage(row.DifferenceReview)
+		}
 	}
 	return value
 }

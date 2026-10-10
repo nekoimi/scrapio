@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
   title: scrapio v2.2 editor contract spike
-  version: 0.19.0-d01
-  description: A02～D01 开发契约：固定版本采集、定时/API、冻结查询和导出、完整运行中心、日常首页与方案健康、失败输入修复草稿。真实迁移、并发和页面验收另行记录。
+  version: 0.20.0-d02
+  description: A02～D02 开发契约：固定版本采集、定时/API、冻结查询和导出、完整运行中心、日常首页与方案健康、失败输入修复草稿、全样例离线回归、版本比较与历史草稿复制。真实迁移、并发和页面验收另行记录。
 servers:
   - url: /api/v3
 security:
@@ -3988,6 +3988,379 @@ paths:
       description: >-
         仅 full_run；原运行必须终止。复用不可变版本/输入，校验 frozen definition/schema/contracts 与目标能力；不取草稿。重复点击、输入、POST 等网站动作需确认。owner+key
         幂等，绑定 retry_of+scope+原输入，异输入409。已知请求在能力/Schema后续变化时仍返回原运行。响应未知用 /runs/by-key 查询，不能自动换键重试。
+  /collectors/{collector_id}/regressions:
+    parameters:
+      - $ref: '#/components/parameters/CollectorId'
+    post:
+      summary: 冻结全部样例与规则后异步排队；202只表示已接受
+      x-implementation-status: implemented
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegressionInput'
+      responses:
+        '202':
+          description: RegressionJob
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/RegressionJob'
+                  request_id:
+                    type: string
+                required:
+                  - data
+                  - request_id
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '408':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      description: owner/方案/revision绑定；比较两端使用同一批保存输入。最多100样例、16MiB编码快照、4MiB报告、每owner2活动/100保留任务。离线不执行网站动作或正式写入；任务完成与预期判断分开，无预期/无样例不通过。
+    get:
+      summary: 最近至多100个保留任务；不含原文/报告正文
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: RegressionJobPage
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/RegressionJobPage'
+                  request_id:
+                    type: string
+                required:
+                  - data
+                  - request_id
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '408':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      description: 同owner的回归与版本比较共用历史；报告字段为空对象。
+  /collectors/{collector_id}/version-comparisons:
+    parameters:
+      - $ref: '#/components/parameters/CollectorId'
+    post:
+      summary: 冻结全部样例与规则后异步排队；202只表示已接受
+      x-implementation-status: implemented
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VersionComparisonInput'
+      responses:
+        '202':
+          description: RegressionJob
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/RegressionJob'
+                  request_id:
+                    type: string
+                required:
+                  - data
+                  - request_id
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '408':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      description: owner/方案/revision绑定；比较两端使用同一批保存输入。最多100样例、16MiB编码快照、4MiB报告、每owner2活动/100保留任务。离线不执行网站动作或正式写入；任务完成与预期判断分开，无预期/无样例不通过。
+  /regressions/by-key:
+    get:
+      summary: 用原请求键恢复未确认的回归或比较
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: RegressionJob
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/RegressionJob'
+                  request_id:
+                    type: string
+                required:
+                  - data
+                  - request_id
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '408':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+  /regressions/{job_id}:
+    parameters:
+      - name: job_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      summary: 离线回归/比较进度与冻结报告
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: RegressionJob
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/RegressionJob'
+                  request_id:
+                    type: string
+                required:
+                  - data
+                  - request_id
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '408':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+    delete:
+      summary: 只删除终态任务及冻结输入；原请求键随后失效
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      deleted:
+                        type: boolean
+                    required:
+                      - deleted
+                  request_id:
+                    type: string
+                required:
+                  - data
+                  - request_id
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '408':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      description: 删除不影响已发布版本的差异确认摘要。活动任务返回409。
+  /regressions/{job_id}/cancel:
+    parameters:
+      - name: job_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      summary: 取消queued/running任务；旧租约结果不能覆盖终态
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: RegressionJob
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/RegressionJob'
+                  request_id:
+                    type: string
+                required:
+                  - data
+                  - request_id
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '408':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+  /version-comparisons/{job_id}:
+    parameters:
+      - name: job_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      summary: 共用离线任务查询；返回kind标识
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: RegressionJob
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/RegressionJob'
+                  request_id:
+                    type: string
+                required:
+                  - data
+                  - request_id
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '408':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+  /collectors/{collector_id}/version-restores:
+    parameters:
+      - $ref: '#/components/parameters/CollectorId'
+    post:
+      summary: 历史定义复制独立新草稿；原草稿/版本/运行/调度保持原样
+      x-implementation-status: implemented
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VersionRestoreInput'
+      responses:
+        '200':
+          description: VersionRestore
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/VersionRestore'
+                  request_id:
+                    type: string
+                required:
+                  - data
+                  - request_id
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '408':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      description: owner/方案/版本授权、revision及幂等事务；不继承输出确认、样例或调度。每owner至多100复制关联，响应未知先按原键查询。
+  /version-restores/by-key:
+    get:
+      summary: 恢复历史版本复制的原请求结果
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: VersionRestore
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/VersionRestore'
+                  request_id:
+                    type: string
+                required:
+                  - data
+                  - request_id
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '408':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
 components:
   securitySchemes:
     collectorTrigger:
@@ -4042,6 +4415,318 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
   schemas:
+    RegressionInput:
+      type: object
+      properties:
+        expected_revision:
+          type: integer
+          minimum: 1
+      required:
+        - expected_revision
+      additionalProperties: false
+    VersionComparisonInput:
+      type: object
+      properties:
+        expected_revision:
+          type: integer
+          minimum: 1
+        base_version_id:
+          type: string
+          format: uuid
+        target_version_id:
+          type: string
+          description: 省略或空字符串表示当前草稿；否则为本方案发布版本ID
+      required:
+        - expected_revision
+        - base_version_id
+      additionalProperties: false
+    RegressionDifference:
+      type: object
+      properties:
+        path:
+          type: string
+        before_json:
+          type: string
+        after_json:
+          type: string
+        before_hash:
+          type: string
+        after_hash:
+          type: string
+        before_present:
+          type: boolean
+        after_present:
+          type: boolean
+      required:
+        - path
+        - before_json
+        - after_json
+        - before_hash
+        - after_hash
+        - before_present
+        - after_present
+    RegressionDiff:
+      type: object
+      properties:
+        items:
+          type: array
+          maxItems: 200
+          items:
+            $ref: '#/components/schemas/RegressionDifference'
+        truncated:
+          type: boolean
+      required:
+        - items
+        - truncated
+    RegressionAssertionDifference:
+      type: object
+      properties:
+        code:
+          type: string
+        record_index:
+          type: integer
+        field_key:
+          type: string
+        expected_json:
+          type: string
+        actual_json:
+          type: string
+        expected_hash:
+          type: string
+        actual_hash:
+          type: string
+        clipped:
+          type: boolean
+      required:
+        - code
+        - expected_hash
+        - actual_hash
+        - clipped
+    RegressionEvaluation:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+            - passed
+            - failed
+            - unconfigured
+            - incomplete
+        error_code:
+          type: string
+        record_count:
+          type: integer
+        valid_count:
+          type: integer
+        invalid_count:
+          type: integer
+        comparison:
+          type: object
+          properties:
+            status:
+              type: string
+            assertion_count:
+              type: integer
+            differences:
+              type: array
+              items:
+                $ref: '#/components/schemas/RegressionAssertionDifference'
+          required:
+            - status
+            - assertion_count
+            - differences
+      required:
+        - status
+        - record_count
+        - valid_count
+        - invalid_count
+    RegressionSampleResult:
+      type: object
+      properties:
+        sample_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        revision:
+          type: integer
+        step_id:
+          type: string
+        stage:
+          type: string
+          enum:
+            - list
+            - detail
+        kind:
+          type: string
+        content_hash:
+          type: string
+        expected_hash:
+          type: string
+        target:
+          $ref: '#/components/schemas/RegressionEvaluation'
+        base:
+          $ref: '#/components/schemas/RegressionEvaluation'
+        records:
+          $ref: '#/components/schemas/RegressionDiff'
+      required:
+        - sample_id
+        - revision
+        - step_id
+        - stage
+        - kind
+        - content_hash
+        - expected_hash
+        - target
+    RegressionReport:
+      type: object
+      properties:
+        verdict:
+          type: string
+          enum:
+            - passed
+            - failed
+            - incomplete
+            - unconfigured
+        definition:
+          $ref: '#/components/schemas/RegressionDiff'
+        samples:
+          type: array
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/RegressionSampleResult'
+        interpreter_version:
+          type: string
+        alignment:
+          type: string
+          enum:
+            - record_index
+        network_accessed:
+          type: boolean
+          enum:
+            - false
+        dry_run:
+          type: boolean
+          enum:
+            - true
+    RegressionJob:
+      type: object
+      properties:
+        job_id:
+          type: string
+          format: uuid
+        collector_id:
+          type: string
+        kind:
+          type: string
+          enum:
+            - regression
+            - comparison
+        collector_revision:
+          type: integer
+        base_version_id:
+          type: string
+        target_version_id:
+          type: string
+        base_hash:
+          type: string
+        target_hash:
+          type: string
+        snapshot_hash:
+          type: string
+        status:
+          type: string
+          enum:
+            - queued
+            - running
+            - succeeded
+            - failed
+            - cancelled
+        total:
+          type: integer
+          minimum: 0
+          maximum: 100
+        completed:
+          type: integer
+        report:
+          $ref: '#/components/schemas/RegressionReport'
+        error_code:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        finished_at:
+          type: string
+          format: date-time
+          nullable: true
+        network_accessed:
+          type: boolean
+          enum:
+            - false
+        dry_run:
+          type: boolean
+          enum:
+            - true
+      required:
+        - job_id
+        - collector_id
+        - kind
+        - collector_revision
+        - status
+        - total
+        - completed
+        - report
+        - created_at
+    RegressionJobPage:
+      type: object
+      properties:
+        items:
+          type: array
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/RegressionJob'
+      required:
+        - items
+    VersionRestoreInput:
+      type: object
+      properties:
+        expected_revision:
+          type: integer
+          minimum: 1
+        version_id:
+          type: string
+          format: uuid
+        confirmed:
+          type: boolean
+          enum:
+            - true
+      required:
+        - expected_revision
+        - version_id
+        - confirmed
+      additionalProperties: false
+    VersionRestore:
+      type: object
+      properties:
+        restore_id:
+          type: string
+          format: uuid
+        collector_id:
+          type: string
+        version_id:
+          type: string
+          format: uuid
+        target_collector_id:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+      required:
+        - restore_id
+        - collector_id
+        - version_id
+        - target_collector_id
+        - created_at
     RunInput:
       type: object
       properties:
@@ -4475,6 +5160,13 @@ components:
           type: string
           maxLength: 1000
           description: 去首尾空白；冻结为版本说明
+        comparison_id:
+          type: string
+          format: uuid
+          description: 已有发布版本时必须提供与当前发布版本、当前草稿和当前样例批绑定的已完成比较
+        confirm_differences:
+          type: boolean
+          description: 已有发布版本时必须为true；当前规则/样例批变化后旧确认失效
       additionalProperties: false
       required:
         - expected_revision
@@ -4722,6 +5414,10 @@ components:
         runtime_config:
           $ref: '#/components/schemas/TrialInput'
           description: 冻结试采范围和预算作为运行默认配置；正式运行必须重新确认，不能复用confirmed授权
+        difference_review:
+          type: object
+          additionalProperties: true
+          description: 独立保留的发布差异确认摘要；不改变runtime_config。首次发布/旧版本为空对象。
       required:
         - version_id
         - collector_id
@@ -6560,6 +7256,12 @@ components:
         supports_collector_health:
           type: boolean
         supports_repair_drafts:
+          type: boolean
+        supports_sample_regressions:
+          type: boolean
+        supports_version_comparisons:
+          type: boolean
+        supports_version_restores:
           type: boolean
     DraftResponse:
       type: object

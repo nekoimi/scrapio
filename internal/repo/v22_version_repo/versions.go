@@ -13,6 +13,7 @@ import (
 	"github.com/nekoimi/scrapio/internal/db/table"
 	"github.com/nekoimi/scrapio/internal/extraction"
 	"github.com/nekoimi/scrapio/internal/publication"
+	"github.com/nekoimi/scrapio/internal/regression"
 	"github.com/nekoimi/scrapio/internal/repo/idempotency"
 )
 
@@ -46,9 +47,11 @@ func (i CheckInput) Validate() error {
 }
 
 type PublishInput struct {
-	ExpectedRevision int    `json:"expected_revision"`
-	CheckID          string `json:"check_id"`
-	Note             string `json:"note"`
+	ExpectedRevision   int    `json:"expected_revision"`
+	CheckID            string `json:"check_id"`
+	Note               string `json:"note"`
+	ComparisonID       string `json:"comparison_id,omitempty"`
+	ConfirmDifferences bool   `json:"confirm_differences"`
 }
 
 func (i *PublishInput) Validate() error {
@@ -58,6 +61,11 @@ func (i *PublishInput) Validate() error {
 	}
 	if _, err := uuid.Parse(i.CheckID); err != nil {
 		return invalid("valid check_id required")
+	}
+	if i.ComparisonID != "" {
+		if _, err := uuid.Parse(i.ComparisonID); err != nil {
+			return invalid("valid comparison_id required")
+		}
 	}
 	return nil
 }
@@ -234,7 +242,29 @@ func Publish(ctx context.Context, ownerID, collectorID int64, key string, input 
 		number = n + 1
 	}
 	runtimeRaw, _ := json.Marshal(st.input)
+	reviewRaw := "{}"
+	if st.collector.PublishedVersionId != nil {
+		if !input.ConfirmDifferences || input.ComparisonID == "" {
+			return nil, invalid("compare current draft with current published version and confirm differences before publication")
+		}
+		job := new(table.V22Regression)
+		has, err = s.Where("id=? AND owner_id=? AND collector_id=?", input.ComparisonID, ownerID, collectorID).Omit("snapshot").Get(job)
+		if err != nil {
+			return nil, err
+		}
+		var report regression.Report
+		if !has || job.Status != "succeeded" || job.Kind != "comparison" || job.BaseVersionId != *st.collector.PublishedVersionId || job.TargetVersionId != "" || job.CollectorRevision != st.collector.Revision || job.TargetHash != st.manifest.DefinitionHash || json.Unmarshal([]byte(job.Report), &report) != nil || report.Definition == nil || report.Definition.Truncated {
+			return nil, ErrConflict
+		}
+		if !sameRegressionBatch(report, st.manifest.Samples) {
+			return nil, ErrConflict
+		}
+		// Retain the acknowledgement independently of deletable offline job history.
+		raw, _ := json.Marshal(map[string]any{"comparison_id": job.Id, "base_version_id": job.BaseVersionId, "base_hash": job.BaseHash, "target_hash": job.TargetHash, "snapshot_hash": job.SnapshotHash, "definition": report.Definition, "confirmed_by": ownerID, "confirmed_at": time.Now()})
+		reviewRaw = string(raw)
+	}
 	row := &table.V22Version{Id: uuid.NewString(), OwnerId: ownerID, CollectorId: collectorID, Number: number, CollectorRevision: st.collector.Revision, Name: st.collector.Name, EntryType: st.collector.EntryType, Definition: st.collector.Definition, DefinitionHash: st.manifest.DefinitionHash, OutputSchema: st.schemaRaw, RuntimeConfig: string(runtimeRaw), CheckId: check.Id, TrialId: check.TrialId, OutputCheckId: st.plan.Output.CheckID, ContractVersion: publication.ContractVersion, InterpreterVersion: extraction.InterpreterVersion, CapabilityHash: check.CapabilityHash, ManifestHash: check.ManifestHash, Note: input.Note, IdempotencyKey: key, Fingerprint: fingerprint, PublishedBy: ownerID, CreatedAt: time.Now()}
+	row.DifferenceReview = reviewRaw
 	if err = ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -248,6 +278,26 @@ func Publish(ctx context.Context, ownerID, collectorID int64, key string, input 
 		return nil, err
 	}
 	return row, nil
+}
+
+func sameRegressionBatch(report regression.Report, current []sampleIdentity) bool {
+	if len(report.Samples) != len(current) {
+		return false
+	}
+	byID := map[string]regression.SampleResult{}
+	for _, r := range report.Samples {
+		if _, duplicate := byID[r.ID]; duplicate {
+			return false
+		}
+		byID[r.ID] = r
+	}
+	for _, s := range current {
+		r, has := byID[s.ID]
+		if !has || r.Revision != s.Revision || r.StepID != s.StepID || r.Stage != s.Stage || r.Kind != s.Kind || r.ContentHash != s.ContentHash || r.ExpectedHash != s.ExpectedHash {
+			return false
+		}
+	}
+	return true
 }
 func Get(ownerID int64, id, key string) (*table.V22Version, error) {
 	row := new(table.V22Version)
@@ -278,7 +328,7 @@ func List(ownerID, collectorID int64, before, limit int) ([]table.V22Version, bo
 	if before > 0 {
 		s.And("number<?", before)
 	}
-	err := s.Omit("definition", "output_schema", "runtime_config").Desc("number").Limit(limit + 1).Find(&rows)
+	err := s.Omit("definition", "output_schema", "runtime_config", "difference_review").Desc("number").Limit(limit + 1).Find(&rows)
 	if err != nil {
 		return nil, false, err
 	}

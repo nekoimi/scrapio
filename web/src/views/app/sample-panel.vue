@@ -5,6 +5,7 @@
 			<button :disabled="busy" @click="loadList(false)">刷新样例</button>
 		</div>
 		<p class="muted">保存固定输入作为正常或缺字段样例；检查只验证离线提取，不验证导航。每个方案最多 100 个样例，每个样例保留最近 20 次证据。</p>
+		<p><a href="#sample-regression">检查全部保存样例、比较版本与复制历史草稿</a></p>
 		<p v-if="message" class="app-error" role="status">{{ message }}</p>
 		<p v-if="pendingKey" class="status-warn">
 			上次样例保存结果未确认。先查询原请求，再继续编辑。<button :disabled="busy" @click="recover">查询原请求</button

@@ -37,6 +37,7 @@ type V22Version struct {
 	DefinitionHash     string `xorm:"definition_hash"`
 	OutputSchema       string `xorm:"jsonb output_schema"`
 	RuntimeConfig      string `xorm:"jsonb runtime_config"`
+	DifferenceReview   string `xorm:"jsonb difference_review"`
 	CheckId            string `xorm:"check_id"`
 	TrialId            string `xorm:"trial_id"`
 	OutputCheckId      string `xorm:"output_check_id"`

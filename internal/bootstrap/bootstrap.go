@@ -13,6 +13,7 @@ import (
 	"github.com/nekoimi/scrapio/internal/job"
 	"github.com/nekoimi/scrapio/internal/plugin"
 	"github.com/nekoimi/scrapio/internal/plugin/delivery"
+	"github.com/nekoimi/scrapio/internal/regressionworker"
 	"github.com/nekoimi/scrapio/internal/runworker"
 	"github.com/nekoimi/scrapio/internal/scheduleworker"
 	"github.com/nekoimi/scrapio/internal/server"
@@ -37,6 +38,7 @@ func BeanLifecycle() *bean.LifecycleManager {
 	bean.MustRegister[bean.Lifecycle](ctx, runworker.New())
 	bean.MustRegister[bean.Lifecycle](ctx, scheduleworker.New())
 	bean.MustRegister[bean.Lifecycle](ctx, exportworker.New())
+	bean.MustRegister[bean.Lifecycle](ctx, regressionworker.New())
 	pluginRegistry := plugin.NewRegistry()
 	delivery.RegisterBuiltins(pluginRegistry, bean.PtrFromContext[config.Config](ctx))
 	bean.MustRegisterPtr[plugin.Registry](ctx, pluginRegistry)

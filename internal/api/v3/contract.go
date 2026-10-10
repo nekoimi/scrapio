@@ -40,6 +40,10 @@ func created(w http.ResponseWriter, r *http.Request, data any) {
 	writeJSON(w, http.StatusCreated, apiResponse{Data: data, RequestID: middleware.RequestID(r.Context())})
 }
 
+func accepted(w http.ResponseWriter, r *http.Request, data any) {
+	writeJSON(w, http.StatusAccepted, apiResponse{Data: data, RequestID: middleware.RequestID(r.Context())})
+}
+
 func fail(w http.ResponseWriter, r *http.Request, status int, code, message string, retryable bool, stage, path string) {
 	writeJSON(w, status, errorResponse{Error: apiError{Code: code, Message: message, Retryable: retryable, Stage: stage, Path: path}, RequestID: middleware.RequestID(r.Context())})
 }
