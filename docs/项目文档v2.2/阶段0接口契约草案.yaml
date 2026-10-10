@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
   title: scrapio v2.2 editor contract spike
-  version: 0.12.0-b06
-  description: A02～B06 开发契约：新草稿编辑/试采/发布及固定版本有界正式运行、租约恢复与记录原子提交。真实环境验收另行记录；基础数据列表及追溯接 B07，连续分页接 C01。
+  version: 0.13.0-b07
+  description: A02～B07 开发契约：新草稿、试采、发布、正式运行及新数据浏览/记录修订/来源版本运行页面追溯、分页原始文档。真实环境验收另行记录，连续分页接 C01。
 servers:
   - url: /api/v3
 security:
@@ -2537,6 +2537,393 @@ paths:
           $ref: '#/components/responses/Error'
         '404':
           $ref: '#/components/responses/Error'
+  /tables/{table_id}/records:
+    get:
+      summary: 新数据表记录，按首次观察时间/ID 稳定降序分页
+      parameters:
+        - name: table_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 25
+      responses:
+        '200':
+          description: 成功；返回当前用户的新 v2.2 数据域
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/RecordDataPage'
+                  request_id:
+                    type: string
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '408':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      x-implementation-status: implemented
+  /tables/{table_id}/statistics:
+    get:
+      summary: 记录数量、最近有效更新与来源方案
+      parameters:
+        - name: table_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功；返回当前用户的新 v2.2 数据域
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/DataStatistics'
+                  request_id:
+                    type: string
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '408':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      x-implementation-status: implemented
+  /records/{record_id}:
+    get:
+      summary: 当前记录、精确字段文本与历史 Schema
+      parameters:
+        - name: record_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功；返回当前用户的新 v2.2 数据域
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/StoredRecord'
+                  request_id:
+                    type: string
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '408':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      x-implementation-status: implemented
+  /records/{record_id}/observations:
+    get:
+      summary: 来源观察，按时间/ID 降序；游标限定同记录
+      parameters:
+        - name: record_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 25
+      responses:
+        '200':
+          description: 成功；返回当前用户的新 v2.2 数据域
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/ObservationDataPage'
+                  request_id:
+                    type: string
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '408':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      x-implementation-status: implemented
+  /records/{record_id}/revisions:
+    get:
+      summary: 修订及变化前后，修订号降序分页
+      parameters:
+        - name: record_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 25
+      responses:
+        '200':
+          description: 成功；返回当前用户的新 v2.2 数据域
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/RevisionDataPage'
+                  request_id:
+                    type: string
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '408':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      x-implementation-status: implemented
+  /runs/{run_id}/pages:
+    get:
+      summary: 实际持久文档，序号升序分页；游标限定同运行
+      parameters:
+        - name: run_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 25
+      responses:
+        '200':
+          description: 成功；返回当前用户的新 v2.2 数据域
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/StoredPageList'
+                  request_id:
+                    type: string
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '408':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      x-implementation-status: implemented
+  /runs/{run_id}/attempts:
+    get:
+      summary: 真实运行级尝试（最多 50 条；当前不自动重放）
+      parameters:
+        - name: run_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功；返回当前用户的新 v2.2 数据域
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/RunAttemptsRead'
+                  request_id:
+                    type: string
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '408':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      x-implementation-status: implemented
+  /pages/{page_id}:
+    get:
+      summary: 文档来源、父列表和实际提取诊断
+      parameters:
+        - name: page_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功；返回当前用户的新 v2.2 数据域
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/StoredPageDetail'
+                  request_id:
+                    type: string
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '408':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      x-implementation-status: implemented
+  /pages/{page_id}/attempts:
+    get:
+      summary: 页面所属尝试与运行级日志；不伪造页面重试
+      parameters:
+        - name: page_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功；返回当前用户的新 v2.2 数据域
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/PageAttemptsRead'
+                  request_id:
+                    type: string
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '408':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      x-implementation-status: implemented
+  /documents/{document_id}:
+    get:
+      summary: 原始文档 UTF-8 字节分段；校验完整性
+      parameters:
+        - name: document_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 4
+            maximum: 65536
+            default: 32768
+      responses:
+        '200':
+          description: 成功；返回当前用户的新 v2.2 数据域
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/DocumentAsset'
+                  request_id:
+                    type: string
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '408':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      x-implementation-status: implemented
 components:
   securitySchemes:
     bearerAuth:
@@ -3598,6 +3985,8 @@ components:
     LogicalTable:
       type: object
       properties:
+        statistics:
+          $ref: '#/components/schemas/DataStatistics'
         table_id:
           type: string
         name:
@@ -5369,3 +5758,289 @@ components:
                 type: boolean
               source:
                 type: object
+    DataRecord:
+      type: object
+      properties:
+        record_id:
+          type: string
+        table_id:
+          type: string
+        schema_version:
+          type: string
+        revision:
+          type: string
+        values_json:
+          type: string
+        first_observed_at:
+          type: string
+        last_observed_at:
+          type: string
+        fields_json:
+          type: string
+      additionalProperties: false
+      description: 数据库 ID、Schema/修订号和时间为字符串。values_json 和 fields_json 为精确 JSON 文本，不得解析成 JS number 后展示。
+    DataRecordDetail:
+      type: object
+      properties:
+        record_id:
+          type: string
+        table_id:
+          type: string
+        table_name:
+          type: string
+        schema_version:
+          type: string
+        revision:
+          type: string
+        values_json:
+          type: string
+        key_json:
+          type: string
+        first_observed_at:
+          type: string
+        last_observed_at:
+          type: string
+        schema_json:
+          type: string
+      additionalProperties: false
+    RecordValueField:
+      type: object
+      properties:
+        field_key:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+        value_json:
+          type: string
+      additionalProperties: false
+    StoredRecord:
+      type: object
+      properties:
+        record:
+          $ref: '#/components/schemas/DataRecordDetail'
+        fields:
+          type: array
+          items:
+            $ref: '#/components/schemas/RecordValueField'
+    DataObservation:
+      type: object
+      properties:
+        observation_id:
+          type: string
+        record_id:
+          type: string
+        schema_version:
+          type: string
+        collector_id:
+          type: string
+        run_id:
+          type: string
+        version_id:
+          type: string
+        page_id:
+          type: string
+        source_url:
+          type: string
+        page_role:
+          type: string
+        outcome:
+          type: string
+        observed_at:
+          type: string
+        values_json:
+          type: string
+        version_number:
+          type: string
+      additionalProperties: false
+      description: 来源值是当次输入，可能与记录合并后的值不同；page_id 引用实际持久运行文档。
+    DataRevision:
+      type: object
+      properties:
+        revision:
+          type: string
+        schema_version:
+          type: string
+        values_json:
+          type: string
+        changed_fields_json:
+          type: string
+        observation_id:
+          type: string
+        created_at:
+          type: string
+        schema_json:
+          type: string
+        previous_values_json:
+          type: string
+      additionalProperties: false
+      description: 前一修订值与当前修订值使用精确 JSON 文本；首次创建前值为空。历史 schema_json 随修订保留。
+    DataStatistics:
+      type: object
+      properties:
+        table_id:
+          type: string
+        record_count:
+          type: string
+        last_observed_at:
+          type: string
+        last_changed_at:
+          type: string
+        collectors_json:
+          type: string
+      additionalProperties: false
+      description: last_changed_at 为最近创建/更新修订时间；未变观察只推进 last_observed_at。
+    StoredPage:
+      type: object
+      properties:
+        page_id:
+          type: string
+        run_id:
+          type: string
+        attempt:
+          type: string
+        sequence:
+          type: string
+        metadata_json:
+          type: string
+        evidence_status:
+          type: string
+          enum:
+            - stored
+            - unavailable
+      additionalProperties: false
+      description: 页即已持久化运行文档，列表不返回内容或提取诊断；stored 表示保存，完整性在文档读取时校验。
+    StoredPageDetail:
+      type: object
+      properties:
+        page_id:
+          type: string
+        run_id:
+          type: string
+        attempt:
+          type: string
+        sequence:
+          type: string
+        result_json:
+          type: string
+        version_id:
+          type: string
+        version_number:
+          type: string
+        collector_id:
+          type: string
+        evidence_status:
+          type: string
+        parent_page_id:
+          type: string
+      additionalProperties: false
+      description: result_json 包含真实字段诊断、来源网址和父记录索引；parent_page_id 按同 run/attempt/step/list_page 找父列表文档。
+    RunAttemptRead:
+      type: object
+      properties:
+        attempt:
+          type: string
+        status:
+          type: string
+        started_at:
+          type: string
+        finished_at:
+          type: string
+        summary_json:
+          type: string
+      additionalProperties: false
+    RunAttemptsRead:
+      type: object
+      properties:
+        scope:
+          type: string
+          enum:
+            - run
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/RunAttemptRead'
+      description: 运行级尝试记录，不返回租约或会话信息。
+    PageAttemptsRead:
+      type: object
+      properties:
+        scope:
+          type: string
+          enum:
+            - run
+        page_attempt:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/RunAttemptRead'
+      description: 当前执行器没有独立页面重试；scope=run 表示真实运行尝试，page_attempt 标记该文档所属尝试，不能当成页面重试日志。
+    DocumentAsset:
+      type: object
+      properties:
+        document_id:
+          type: string
+        status:
+          type: string
+          enum:
+            - available
+            - unavailable
+            - corrupt
+        content:
+          type: string
+        content_hash:
+          type: string
+        total_bytes:
+          type: integer
+        offset:
+          type: integer
+        next_offset:
+          type: integer
+        has_more:
+          type: boolean
+      description: UTF-8 文本分段，byte offset 必须位于字符边界。缺失/已清理内容返回 unavailable；哈希或编码损坏返回 corrupt 且 content 为空。内容只做转义文本展示，不执行 HTML。
+    RecordDataPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/DataRecord'
+        next_cursor:
+          type: string
+        has_more:
+          type: boolean
+    ObservationDataPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/DataObservation'
+        next_cursor:
+          type: string
+        has_more:
+          type: boolean
+    RevisionDataPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/DataRevision'
+        next_cursor:
+          type: string
+        has_more:
+          type: boolean
+    StoredPageList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/StoredPage'
+        next_cursor:
+          type: string
+        has_more:
+          type: boolean

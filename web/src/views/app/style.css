@@ -172,3 +172,17 @@
 .publication-panel textarea{min-width:240px}
 .run-budget{border:0;padding:0;min-width:0}
 .run-panel pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:360px;overflow:auto}
+
+/* B07 data and source evidence */
+.record-overlay{position:fixed;inset:0;z-index:100;background:rgba(22,34,55,.28);display:flex;justify-content:flex-end}
+.record-drawer{width:min(760px,100%);height:100%;overflow:auto;padding:28px;background:#fff;box-shadow:-12px 0 48px rgba(22,34,55,.14)}
+.record-fields{display:grid;grid-template-columns:minmax(120px,1fr) minmax(0,3fr);gap:12px;margin:24px 0}
+.record-fields dd{margin:0}.record-fields small{color:#7b8799}.trace-item{padding:16px 0;border-bottom:1px solid #e8edf4}
+.record-drawer pre,.source-document,.first-data pre,.app-page details pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;background:#f7f9fc;padding:12px;border-radius:8px;max-height:480px;overflow:auto}
+.source-url{overflow-wrap:anywhere}.primary-link{display:inline-flex;padding:9px 16px;border-radius:8px;background:#3269dd;color:#fff!important}
+@media(max-width:760px){.record-drawer{padding:18px}.record-fields{grid-template-columns:1fr}}
+
+.scrapio-app .app-page > .editor-actions,.scrapio-app .trace-item .editor-actions,.scrapio-app .first-data .editor-actions{flex-wrap:wrap;gap:12px}
+.scrapio-app .app-page > button,.scrapio-app .record-drawer button,.scrapio-app .record-preview-table button,.scrapio-app .trace-item button,.scrapio-app .app-card > button{border:1px solid #d5dce8;border-radius:7px;background:#fff;color:#344567;padding:8px 12px;cursor:pointer}
+.scrapio-app .app-page button:disabled,.scrapio-app .record-drawer button:disabled{opacity:.5;cursor:not-allowed}
+.scrapio-app .status-error{color:#af3e42}

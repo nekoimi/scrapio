@@ -28,7 +28,7 @@ const nav = [
   { to: '/app/runs', label: '运行' },
   { to: '/app/settings', label: '设置' },
 ];
-const title = computed(() => nav.find(item => item.to === route.path)?.label || '工作区');
+const title = computed(() => String(route.meta.title || nav.find(item => route.path.startsWith(item.to))?.label || '工作区'));
 onMounted(async () => {
   NextLoading.done();
   try { identity.value = await appApi.me(); } catch { /* 请求层处理认证；首页显示服务错误。 */ }

@@ -82,7 +82,7 @@ export interface SampleCheck {check_id:string;sample_id:string;sample_revision:n
 export interface CreateSampleInput {name:string;capture_id:string;expected_revision:number;step_id:string;stage:'list'|'detail';kind:'normal'|'missing_field';expected_json:string;protected:boolean;include_screenshot:boolean;screenshot_reviewed:boolean;masks:SampleMask[]}
 export interface TableField {field_key:string;name:string;type:NonNullable<FieldOptions['type']>;nullable:boolean;multiple:boolean}
 export interface TableSchema {fields:TableField[];unique_key:string[]}
-export interface LogicalTable {table_id:string;name:string;schema_version:number;schema:TableSchema;schema_hash:string;created_at:string}
+export interface LogicalTable {statistics?:DataRow;table_id:string;name:string;schema_version:number;schema:TableSchema;schema_hash:string;created_at:string}
 export interface OutputMapping {source_field_key:string;target_field_key:string}
 export interface OutputCheckInput {expected_revision:number;capture_id?:string;sample_id?:string;sample_revision?:number;step_id:string;stage:'list'|'detail';table_id?:string;schema_version?:number;proposed_table?:{name:string;schema:TableSchema};mapping:OutputMapping[];update_policy:'update'|'keep_existing';empty_policy:'preserve_existing'|'overwrite'}
 export interface OutputIssue {code:string;source_field_key?:string;target_field_key?:string}
@@ -158,10 +158,24 @@ async function streamBrowserSession(id: string, signal: AbortSignal, onSession: 
   }
 }
 
+export type DataRow = Record<string,string>;
+export interface DataPage { items:DataRow[];next_cursor:string;has_more:boolean }
+export interface StoredRecord {record:DataRow;fields:{field_key:string;name:string;type:string;value_json:string}[]}
+export interface DocumentAsset {document_id:string;status:'available'|'unavailable'|'corrupt';content:string;content_hash:string;total_bytes:number;offset:number;next_offset:number;has_more:boolean}
 export const appApi = {
+  table:(id:string)=>get<LogicalTable>(`/api/v3/tables/${encodeURIComponent(id)}`),
+  tableStats:(id:string)=>get<DataRow>(`/api/v3/tables/${encodeURIComponent(id)}/statistics`),
+  records:(id:string,cursor='')=>get<DataPage>(`/api/v3/tables/${encodeURIComponent(id)}/records?limit=25&cursor=${encodeURIComponent(cursor)}`),
+  record:(id:string)=>get<StoredRecord>(`/api/v3/records/${encodeURIComponent(id)}`),
+  observations:(id:string,cursor='')=>get<DataPage>(`/api/v3/records/${encodeURIComponent(id)}/observations?limit=25&cursor=${encodeURIComponent(cursor)}`),
+  revisions:(id:string,cursor='')=>get<DataPage>(`/api/v3/records/${encodeURIComponent(id)}/revisions?limit=25&cursor=${encodeURIComponent(cursor)}`),
+  pages:(id:string,cursor='')=>get<DataPage>(`/api/v3/runs/${encodeURIComponent(id)}/pages?limit=25&cursor=${encodeURIComponent(cursor)}`),
+  page:(id:string)=>get<DataRow>(`/api/v3/pages/${encodeURIComponent(id)}`),
+  runAttempts:(id:string)=>get<{scope:'run';items:DataRow[]}>(`/api/v3/runs/${encodeURIComponent(id)}/attempts`),
+  document:(id:string,offset=0)=>get<DocumentAsset>(`/api/v3/documents/${encodeURIComponent(id)}?limit=32768&offset=${offset}`),
   streamRun,
   createRun:(id:string,input:RunInput,key:string)=>request({url:`/api/v3/collectors/${id}/runs`,method:'post',data:input,headers:{'Idempotency-Key':key}}).then((response:any)=>response.data as FormalRun),
-  runs:(collectorID:string,cursor='')=>get<{items:FormalRun[];has_more:boolean;next_cursor:string}>(`/api/v3/runs?collector_id=${encodeURIComponent(collectorID)}&limit=25${cursor?`&cursor=${encodeURIComponent(cursor)}`:''}`),
+  runs:(collectorID='',cursor='')=>get<{items:FormalRun[];has_more:boolean;next_cursor:string}>(`/api/v3/runs?collector_id=${encodeURIComponent(collectorID)}&limit=25${cursor?`&cursor=${encodeURIComponent(cursor)}`:''}`),
   run:(id:string)=>get<FormalRun>(`/api/v3/runs/${id}`),
   runByKey:(key:string)=>request({url:'/api/v3/runs/by-key',method:'get',headers:{'Idempotency-Key':key}}).then((response:any)=>response.data as FormalRun),
   cancelRun:(id:string)=>request({url:`/api/v3/runs/${id}/cancel`,method:'post'}).then((response:any)=>response.data as FormalRun),

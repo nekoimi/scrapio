@@ -36,6 +36,8 @@
 		</ul>
 		<button v-if="historyCursor" :disabled="busy" @click="loadHistory(true)">加载更多运行</button>
 		<section v-if="selected">
+			<RunCompletion :run="selected" />
+			<router-link :to="`/app/runs/${selected.run_id}`">打开运行详情与页面证据</router-link>
 			<h3>{{ label(selected.status) }} · v{{ selected.version_number }}</h3>
 			<p>
 				运行 {{ selected.run_id }} · attempt {{ selected.attempt }} · {{ selected.current_step_id || '入口' }} /
@@ -76,8 +78,8 @@
 								<td>
 									{{ write.decision }}<small>{{ write.changed_fields.join('、') }}</small>
 								</td>
-								<td>{{ write.record_id }} / {{ write.record_revision }}</td>
-								<td>{{ write.source_url }} · {{ write.stage }} #{{ write.record_index + 1 }}</td>
+								<td><router-link :to="`/app/records/${write.record_id}`">{{ write.record_id }}</router-link> / {{ write.record_revision }}</td>
+								<td><router-link :to="`/app/pages/${write.document_id}`">{{ write.source_url }}</router-link> · {{ write.stage }} #{{ write.record_index + 1 }}</td>
 								<td>
 									<pre>{{ write.values_json }}</pre>
 								</td>
@@ -117,6 +119,7 @@
 </template>
 <script setup lang="ts">
 import { onMounted, onBeforeUnmount, ref, watch } from 'vue';
+import RunCompletion from './run-completion.vue';
 import { appApi, type PublishedVersion, type FormalRun, type TrialDocument, type TrialEvent, type RunInput } from './api';
 const props = defineProps<{ version: PublishedVersion }>();
 const seconds = ref(60),

@@ -11,6 +11,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/nekoimi/scrapio/internal/db/table"
 	"github.com/nekoimi/scrapio/internal/repo/v22_collector_repo"
+	"github.com/nekoimi/scrapio/internal/repo/v22_data_repo"
 	"github.com/nekoimi/scrapio/internal/repo/v22_output_repo"
 )
 
@@ -86,9 +87,22 @@ func ListDataTables(w http.ResponseWriter, r *http.Request) {
 		outputError(w, r, err)
 		return
 	}
+	ids := []int64{}
+	for _, row := range rows {
+		ids = append(ids, row.Id)
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+	stats, err := v22_data_repo.Statistics(ctx, admin.Id, ids)
+	if err != nil {
+		outputError(w, r, err)
+		return
+	}
 	items := []map[string]any{}
 	for i := range rows {
-		items = append(items, tableDTO(&rows[i]))
+		item := tableDTO(&rows[i])
+		item["statistics"] = stats[strconv.FormatInt(rows[i].Id, 10)]
+		items = append(items, item)
 	}
 	ok(w, r, map[string]any{"items": items, "next_cursor": next, "has_more": next != ""})
 }
