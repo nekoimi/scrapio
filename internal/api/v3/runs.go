@@ -31,6 +31,8 @@ func runListDTO(row *table.V22Run) map[string]any {
 }
 func runError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
+	case errors.Is(err, v22_run_repo.ErrCapacity), errors.Is(err, v22_run_repo.ErrOverlap):
+		fail(w, r, 409, "RUN_CAPACITY", err.Error(), true, "run", "")
 	case errors.Is(err, v22_run_repo.ErrInvalid):
 		fail(w, r, 400, "INVALID_ARGUMENT", err.Error(), false, "run", "")
 	case errors.Is(err, v22_run_repo.ErrNotFound), errors.Is(err, v22_version_repo.ErrNotFound):

@@ -57,6 +57,7 @@ func newRouter(ctx context.Context, cfg *config.Config) *mux.Router {
 
 	// 无需认证的接口必须在受保护的 /api 子路由之前注册。
 	r.HandleFunc("/api/auth/login", auth.Login)
+	r.HandleFunc("/api/v3/collectors/{collector_id}/api-runs", v3.APIRun).Methods("POST")
 
 	// 需要认证的接口
 	apiRoute := r.PathPrefix("/api").Subrouter()
@@ -110,6 +111,12 @@ func newRouter(ctx context.Context, cfg *config.Config) *mux.Router {
 		v3Api.HandleFunc("/trials/{trial_id}/events", v3.TrialEvents).Methods("GET")
 		v3Api.HandleFunc("/trials/{trial_id}/cancel", v3.CancelTrial).Methods("POST")
 		v3Api.HandleFunc("/collectors/{collector_id}/runs", v3.CreateRun(browserService, cfg)).Methods("POST")
+		v3Api.HandleFunc("/collectors/{collector_id}/schedule", v3.GetSchedule).Methods("GET")
+		v3Api.HandleFunc("/collectors/{collector_id}/schedule", v3.SaveSchedule).Methods("PUT")
+		v3Api.HandleFunc("/collectors/{collector_id}/schedule/events", v3.ScheduleEvents).Methods("GET")
+		v3Api.HandleFunc("/collectors/{collector_id}/api-keys", v3.ListAPIKeys).Methods("GET")
+		v3Api.HandleFunc("/collectors/{collector_id}/api-keys", v3.CreateAPIKey).Methods("POST")
+		v3Api.HandleFunc("/collectors/{collector_id}/api-keys/{key_id}", v3.RevokeAPIKey).Methods("DELETE")
 		v3Api.HandleFunc("/runs", v3.ListRuns).Methods("GET")
 		v3Api.HandleFunc("/runs/by-key", v3.GetRun).Methods("GET")
 		v3Api.HandleFunc("/runs/{run_id}", v3.GetRun).Methods("GET")

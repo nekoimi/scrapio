@@ -8,7 +8,10 @@
 		<template v-if="run"
 			><section class="app-card">
 				<h2>{{ runStatus(run.status) }} · 固定发布 v{{ run.version_number }}</h2>
-				<p>{{ run.run_id }} · {{ new Date(run.created_at).toLocaleString() }}</p>
+				<p>
+					来源：{{ { manual: '手动', schedule: '定时', api: 'API' }[run.trigger_source] }} · {{ run.run_id }} ·
+					{{ new Date(run.created_at).toLocaleString() }}
+				</p>
 				<p>
 					文档 {{ run.summary.pages || 0 }} · 候选 {{ run.summary.candidates || 0 }} ·
 					{{ run.summary.committed ? '正式数据已提交' : '尚未提交本批正式数据' }}

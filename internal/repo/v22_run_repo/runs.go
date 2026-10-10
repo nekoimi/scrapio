@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -16,6 +17,7 @@ import (
 	"github.com/nekoimi/scrapio/internal/publication"
 	"github.com/nekoimi/scrapio/internal/repo/idempotency"
 	runmodel "github.com/nekoimi/scrapio/internal/run"
+	"github.com/nekoimi/scrapio/internal/schedule"
 	"github.com/nekoimi/scrapio/internal/trial"
 	"xorm.io/xorm"
 )
@@ -23,11 +25,35 @@ import (
 var ErrNotFound = errors.New("run or version not found")
 var ErrConflict = errors.New("run request, capability or schema changed")
 var ErrInvalid = errors.New("invalid run configuration")
+var ErrCapacity = errors.New("formal run active or history capacity reached")
+var ErrOverlap = errors.New("collector already has an active or queued run")
 var ErrLease = errors.New("run cancelled or attempt lease lost")
 
 func invalid(message string) error { return fmt.Errorf("%w: %s", ErrInvalid, message) }
 
 func Create(ctx context.Context, ownerID, collectorID int64, key string, input runmodel.Input, caps publication.Capabilities) (*table.V22Run, error) {
+	s := db.Instance().NewSession().Context(ctx)
+	defer s.Close()
+	if err := s.Begin(); err != nil {
+		return nil, err
+	}
+	defer s.Rollback()
+	row, err := CreateTx(s, ownerID, collectorID, key, input, &caps, "manual", "")
+	if err != nil {
+		return nil, err
+	}
+	if err = s.Commit(); err != nil {
+		return nil, err
+	}
+	return row, nil
+}
+
+// CreateTx shares caller's transaction, so a trigger decision and queued run commit together.
+// A nil capability snapshot defers the live capability check to the formal worker.
+func CreateTx(s *xorm.Session, ownerID, collectorID int64, key string, input runmodel.Input, caps *publication.Capabilities, source, overlap string) (*table.V22Run, error) {
+	if source != "manual" && source != "schedule" && source != "api" {
+		return nil, invalid("invalid trigger source")
+	}
 	if err := input.Validate(); err != nil {
 		return nil, invalid(err.Error())
 	}
@@ -35,12 +61,9 @@ func Create(ctx context.Context, ownerID, collectorID int64, key string, input r
 		return nil, invalid("Idempotency-Key required, maximum 128 characters")
 	}
 	fingerprint := publication.Hash([]any{collectorID, input})
-	s := db.Instance().NewSession().Context(ctx)
-	defer s.Close()
-	if err := s.Begin(); err != nil {
-		return nil, err
+	if source != "manual" {
+		fingerprint = publication.Hash([]any{collectorID, input, source})
 	}
-	defer s.Rollback()
 	if err := idempotency.Lock(s, ownerID, "run.create", key); err != nil {
 		return nil, err
 	}
@@ -55,6 +78,9 @@ func Create(ctx context.Context, ownerID, collectorID int64, key string, input r
 		}
 		return prior, nil
 	}
+	if source == "manual" && (strings.HasPrefix(key, "schedule:") || strings.HasPrefix(key, "api:")) {
+		return nil, invalid("reserved trigger request key prefix")
+	}
 	if err = idempotency.Lock(s, ownerID, "run.capacity", "owner"); err != nil {
 		return nil, err
 	}
@@ -63,14 +89,14 @@ func Create(ctx context.Context, ownerID, collectorID int64, key string, input r
 		return nil, err
 	}
 	if count >= 3 {
-		return nil, invalid("at most three active formal runs")
+		return nil, ErrCapacity
 	}
 	count, err = s.Where("owner_id=?", ownerID).Count(new(table.V22Run))
 	if err != nil {
 		return nil, err
 	}
 	if count >= 1000 {
-		return nil, invalid("run history capacity (1000) reached; retention management required")
+		return nil, ErrCapacity
 	}
 	if _, err = s.QueryString("SELECT id FROM v22_collectors WHERE owner_id=? AND id=? FOR UPDATE", ownerID, collectorID); err != nil {
 		return nil, err
@@ -82,6 +108,19 @@ func Create(ctx context.Context, ownerID, collectorID int64, key string, input r
 	}
 	if !has || collector.Status == "archived" {
 		return nil, ErrNotFound
+	}
+	if overlap != "" {
+		active, err := s.Where("owner_id=? AND collector_id=? AND status IN ('queued','running')", ownerID, collectorID).Count(new(table.V22Run))
+		if err != nil {
+			return nil, err
+		}
+		queued, err := s.Where("owner_id=? AND collector_id=? AND status='queued'", ownerID, collectorID).Count(new(table.V22Run))
+		if err != nil {
+			return nil, err
+		}
+		if schedule.OverlapDecision(overlap, active, queued) == "skipped_overlap" {
+			return nil, ErrOverlap
+		}
 	}
 	v := new(table.V22Version)
 	has, err = s.Where("owner_id=? AND collector_id=? AND id=?", ownerID, collectorID, input.VersionID).Get(v)
@@ -95,10 +134,10 @@ func Create(ctx context.Context, ownerID, collectorID int64, key string, input r
 	if err != nil {
 		return nil, err
 	}
-	if caps.DefinitionHash != v.DefinitionHash {
+	if caps != nil && caps.DefinitionHash != v.DefinitionHash {
 		return nil, ErrConflict
 	}
-	if !publication.CheckCapabilities(plan, caps).Ready {
+	if caps != nil && !publication.CheckCapabilities(plan, *caps).Ready {
 		return nil, invalid("published version requires unavailable browser/HTTP/credential capabilities")
 	}
 	if err = trial.ValidateScope(plan, input.Trial(v.CollectorRevision)); err != nil {
@@ -120,14 +159,12 @@ func Create(ctx context.Context, ownerID, collectorID int64, key string, input r
 		return nil, ErrConflict
 	}
 	raw, _ := json.Marshal(input)
-	row := &table.V22Run{Id: uuid.NewString(), OwnerId: ownerID, CollectorId: collectorID, VersionId: v.Id, VersionNumber: v.Number, CollectorRevision: v.CollectorRevision, Definition: v.Definition, DefinitionHash: v.DefinitionHash, PublicationContract: v.ContractVersion, InterpreterVersion: v.InterpreterVersion, EntryType: v.EntryType, OutputSchema: v.OutputSchema, Input: string(raw), TriggerSource: "manual", Status: "queued", Summary: "{}", EventSeq: 1, IdempotencyKey: key, Fingerprint: fingerprint, CreatedAt: time.Now()}
+	row := &table.V22Run{Id: uuid.NewString(), OwnerId: ownerID, CollectorId: collectorID, VersionId: v.Id, VersionNumber: v.Number, CollectorRevision: v.CollectorRevision, Definition: v.Definition, DefinitionHash: v.DefinitionHash, PublicationContract: v.ContractVersion, InterpreterVersion: v.InterpreterVersion, EntryType: v.EntryType, OutputSchema: v.OutputSchema, Input: string(raw), TriggerSource: source, Status: "queued", Summary: "{}", EventSeq: 1, IdempotencyKey: key, Fingerprint: fingerprint, CreatedAt: time.Now()}
 	if _, err = s.InsertOne(row); err != nil {
 		return nil, err
 	}
-	if _, err = s.Exec("INSERT INTO v22_run_events(run_id,sequence,attempt,payload) VALUES(?,1,0,?::jsonb)", row.Id, `{"status":"queued","trigger_source":"manual"}`); err != nil {
-		return nil, err
-	}
-	if err = s.Commit(); err != nil {
+	event, _ := json.Marshal(map[string]string{"status": "queued", "trigger_source": source})
+	if _, err = s.Exec("INSERT INTO v22_run_events(run_id,sequence,attempt,payload) VALUES(?,1,0,?::jsonb)", row.Id, string(event)); err != nil {
 		return nil, err
 	}
 	return row, nil

@@ -12,6 +12,7 @@
 					<tr>
 						<th>运行</th>
 						<th>固定版本</th>
+						<th>来源</th>
 						<th>状态</th>
 						<th>写入决策</th>
 						<th>结束原因</th>
@@ -26,6 +27,7 @@
 						<td>
 							<router-link :to="`/app/collectors/${r.collector_id}`">v{{ r.version_number }} · 方案 {{ r.collector_id }}</router-link>
 						</td>
+						<td>{{ { manual: '手动', schedule: '定时', api: 'API' }[r.trigger_source] }}</td>
 						<td>{{ runStatus(r.status) }}</td>
 						<td>
 							{{ r.summary.committed ? '已提交' : '未提交' }} · 新增 {{ r.summary.counts?.created || 0 }} / 更新

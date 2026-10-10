@@ -77,7 +77,7 @@ func CapabilitiesWithBrowser(browser *drission_rod.DrissionRod) http.HandlerFunc
 			"supports_samples": true, "supports_sample_checks": true,
 			"supports_output_checks": true, "supports_logical_tables": true,
 			"supports_trials": true, "supports_trial_events": true,
-			"supports_publication": true, "supports_version_runs": true, "supports_continuous_runs": true, "supports_run_checkpoints": true, "run_contract": "run.v1",
+			"supports_publication": true, "supports_version_runs": true, "supports_continuous_runs": true, "supports_run_checkpoints": true, "supports_schedules": true, "supports_api_triggers": true, "run_contract": "run.v1",
 			"definition_versions": []int{1}, "reason": reason,
 		})
 	}
