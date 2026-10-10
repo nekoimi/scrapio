@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/nekoimi/scrapio/internal/repair"
+	"github.com/nekoimi/scrapio/internal/repo/v22_governance_repo"
 	"github.com/nekoimi/scrapio/internal/repo/v22_repair_repo"
 )
 
@@ -23,6 +24,8 @@ func repairRequest(w http.ResponseWriter, r *http.Request, fn func(context.Conte
 	h, err := fn(ctx, admin.Id)
 	if err != nil {
 		switch {
+		case errors.Is(err, v22_governance_repo.ErrCapacity):
+			governanceError(w, r, err)
 		case errors.Is(err, v22_repair_repo.ErrNotFound):
 			fail(w, r, 404, "NOT_FOUND", "原运行、修复上下文或输入不属于当前方案/用户", false, "repair", "")
 		case errors.Is(err, v22_repair_repo.ErrConflict):

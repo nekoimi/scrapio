@@ -256,6 +256,9 @@ func targetSchema(s *xorm.Session, ownerID int64, i CheckInput) (output.Schema, 
 	return schema, row, nil
 }
 func source(s *xorm.Session, ownerID, collectorID int64, id string) (*table.V22Capture, error) {
+	if _, err := s.QueryString("SELECT id FROM v22_captures WHERE id=? AND owner_id=? FOR SHARE", id, ownerID); err != nil {
+		return nil, err
+	}
 	row := new(table.V22Capture)
 	has, err := s.Where("id=? AND owner_id=? AND collector_id=?", id, ownerID, collectorID).Get(row)
 	if err != nil {

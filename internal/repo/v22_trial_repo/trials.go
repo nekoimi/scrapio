@@ -132,6 +132,9 @@ func Create(ownerID, collectorID int64, key string, input trial.Input) (*table.V
 		if !stepFound {
 			return nil, invalid(errors.New("input refers to missing extraction step"))
 		}
+		if _, err = s.QueryString("SELECT id FROM v22_captures WHERE id=? AND owner_id=? FOR SHARE", ref.CaptureID, ownerID); err != nil {
+			return nil, err
+		}
 		snapshot := new(table.V22Capture)
 		has, err = s.Where("id=? AND owner_id=? AND collector_id=?", ref.CaptureID, ownerID, collectorID).Get(snapshot)
 		if err != nil {
@@ -164,6 +167,11 @@ func Create(ownerID, collectorID int64, key string, input trial.Input) (*table.V
 	row := &table.V22Trial{Id: uuid.NewString(), OwnerId: ownerID, CollectorId: collectorID, CollectorRevision: collector.Revision, Definition: collector.Definition, DefinitionHash: capture.Hash(sample.CanonicalJSON([]byte(collector.Definition))), EntryType: collector.EntryType, Input: string(config), FixedInputs: string(inputs), OutputSchema: schemaRow.Schema, Status: "queued", Summary: "{}", EventSeq: 1, IdempotencyKey: key, Fingerprint: fingerprint, CreatedAt: time.Now()}
 	if _, err = s.InsertOne(row); err != nil {
 		return nil, err
+	}
+	for _, doc := range fixed {
+		if _, err = s.Exec("INSERT INTO v22_trial_capture_pins(trial_id,capture_id) VALUES(?,?) ON CONFLICT DO NOTHING", row.Id, doc.CaptureID); err != nil {
+			return nil, err
+		}
 	}
 	if _, err = s.Exec("INSERT INTO v22_trial_events(trial_id,sequence,payload) VALUES(?,1,?::jsonb)", row.Id, `{"status":"queued"}`); err != nil {
 		return nil, err

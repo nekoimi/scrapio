@@ -18,6 +18,7 @@ import (
 	"github.com/nekoimi/scrapio/internal/repo/v22_capture_repo"
 	"github.com/nekoimi/scrapio/internal/repo/v22_collector_repo"
 	"github.com/nekoimi/scrapio/internal/repo/v22_credential_repo"
+	"github.com/nekoimi/scrapio/internal/repo/v22_governance_repo"
 	"github.com/nekoimi/scrapio/internal/repo/v22_sample_repo"
 	"github.com/nekoimi/scrapio/internal/repo/v22_session_repo"
 	"github.com/nekoimi/scrapio/internal/sample"
@@ -41,6 +42,8 @@ func parseSampleBody(w http.ResponseWriter, r *http.Request, out any) error {
 func sampleError(w http.ResponseWriter, r *http.Request, err error) {
 	var revision *v22_collector_repo.RevisionConflict
 	switch {
+	case errors.Is(err, v22_governance_repo.ErrCapacity):
+		governanceError(w, r, err)
 	case errors.As(err, &revision):
 		conflict(w, r, v22_collector_repo.ToDTO(revision.Latest))
 	case errors.Is(err, v22_sample_repo.ErrConflict):

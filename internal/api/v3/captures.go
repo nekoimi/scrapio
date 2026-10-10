@@ -14,6 +14,7 @@ import (
 	"github.com/nekoimi/scrapio/internal/pkg/request"
 	"github.com/nekoimi/scrapio/internal/repo/v22_capture_repo"
 	"github.com/nekoimi/scrapio/internal/repo/v22_collector_repo"
+	"github.com/nekoimi/scrapio/internal/repo/v22_governance_repo"
 )
 
 func captureDTO(row *table.V22Capture) map[string]any {
@@ -26,6 +27,8 @@ func captureDTO(row *table.V22Capture) map[string]any {
 func captureError(w http.ResponseWriter, r *http.Request, err error) {
 	var revision *v22_collector_repo.RevisionConflict
 	switch {
+	case errors.Is(err, v22_governance_repo.ErrCapacity):
+		governanceError(w, r, err)
 	case errors.As(err, &revision):
 		conflict(w, r, v22_collector_repo.ToDTO(revision.Latest))
 	case errors.Is(err, v22_capture_repo.ErrConflict):

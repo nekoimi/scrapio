@@ -16,6 +16,7 @@ import (
 	"github.com/nekoimi/scrapio/internal/publication"
 	"github.com/nekoimi/scrapio/internal/repair"
 	"github.com/nekoimi/scrapio/internal/repo/idempotency"
+	"github.com/nekoimi/scrapio/internal/repo/v22_governance_repo"
 	"github.com/nekoimi/scrapio/internal/trial"
 	"xorm.io/xorm"
 	xormlog "xorm.io/xorm/log"
@@ -258,6 +259,9 @@ func Create(ctx context.Context, owner, id int64, key string, i repair.Input) (*
 	h.StepCompatible = repair.Compatible(target.Definition, h.StepID, h.Stage, h.Format)
 	row := &table.V22RepairDraft{Id: h.ID, OwnerId: owner, SourceCollectorId: id, TargetCollectorId: target.Id, RunId: r.Id, IdempotencyKey: key, Fingerprint: fingerprint(id, i), CreatedAt: now}
 	if h.Evidence == "available" {
+		if err := v22_governance_repo.ReserveAssets(s, owner, int64(len(d.Content))); err != nil {
+			return nil, err
+		}
 		captureID := uuid.NewString()
 		journal, _ := json.Marshal(map[string]string{"repair_id": h.ID, "run_id": r.Id, "document_id": d.Id})
 		snap := &table.V22Capture{Id: captureID, OwnerId: owner, CollectorId: target.Id, DraftRevision: target.Revision, IdempotencyKey: "repair:" + h.ID, Fingerprint: capture.Hash(journal), Request: string(journal), Source: "offline", Format: meta.Format, Status: "succeeded", FinalURL: meta.URL, BaseURL: meta.BaseURL, ContentType: "text/html", Content: d.Content, ContentHash: meta.ContentHash, ByteCount: len(d.Content), CreatedAt: now, DeadlineAt: now}

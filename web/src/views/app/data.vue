@@ -4,7 +4,7 @@
 		<h1>{{ table?.name || '数据' }}</h1>
 		<p class="lead">正式采集保存的记录，以及每一条记录的真实来源。</p>
 		<div class="editor-actions">
-			<router-link v-if="tableID" to="/app/data">所有数据表</router-link><button :disabled="loading" @click="reload">刷新</button>
+			<router-link v-if="tableID" to="/app/data">所有数据表</router-link><router-link v-if="tableID" :to="`/app/data/${tableID}/fields`">字段设置与 Schema 历史</router-link><button :disabled="loading" @click="reload">刷新</button>
 		</div>
 		<p v-if="message" class="app-error" role="alert">{{ message }}</p>
 		<p v-if="loading" role="status">读取中…</p>

@@ -17,6 +17,7 @@ import (
 	"github.com/nekoimi/scrapio/internal/extraction"
 	"github.com/nekoimi/scrapio/internal/repo/idempotency"
 	"github.com/nekoimi/scrapio/internal/repo/v22_collector_repo"
+	"github.com/nekoimi/scrapio/internal/repo/v22_governance_repo"
 	"github.com/nekoimi/scrapio/internal/sample"
 	"xorm.io/xorm"
 )
@@ -168,6 +169,9 @@ func loadSample(s *xorm.Session, ownerID int64, id string, revision int) (*table
 	return row, nil
 }
 func snapshot(s *xorm.Session, ownerID, collectorID int64, id string) (*table.V22Capture, error) {
+	if _, err := s.QueryString("SELECT id FROM v22_captures WHERE id=? AND owner_id=? FOR SHARE", id, ownerID); err != nil {
+		return nil, err
+	}
 	row := new(table.V22Capture)
 	has, err := s.Where("id=? AND owner_id=? AND collector_id=?", id, ownerID, collectorID).Get(row)
 	if err != nil {
@@ -272,6 +276,9 @@ func Create(ownerID, collectorID int64, key string, i CreateInput, screenshot []
 	}
 	if count >= 100 {
 		return nil, invalid("collector sample limit (100) reached")
+	}
+	if err := v22_governance_repo.ReserveAssets(s, ownerID, int64(len(screenshot))); err != nil {
+		return nil, err
 	}
 	source, err := snapshot(s, ownerID, collectorID, i.CaptureID)
 	if err != nil {

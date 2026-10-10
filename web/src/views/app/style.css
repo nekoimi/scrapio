@@ -186,3 +186,12 @@
 .scrapio-app .app-page > button,.scrapio-app .record-drawer button,.scrapio-app .record-preview-table button,.scrapio-app .trace-item button,.scrapio-app .app-card > button{border:1px solid #d5dce8;border-radius:7px;background:#fff;color:#344567;padding:8px 12px;cursor:pointer}
 .scrapio-app .app-page button:disabled,.scrapio-app .record-drawer button:disabled{opacity:.5;cursor:not-allowed}
 .scrapio-app .status-error{color:#af3e42}
+
+/* D05 field settings and owner governance */
+.settings-tabs { flex-wrap:wrap;gap:10px }
+.settings-tabs a { color:#52617b;padding:10px 16px;border-radius:8px;text-decoration:none;border:1px solid #dce2ed;background:#fff }
+.settings-tabs a[aria-current="page"] { color:#fff;background:#4567c4;border-color:#4567c4 }
+.governance-page input:not([type="checkbox"]),.governance-page select { min-width:100px;max-width:100%;padding:9px 10px;border:1px solid #d5dce8;border-radius:7px;background:#fff;font:inherit }
+.governance-page small { display:block;overflow-wrap:anywhere;font-size:11px;margin-top:6px }
+.governance-page li { margin:7px 0;overflow-wrap:anywhere }
+.governance-page details { margin-top:12px }

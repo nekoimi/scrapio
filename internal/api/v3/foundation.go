@@ -82,6 +82,7 @@ func CapabilitiesWithBrowser(browser *drission_rod.DrissionRod) http.HandlerFunc
 			"supports_snapshot_capture":   snapshots, "supports_extraction_preview": true,
 			"supports_samples": true, "supports_sample_checks": true,
 			"supports_sample_regressions": true, "supports_version_comparisons": true, "supports_version_restores": true,
+			"supports_schema_changes": true, "supports_retention_settings": true, "supports_operation_audit": true,
 			"supports_credentials": true, "supports_browser_authorization": authorization,
 			"supports_quality_policies": true, "supports_quality_issues": true,
 			"supports_output_checks": true, "supports_logical_tables": true,

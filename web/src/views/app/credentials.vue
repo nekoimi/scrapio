@@ -81,7 +81,7 @@
 </template>
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
-import { onBeforeRouteLeave } from 'vue-router';
+import { onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router';
 import { appApi, type Credential, type CredentialInput } from './api';
 const items = ref<Credential[]>([]),
 	busy = ref(false),
@@ -246,11 +246,9 @@ onBeforeUnmount(() => {
 	alive = false;
 	form.value.secret = '';
 });
-onBeforeRouteLeave(
-	() =>
-		(!dirty.value && !pending.value && !busy.value) ||
-		window.confirm('凭据编辑未保存或请求未确认，确认离开？本地秘密不会保留，服务器已接受的写入仍可能完成。'),
-);
+function leaveCredentials() { return (!dirty.value && !pending.value && !busy.value) || window.confirm('凭据编辑未保存或请求未确认，确认离开？本地秘密不会保留，服务器已接受的写入仍可能完成。'); }
+onBeforeRouteLeave(leaveCredentials);
+onBeforeRouteUpdate((to,from)=>to.query.tab===from.query.tab || leaveCredentials());
 </script>
 <style scoped>
 .credential-row {

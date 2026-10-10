@@ -1,13 +1,268 @@
 openapi: 3.0.3
 info:
   title: scrapio v2.2 editor contract spike
-  version: 0.22.0-d04
-  description: A02～D04 开发契约：固定版本采集、定时/API、冻结查询和导出、完整运行中心、日常首页与方案健康、失败输入修复草稿、全样例离线回归、版本比较与历史草稿复制、异常策略与正式恢复确认、加密凭据和隔离浏览器授权。真实迁移、并发和页面验收另行记录。
+  version: 0.22.0-d05
+  description: A02～D05 开发契约：固定版本采集、定时/API、冻结查询和导出、完整运行中心、日常首页与方案健康、失败输入修复草稿、全样例离线回归、版本比较与历史草稿复制、异常策略与正式恢复确认、加密凭据和隔离浏览器授权、Schema影响与容量保留/操作审计。真实迁移、并发和页面验收另行记录。
 servers:
   - url: /api/v3
 security:
   - bearerAuth: []
 paths:
+  /tables/{table_id}/schema-history:
+    parameters:
+      - in: path
+        name: table_id
+        required: true
+        schema:
+          type: string
+    get:
+      summary: 不可变 Schema 历史，最多100个版本
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: 新产品域结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SchemaHistoryEnvelope'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+  /tables/{table_id}/schema-checks:
+    parameters:
+      - in: path
+        name: table_id
+        required: true
+        schema:
+          type: string
+    post:
+      summary: Schema 修改影响预览，不修改记录
+      x-implementation-status: implemented
+      responses:
+        '201':
+          description: 新产品域结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SchemaImpactEnvelope'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SchemaChangeInput'
+      description: 预览10分钟有效；最多201个依赖、100条历史记录抽样，完整记录数/Schema版本分布。唯一键变更、活动运行、启用调度、超过200个依赖或100个Schema版本阻断；不做历史值转换。
+  /tables/{table_id}/schema-checks/{check_id}/confirm:
+    parameters:
+      - in: path
+        name: table_id
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: check_id
+        required: true
+        schema:
+          type: string
+    post:
+      summary: 确认预览，事务发布新 Schema；原check_id重复调用返回已应用版本
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: 新产品域结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SchemaImpactEnvelope'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GovernanceConfirmation'
+      description: 重查owner、期限、Schema版本和依赖摘要；表行锁序列化正式写入/输出确认。旧记录和Schema不改写，旧版本需要重新绑定输出/试采/发布；变更与committed审计同事务。
+  /settings/retention:
+    get:
+      summary: 当前账号容量、固定上限和保留规则
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: 新产品域结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RetentionStateEnvelope'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+    put:
+      summary: revision乐观锁更新规则；不立即清理
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: 新产品域结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RetentionPolicyEnvelope'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RetentionPolicy'
+      description: 编辑资产池仅包括capture正文、sample截图及活动输入预留。默认512MiB/7天，可配16..4096MiB/1..365天；不能降低到已用与预留总量以下。正式数据、冻结证据、操作审计单独长期保留。
+  /settings/cleanup-checks:
+    post:
+      summary: 创建有界清理预览；不释放资产
+      x-implementation-status: implemented
+      responses:
+        '201':
+          description: 新产品域结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CleanupPreviewEnvelope'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      description: 每批最多200项、最多20份未应用预览、10分钟有效。保留全部样例/试采输入、输出检查、正式观察与修复引用；过期无引用查询快照/导出文件可清理。既有导出worker保留自动过期回收，可能使预览失效。
+  /settings/cleanup-checks/{check_id}/confirm:
+    parameters:
+      - in: path
+        name: check_id
+        required: true
+        schema:
+          type: string
+    post:
+      summary: 显式确认同一批清理；重复确认返回原结果
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: 新产品域结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CleanupPreviewEnvelope'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GovernanceConfirmation'
+      description: 事务内重查owner/revision/期限、逐项锁定并重查引用/状态/哈希；任何变化整批回滚返回409。仅清空capture正文并标记failed/INPUT_EXPIRED，保留请求键/哈希防止旧请求重发；不删除样例/正式数据/冻结证据。
+  /operations:
+    get:
+      summary: 按账号隔离的变更操作记录游标页
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: 新产品域结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperationPageEnvelope'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      parameters:
+        - in: query
+          name: cursor
+          schema:
+            type: string
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 25
+      description: >-
+        只含标识、模板动作、状态、操作者和安全数字摘要，不含正文/URL/秘密。认证/v3变更请求执行前记录started，失败拒绝执行；成功响应succeeded不等于所有业务事务原子审计。治理变更另有同事务committed记录。500结果outcome_unknown，进程中断遗留started须查询原资源；API-key触发和调度由既有运行/事件来源记录。非UUID请求ID仅保存哈希。
   /me:
     get:
       summary: 当前登录身份；沿用现有认证
@@ -4836,6 +5091,301 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
   schemas:
+    SchemaChangeInput:
+      type: object
+      properties:
+        expected_schema_version:
+          type: integer
+          minimum: 1
+        schema:
+          $ref: '#/components/schemas/LogicalTableSchema'
+      required:
+        - expected_schema_version
+        - schema
+      additionalProperties: false
+    GovernanceConfirmation:
+      type: object
+      properties:
+        confirmed:
+          type: boolean
+          enum:
+            - true
+      required:
+        - confirmed
+      additionalProperties: false
+    SchemaFieldChange:
+      type: object
+      properties:
+        field_key:
+          type: string
+        kind:
+          type: string
+          enum:
+            - added
+            - changed
+            - removed
+        before:
+          $ref: '#/components/schemas/LogicalTableField'
+        after:
+          $ref: '#/components/schemas/LogicalTableField'
+      required:
+        - field_key
+        - kind
+      additionalProperties: false
+    SchemaImpact:
+      type: object
+      properties:
+        check_id:
+          type: string
+        table_id:
+          type: string
+        expected_schema_version:
+          type: integer
+        applied_version:
+          type: integer
+        schema:
+          $ref: '#/components/schemas/LogicalTableSchema'
+        changes:
+          type: array
+          items:
+            $ref: '#/components/schemas/SchemaFieldChange'
+        blockers:
+          type: array
+          items:
+            type: string
+        record_count:
+          type: integer
+        record_versions:
+          type: array
+          items:
+            type: object
+            additionalProperties:
+              type: string
+        dependencies:
+          type: array
+          items:
+            type: object
+            additionalProperties:
+              type: string
+        sampled_records:
+          type: integer
+        historical_violations:
+          type: array
+          items:
+            type: object
+            properties:
+              record_id:
+                type: string
+              schema_version:
+                type: string
+              issues:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OutputIssue'
+            required:
+              - record_id
+              - schema_version
+              - issues
+            additionalProperties: false
+        analysis_truncated:
+          type: boolean
+        expires_at:
+          type: string
+          format: date-time
+      required:
+        - check_id
+        - table_id
+        - expected_schema_version
+        - applied_version
+        - schema
+        - changes
+        - blockers
+        - record_count
+        - record_versions
+        - dependencies
+        - sampled_records
+        - historical_violations
+        - analysis_truncated
+        - expires_at
+      additionalProperties: false
+    RetentionPolicy:
+      type: object
+      properties:
+        revision:
+          type: integer
+          minimum: 0
+        capture_days:
+          type: integer
+          minimum: 1
+          maximum: 365
+        asset_limit_mib:
+          type: integer
+          minimum: 16
+          maximum: 4096
+      required:
+        - revision
+        - capture_days
+        - asset_limit_mib
+      additionalProperties: false
+    RetentionState:
+      type: object
+      properties:
+        policy:
+          $ref: '#/components/schemas/RetentionPolicy'
+        asset_bytes:
+          type: integer
+        reserved_bytes:
+          type: integer
+        usage:
+          type: object
+          additionalProperties:
+            type: string
+        limits:
+          type: object
+          additionalProperties:
+            type: integer
+        fixed_retention:
+          type: object
+          additionalProperties:
+            type: integer
+        scope:
+          type: string
+      required:
+        - policy
+        - asset_bytes
+        - reserved_bytes
+        - usage
+        - limits
+        - fixed_retention
+        - scope
+      additionalProperties: false
+    CleanupPreview:
+      type: object
+      properties:
+        check_id:
+          type: string
+        policy_revision:
+          type: integer
+        items:
+          type: array
+          items:
+            type: object
+            additionalProperties:
+              type: string
+        bytes:
+          type: integer
+        has_more:
+          type: boolean
+        expires_at:
+          type: string
+          format: date-time
+        applied:
+          type: boolean
+      required:
+        - check_id
+        - policy_revision
+        - items
+        - bytes
+        - has_more
+        - expires_at
+        - applied
+      additionalProperties: false
+    SchemaHistory:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            additionalProperties:
+              type: string
+      required:
+        - items
+      additionalProperties: false
+    OperationPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            additionalProperties:
+              type: string
+        next_cursor:
+          type: string
+        has_more:
+          type: boolean
+      required:
+        - items
+        - next_cursor
+        - has_more
+      additionalProperties: false
+    SchemaImpactEnvelope:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/SchemaImpact'
+        request_id:
+          type: string
+      required:
+        - data
+        - request_id
+      additionalProperties: false
+    RetentionPolicyEnvelope:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/RetentionPolicy'
+        request_id:
+          type: string
+      required:
+        - data
+        - request_id
+      additionalProperties: false
+    RetentionStateEnvelope:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/RetentionState'
+        request_id:
+          type: string
+      required:
+        - data
+        - request_id
+      additionalProperties: false
+    CleanupPreviewEnvelope:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/CleanupPreview'
+        request_id:
+          type: string
+      required:
+        - data
+        - request_id
+      additionalProperties: false
+    SchemaHistoryEnvelope:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/SchemaHistory'
+        request_id:
+          type: string
+      required:
+        - data
+        - request_id
+      additionalProperties: false
+    OperationPageEnvelope:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/OperationPage'
+        request_id:
+          type: string
+      required:
+        - data
+        - request_id
+      additionalProperties: false
     Credential:
       type: object
       required:
@@ -8190,6 +8740,12 @@ components:
         supports_quality_policies:
           type: boolean
         supports_quality_issues:
+          type: boolean
+        supports_schema_changes:
+          type: boolean
+        supports_retention_settings:
+          type: boolean
+        supports_operation_audit:
           type: boolean
         supports_credentials:
           type: boolean

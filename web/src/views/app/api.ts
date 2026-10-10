@@ -15,6 +15,7 @@ export interface RegressionEvaluation {status:string;error_code?:string;record_c
 export interface RegressionJob {job_id:string;collector_id:string;kind:'regression'|'comparison';collector_revision:number;base_version_id:string;target_version_id:string;base_hash:string;target_hash:string;snapshot_hash:string;status:string;total:number;completed:number;error_code:string;created_at:string;finished_at:string|null;report:{verdict?:string;definition?:RegressionDiff;alignment?:string;samples?:{sample_id:string;name:string;revision:number;step_id:string;stage:string;kind:string;content_hash:string;expected_hash:string;target:RegressionEvaluation;base?:RegressionEvaluation;records?:RegressionDiff}[]}}
 export interface VersionRestore {restore_id:string;collector_id:string;version_id:string;target_collector_id:string;created_at:string}
 export interface Capabilities {
+ supports_schema_changes?:boolean;supports_retention_settings?:boolean;supports_operation_audit?:boolean;
  supports_credentials?:boolean;supports_browser_authorization?:boolean;
  supports_quality_policies?:boolean;
  supports_quality_issues?:boolean;
@@ -202,7 +203,19 @@ export interface QueryPage extends DataPage {snapshot_id:string;captured_at:stri
 export interface DataView {view_id:string;table_id:string;name:string;revision:number;query:RecordQuery;created_at:string;updated_at:string}
 export interface DataExport {export_id:string;table_id:string;format:'csv'|'json';status:string;progress:number;row_count:number;query:RecordQuery;schema:TableSchema;captured_at:string;created_at:string;finished_at:string|null;expires_at:string;file_bytes:number;file_hash:string;error_code:string}
 export interface ExportInput {format:'csv'|'json';snapshot_id:string;query:RecordQuery;confirmed:boolean}
+export interface SchemaImpact {check_id:string;table_id:string;expected_schema_version:number;applied_version:number;schema:TableSchema;changes:{field_key:string;kind:string;before?:TableField;after?:TableField}[];blockers:string[];record_count:number;record_versions:DataRow[];dependencies:DataRow[];sampled_records:number;historical_violations:{record_id:string;schema_version:string;issues:{code:string;target_field_key?:string}[]}[];analysis_truncated:boolean;expires_at:string}
+export interface RetentionPolicy {revision:number;capture_days:number;asset_limit_mib:number}
+export interface RetentionState {policy:RetentionPolicy;asset_bytes:number;reserved_bytes:number;usage:DataRow;limits:Record<string,number>;fixed_retention:Record<string,number>;scope:string}
+export interface CleanupPreview {check_id:string;policy_revision:number;items:DataRow[];bytes:number;has_more:boolean;expires_at:string;applied:boolean}
 export const appApi = {
+ schemaHistory:(id:string)=>get<{items:DataRow[]}>(`/api/v3/tables/${id}/schema-history`),
+ schemaCheck:(id:string,data:{expected_schema_version:number;schema:TableSchema})=>request({url:`/api/v3/tables/${id}/schema-checks`,method:'post',data,timeout:8000}).then((r:any)=>r.data as SchemaImpact),
+ confirmSchema:(id:string,check:string)=>request({url:`/api/v3/tables/${id}/schema-checks/${check}/confirm`,method:'post',data:{confirmed:true},timeout:8000}).then((r:any)=>r.data as SchemaImpact),
+ retention:()=>get<RetentionState>('/api/v3/settings/retention'),
+ saveRetention:(data:RetentionPolicy)=>request({url:'/api/v3/settings/retention',method:'put',data,timeout:8000}).then((r:any)=>r.data as RetentionPolicy),
+ cleanupCheck:()=>request({url:'/api/v3/settings/cleanup-checks',method:'post',timeout:8000}).then((r:any)=>r.data as CleanupPreview),
+ confirmCleanup:(id:string)=>request({url:`/api/v3/settings/cleanup-checks/${id}/confirm`,method:'post',data:{confirmed:true},timeout:8000}).then((r:any)=>r.data as CleanupPreview),
+ operations:(cursor='')=>get<DataPage>(`/api/v3/operations?limit=25&cursor=${encodeURIComponent(cursor)}`),
  credentials:()=>request({url:'/api/v3/credentials',method:'get',timeout:8000}).then((r:any)=>r.data as {items:Credential[];encryption_ready:boolean;limit:number}),
  credential:(id:string)=>request({url:`/api/v3/credentials/${id}`,method:'get',timeout:8000}).then((r:any)=>r.data as Credential),
  saveCredential:(data:CredentialInput)=>request({url:data.expected_revision?`/api/v3/credentials/${data.credential_id}`:'/api/v3/credentials',method:data.expected_revision?'patch':'post',data,timeout:8000}).then((r:any)=>r.data as Credential),
