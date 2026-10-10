@@ -1364,6 +1364,8 @@ export const staticRoutes: Array<RouteRecordRaw> = [
 		redirect: '/app/home',
 		children: [
 			{ path: 'home', name: 'v22Home', component: () => import('/@/views/app/home.vue'), meta: { title: '首页' } },
+			{ path: 'issues', name: 'v22Issues', component: () => import('/@/views/app/issues-panel.vue'), meta: { title: '异常待办' } },
+			{ path: 'issues/:issueID', name: 'v22Issue', component: () => import('/@/views/app/issue-detail.vue'), meta: { title: '异常与恢复' } },
 			{ path: 'collectors', name: 'v22Collectors', component: () => import('/@/views/app/collectors.vue'), meta: { title: '采集方案' } },
 			{ path: 'collectors/health', name: 'v22CollectorHealth', component: () => import('/@/views/app/health.vue'), meta: { title: '方案运行健康' } },
 			{ path: 'collectors/:id/schedule', name: 'v22CollectorSchedule', component: () => import('/@/views/app/schedule.vue'), meta: { title: '调度与 API' } },

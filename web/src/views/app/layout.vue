@@ -52,6 +52,7 @@ const nav = [
 	{ to: '/app/collectors', label: '采集方案' },
 	{ to: '/app/data', label: '数据' },
 	{ to: '/app/runs', label: '运行' },
+	{ to: '/app/issues', label: '异常待办' },
 	{ to: '/app/settings', label: '设置' },
 ];
 const title = computed(() => String(route.meta.title || nav.find((item) => route.path.startsWith(item.to))?.label || '工作区'));

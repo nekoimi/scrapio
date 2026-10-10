@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
   title: scrapio v2.2 editor contract spike
-  version: 0.20.0-d02
-  description: A02～D02 开发契约：固定版本采集、定时/API、冻结查询和导出、完整运行中心、日常首页与方案健康、失败输入修复草稿、全样例离线回归、版本比较与历史草稿复制。真实迁移、并发和页面验收另行记录。
+  version: 0.21.0-d03
+  description: A02～D03 开发契约：固定版本采集、定时/API、冻结查询和导出、完整运行中心、日常首页与方案健康、失败输入修复草稿、全样例离线回归、版本比较与历史草稿复制、异常策略与正式恢复确认。真实迁移、并发和页面验收另行记录。
 servers:
   - url: /api/v3
 security:
@@ -4361,6 +4361,252 @@ paths:
           $ref: '#/components/responses/Error'
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
+  /collectors/{collector_id}/quality:
+    parameters:
+      - $ref: '#/components/parameters/CollectorId'
+    get:
+      summary: 正式评估摘要、策略、基线与待观察数量；不访问网站
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: QualityState
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/QualityState'
+                  request_id:
+                    type: string
+                required:
+                  - data
+                  - request_id
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '408':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+  /collectors/{collector_id}/quality-policy:
+    parameters:
+      - $ref: '#/components/parameters/CollectorId'
+    get:
+      summary: 读取策略；未保存时返回默认值revision 0
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: QualityPolicyView
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/QualityPolicyView'
+                  request_id:
+                    type: string
+                required:
+                  - data
+                  - request_id
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '408':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+    put:
+      summary: 按revision保存策略和明确基线；后续完成运行生效，不重判旧证据或关闭问题
+      x-implementation-status: implemented
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QualityPolicyInput'
+      responses:
+        '200':
+          description: QualityPolicyView
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/QualityPolicyView'
+                  request_id:
+                    type: string
+                required:
+                  - data
+                  - request_id
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '408':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      description: 基线必须属于本owner/方案，完整已提交实时运行且有有效提取记录。网络响应未知时先GET核对，旧revision禁止重复保存。修改策略重置未解决问题恢复计数。
+  /issues:
+    get:
+      summary: 当前owner问题分页，active默认未解决；同方案同code聚合
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: QualityIssuePage
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/QualityIssuePage'
+                  request_id:
+                    type: string
+                required:
+                  - data
+                  - request_id
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '408':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      parameters:
+        - name: collector_id
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum:
+              - active
+              - open
+              - ready
+              - resolved
+              - all
+            default: active
+        - name: cursor
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 25
+      description: 创建时间/id稳定排序；不返回正式记录值/原文；ready为待确认恢复。
+  /issues/{issue_id}:
+    parameters:
+      - name: issue_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      summary: 问题归因、受影响方案/运行/字段与候选恢复证据
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: QualityIssue
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/QualityIssue'
+                  request_id:
+                    type: string
+                required:
+                  - data
+                  - request_id
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '408':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+  /issues/{issue_id}/resolve:
+    parameters:
+      - name: issue_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      summary: 人工确认已有正式恢复证据；新问题会重新打开
+      x-implementation-status: implemented
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QualityResolveInput'
+      responses:
+        '200':
+          description: QualityIssue
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/QualityIssue'
+                  request_id:
+                    type: string
+                required:
+                  - data
+                  - request_id
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '408':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      description: 核对issue revision、连续正常次数、当前策略/发布版本、相同范围、问题发生后的执行；无活动或未评估运行，最新正式证据完整且已提交。调度问题额外要求真实schedule来源及当前调度正常。回归/发布不替代正式恢复；已解决的同恢复run重复请求只返回原问题。
 components:
   securitySchemes:
     collectorTrigger:
@@ -4415,6 +4661,249 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
   schemas:
+    QualityPolicy:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+        min_valid_records:
+          type: integer
+          minimum: 0
+          maximum: 1000
+        max_invalid_percent:
+          type: integer
+          minimum: 0
+          maximum: 100
+        drop_percent:
+          type: integer
+          minimum: 0
+          maximum: 100
+        failure_runs:
+          type: integer
+          minimum: 1
+          maximum: 10
+        recovery_runs:
+          type: integer
+          minimum: 1
+          maximum: 10
+        schedule_grace_minutes:
+          type: integer
+          minimum: 1
+          maximum: 1440
+      required:
+        - enabled
+        - min_valid_records
+        - max_invalid_percent
+        - drop_percent
+        - failure_runs
+        - recovery_runs
+        - schedule_grace_minutes
+    QualityFacts:
+      type: object
+      properties:
+        run_id:
+          type: string
+        version_id:
+          type: string
+        trigger_source:
+          type: string
+        comparison_key:
+          type: string
+        status:
+          type: string
+        reason:
+          type: string
+        committed:
+          type: boolean
+        network_accessed:
+          type: boolean
+        valid_records:
+          type: integer
+        invalid_records:
+          type: integer
+        field_keys:
+          type: array
+          items:
+            type: string
+        pages:
+          type: integer
+        list_pages:
+          type: integer
+        failed_step_id:
+          type: string
+        failed_stage:
+          type: string
+        finished_at:
+          type: string
+          format: date-time
+        started_at:
+          type: string
+          format: date-time
+    QualityResult:
+      type: object
+      properties:
+        findings:
+          type: array
+          items:
+            type: object
+            properties:
+              code:
+                type: string
+              category:
+                type: string
+              message:
+                type: string
+        baseline_status:
+          type: string
+        recovery_eligible:
+          type: boolean
+        failure_streak:
+          type: integer
+    QualityPolicyView:
+      type: object
+      properties:
+        revision:
+          type: integer
+        policy:
+          $ref: '#/components/schemas/QualityPolicy'
+        baseline:
+          allOf:
+            - $ref: '#/components/schemas/QualityFacts'
+          nullable: true
+        updated_at:
+          type: string
+          format: date-time
+      required:
+        - revision
+        - policy
+        - baseline
+        - updated_at
+    QualityPolicyInput:
+      type: object
+      properties:
+        expected_revision:
+          type: integer
+          minimum: 0
+        policy:
+          $ref: '#/components/schemas/QualityPolicy'
+        baseline_run_id:
+          type: string
+          description: 完整已提交的本方案实时正式运行ID；空字符串取消基线
+      required:
+        - expected_revision
+        - policy
+        - baseline_run_id
+      additionalProperties: false
+    QualityState:
+      type: object
+      properties:
+        policy:
+          $ref: '#/components/schemas/QualityPolicyView'
+        latest:
+          type: object
+          properties:
+            run_id:
+              type: string
+            facts:
+              $ref: '#/components/schemas/QualityFacts'
+            result:
+              $ref: '#/components/schemas/QualityResult'
+            policy_revision:
+              type: string
+          nullable: true
+        pending_evaluations:
+          type: integer
+        as_of:
+          type: string
+          format: date-time
+      required:
+        - policy
+        - latest
+        - pending_evaluations
+        - as_of
+    QualityIssue:
+      type: object
+      properties:
+        issue_id:
+          type: string
+          format: uuid
+        collector_id:
+          type: string
+        code:
+          type: string
+        category:
+          type: string
+        message:
+          type: string
+        status:
+          type: string
+          enum:
+            - open
+            - ready
+            - resolved
+        revision:
+          type: integer
+        occurrences:
+          type: integer
+        recovery_streak:
+          type: integer
+        first_run_id:
+          type: string
+        last_run_id:
+          type: string
+        recovery_run_id:
+          type: string
+        evidence:
+          $ref: '#/components/schemas/QualityFacts'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        resolved_at:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+        - issue_id
+        - collector_id
+        - status
+        - revision
+        - evidence
+    QualityIssuePage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/QualityIssue'
+        next_cursor:
+          type: string
+        has_more:
+          type: boolean
+      required:
+        - items
+        - next_cursor
+        - has_more
+    QualityResolveInput:
+      type: object
+      properties:
+        expected_revision:
+          type: integer
+          minimum: 1
+        recovery_run_id:
+          type: string
+          format: uuid
+        confirmed:
+          type: boolean
+          enum:
+            - true
+      required:
+        - expected_revision
+        - recovery_run_id
+        - confirmed
+      additionalProperties: false
     RegressionInput:
       type: object
       properties:
@@ -6785,6 +7274,7 @@ components:
             - run_failed
             - limited_coverage
             - schedule_blocked
+            - quality_issue
         severity:
           type: string
           enum:
@@ -6793,6 +7283,10 @@ components:
         code:
           type: string
         run_id:
+          type: string
+        issue_id:
+          type: string
+        status:
           type: string
     CollectorHealth:
       type: object
@@ -6880,7 +7374,13 @@ components:
           type: string
           enum:
             - not_configured
-      description: 只根据最近完成与最近调度决定评估。最新活动运行独立保留，不遮盖上次失败；零新增/全部未变不判为异常；不推测质量基线或持久恢复状态。
+            - selected
+        quality_issues:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/HealthIssue'
+      description: 最近完成和调度证据与D03持久问题共同展示。完整成功不自动隐藏未确认质量待办；基线selected仅表示已选取，是否可比较见quality。
     HomeTable:
       type: object
       required:
@@ -6956,6 +7456,7 @@ components:
           type: string
           enum:
             - not_configured
+            - per_collector
         counts:
           type: object
           required:
@@ -7262,6 +7763,10 @@ components:
         supports_version_comparisons:
           type: boolean
         supports_version_restores:
+          type: boolean
+        supports_quality_policies:
+          type: boolean
+        supports_quality_issues:
           type: boolean
     DraftResponse:
       type: object

@@ -25,12 +25,15 @@ type Schedule struct {
 	DecisionAt    *time.Time `json:"decision_at"`
 }
 type Issue struct {
+	ID       string `json:"issue_id"`
+	Status   string `json:"status"`
 	Kind     string `json:"kind"`
 	Severity string `json:"severity"`
 	Code     string `json:"code"`
 	RunID    string `json:"run_id"`
 }
 type Health struct {
+	QualityIssues      []Issue   `json:"quality_issues"`
 	AsOf               time.Time `json:"as_of"`
 	CollectorID        string    `json:"collector_id"`
 	Name               string    `json:"name"`
@@ -56,7 +59,9 @@ type Health struct {
 // supersedes earlier failures; it does not silently resolve a disabled schedule.
 func Evaluate(h *Health) {
 	h.Issues = []Issue{}
-	h.Baseline = "not_configured"
+	if h.Baseline == "" {
+		h.Baseline = "not_configured"
+	}
 	h.Outcome = "never_run"
 	if h.Archived {
 		h.Outcome = "archived"
@@ -83,6 +88,10 @@ func Evaluate(h *Health) {
 		case "disabled_invalid", "disabled_unavailable", "skipped_capacity":
 			h.Issues = append(h.Issues, Issue{Kind: "schedule_blocked", Severity: "warning", Code: s.LastDecision})
 		}
+	}
+	if len(h.QualityIssues) > 0 {
+		h.Issues = append(h.Issues, h.QualityIssues...)
+		h.Outcome = "needs_attention"
 	}
 }
 

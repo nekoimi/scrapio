@@ -12,7 +12,8 @@
 		<p v-if="homeError" class="app-error" role="alert">
 			{{ homeError }}。概览不可用不代表没有数据或没有问题。<button @click="reloadHome">重新读取概览</button>
 		</p>
-		<p v-if="home" class="muted">截至 {{ dateText(home.as_of) }} · 只统计当前用户的新产品数据 · 尚未配置质量基线，不显示推测趋势</p>
+		<p v-if="home" class="muted">截至 {{ dateText(home.as_of) }} · 只统计当前用户的新产品数据 · 质量策略与基线按方案配置，未配置基线不推测趋势</p>
+		<IssuesPanel />
 		<section class="app-card starter">
 			<h2>开始一个采集方案</h2>
 			<label for="entry-url">目标网址</label>
@@ -155,6 +156,7 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
 import { appApi, type Capabilities, type HomeState } from './api';
 import HealthCard from './health-card.vue';
+import IssuesPanel from './issues-panel.vue';
 import { dateText } from './health-read';
 import { readError, runStatus } from './data-read';
 const router = useRouter(),

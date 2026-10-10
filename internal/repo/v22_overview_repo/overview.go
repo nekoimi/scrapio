@@ -37,6 +37,8 @@ const healthSQL = `WITH runs AS (
  'published_version_id',v.id,'pending_draft',v.id IS NULL OR c.revision>v.collector_revision,
  'table_id',COALESCE(t.id::text,''),'table_name',COALESCE(t.name,''),'updated_at',c.updated_at,
  'active_runs',COALESCE(a.count,0),'latest_run',l.brief,'latest_terminal',f.brief,'latest_effective',e.brief,
+ 'baseline_status',CASE WHEN EXISTS(SELECT 1 FROM v22_quality_policies qp WHERE qp.collector_id=c.id AND qp.owner_id=c.owner_id AND qp.baseline<>'{}') THEN 'selected' ELSE 'not_configured' END,
+ 'quality_issues',COALESCE((SELECT jsonb_agg(q.brief) FROM (SELECT jsonb_build_object('issue_id',qi.id,'status',qi.status,'kind','quality_issue','severity',CASE WHEN qi.status='ready' THEN 'warning' ELSE 'error' END,'code',qi.code,'run_id',qi.last_run_id) AS brief FROM v22_quality_issues qi WHERE qi.collector_id=c.id AND qi.owner_id=c.owner_id AND qi.status<>'resolved' ORDER BY qi.updated_at DESC,qi.id DESC LIMIT 6) q),'[]'),
  'schedule',CASE WHEN s.collector_id IS NULL THEN NULL ELSE jsonb_build_object('enabled',s.enabled,'next_at',s.next_at,'timezone',s.timezone,
  'version_id',COALESCE(sv.id,''),'version_number',COALESCE(sv.number,0),'last_decision',s.last_decision,
  'decision_at',(SELECT se.created_at FROM v22_schedule_events se WHERE se.collector_id=c.id ORDER BY se.id DESC LIMIT 1)) END)::text AS value
@@ -83,7 +85,7 @@ func Health(ctx context.Context, owner, id int64) (*overview.Health, error) {
 	return &rows[0], nil
 }
 
-const attentionClause = ` AND c.status<>'archived' AND (f.status IN ('failed','partial','limited') OR s.last_decision IN ('disabled_invalid','disabled_unavailable','skipped_capacity'))`
+const attentionClause = ` AND c.status<>'archived' AND (f.status IN ('failed','partial','limited') OR s.last_decision IN ('disabled_invalid','disabled_unavailable','skipped_capacity') OR EXISTS(SELECT 1 FROM v22_quality_issues qi WHERE qi.owner_id=c.owner_id AND qi.collector_id=c.id AND qi.status<>'resolved'))`
 
 type Page struct {
 	Items []overview.Health `json:"items"`
@@ -141,7 +143,7 @@ func Home(ctx context.Context, owner int64) (*overview.Home, error) {
 	if _, err := s.Exec("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY"); err != nil {
 		return nil, err
 	}
-	h := &overview.Home{Status: "ready", Baseline: "not_configured", Limit: sectionLimit}
+	h := &overview.Home{Status: "ready", Baseline: "per_collector", Limit: sectionLimit}
 	rows, err := query(s, `SELECT json_build_object('as_of',CURRENT_TIMESTAMP,'window_start',CURRENT_TIMESTAMP-interval '24 hours')::text AS value`)
 	if err != nil {
 		return nil, err

@@ -7,12 +7,14 @@
 		<p v-if="loading" role="status">正在读取实际运行结果…</p>
 		<p v-if="message" class="app-error">{{ message }}；不能据此判断方案没有异常。</p>
 		<HealthCard v-if="health" :health="health" detailed />
+		<QualityPanel :collector-id="collectorId" />
 	</section>
 </template>
 <script setup lang="ts">
 import { ref, watch, onBeforeUnmount } from 'vue';
 import { appApi, type CollectorHealth } from './api';
 import HealthCard from './health-card.vue';
+import QualityPanel from './quality-panel.vue';
 import { readError } from './data-read';
 const props = defineProps<{ collectorId: string }>(),
 	health = ref<CollectorHealth>(),

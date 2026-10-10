@@ -2,6 +2,14 @@ package overview
 
 import "testing"
 
+func TestQualityIssueSurvivesSuccessfulRun(t *testing.T) {
+	h := Health{Baseline: "selected", LatestTerminal: &Run{ID: "good", Status: "succeeded", Committed: true}, QualityIssues: []Issue{{ID: "issue", Kind: "quality_issue", Status: "ready", Code: "FIELD_MISMATCH"}}}
+	Evaluate(&h)
+	if h.Outcome != "needs_attention" || len(h.Issues) != 1 || h.Issues[0].ID != "issue" || h.Baseline != "selected" {
+		t.Fatal("successful run hid pending recovery", h)
+	}
+}
+
 func TestC05HealthUsesCompletedEvidenceWithoutInventingBaseline(t *testing.T) {
 	h := Health{LatestTerminal: &Run{ID: "effective", Status: "succeeded", Committed: true, Counts: map[string]int64{"created": 0, "updated": 0, "unchanged": 20}}}
 	Evaluate(&h)

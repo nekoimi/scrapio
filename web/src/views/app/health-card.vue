@@ -7,7 +7,8 @@
 		<p v-if="health.active_runs">另有 {{ health.active_runs }} 个排队或执行中的运行，尚未改变最近完成结果。</p>
 		<ul v-if="health.issues.length">
 			<li v-for="(issue, i) in health.issues" :key="i" :class="issue.severity === 'error' ? 'status-error' : 'status-warn'">
-				<router-link v-if="issue.run_id" :to="`/app/runs/${issue.run_id}`">{{ issueText(issue.kind) }}</router-link>
+				<router-link v-if="issue.issue_id" :to="`/app/issues/${issue.issue_id}`">{{ issue.status==='ready'?'待确认恢复':'质量异常待办' }}</router-link>
+				<router-link v-else-if="issue.run_id" :to="`/app/runs/${issue.run_id}`">{{ issueText(issue.kind) }}</router-link>
 				<router-link v-else :to="`/app/collectors/${health.collector_id}/schedule`">{{ issueText(issue.kind) }}</router-link> ·
 				{{ issue.kind === 'schedule_blocked' ? decisionText(issue.code) : issue.code || '请查看运行证据' }}
 			</li>
@@ -53,7 +54,7 @@
 				截至
 				{{
 					dateText(health.as_of)
-				}}。尚未配置质量基线；这里只判断最近完成结果与调度决定，零新增不算异常。有限覆盖需结合预算与证据核对，取消不算采集故障。
+				}}。基线状态 {{ health.baseline_status }}；质量待办按正式证据保留，完整成功不会自动关闭待确认问题。零新增不算异常，取消不算采集故障。
 			</p>
 		</template>
 	</article>
