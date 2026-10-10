@@ -7,7 +7,7 @@
    <nav aria-label="主要导航"><router-link v-for="entry in nav" :key="entry.path" :to="entry.path" @click="menuOpen=false"><span>{{entry.icon}}</span>{{entry.label}}</router-link></nav>
    <div class="v21-side-foot">控制平面 · PostgreSQL<br><small>浏览器服务按需连接</small></div>
   </aside>
-  <div class="v21-main"><header class="v21-topbar"><button class="v21-mobile-menu" :aria-expanded="menuOpen" aria-label="打开导航" @click="menuOpen=!menuOpen">☰</button><span>scrapio / <strong>{{pageTitle}}</strong></span><router-link to="/settings/runtime">设置</router-link></header><main class="v21-content"><router-view /></main></div>
+  <div class="v21-main"><header class="v21-topbar"><button class="v21-mobile-menu" :aria-expanded="menuOpen" aria-label="打开导航" @click="menuOpen=!menuOpen">☰</button><span>scrapio / <strong>{{pageTitle}}</strong></span><router-link to="/settings/runtime">设置</router-link></header><main class="v21-content" tabindex="0" aria-label="工作区内容"><router-view /></main></div>
   <button v-if="menuOpen" class="v21-scrim" aria-label="关闭导航" @click="menuOpen=false" />
  </div>
 </template>
