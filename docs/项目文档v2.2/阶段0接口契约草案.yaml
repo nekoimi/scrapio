@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
   title: scrapio v2.2 editor contract spike
-  version: 0.21.0-d03
-  description: A02～D03 开发契约：固定版本采集、定时/API、冻结查询和导出、完整运行中心、日常首页与方案健康、失败输入修复草稿、全样例离线回归、版本比较与历史草稿复制、异常策略与正式恢复确认。真实迁移、并发和页面验收另行记录。
+  version: 0.22.0-d04
+  description: A02～D04 开发契约：固定版本采集、定时/API、冻结查询和导出、完整运行中心、日常首页与方案健康、失败输入修复草稿、全样例离线回归、版本比较与历史草稿复制、异常策略与正式恢复确认、加密凭据和隔离浏览器授权。真实迁移、并发和页面验收另行记录。
 servers:
   - url: /api/v3
 security:
@@ -4607,6 +4607,181 @@ paths:
         '500':
           $ref: '#/components/responses/Error'
       description: 核对issue revision、连续正常次数、当前策略/发布版本、相同范围、问题发生后的执行；无活动或未评估运行，最新正式证据完整且已提交。调度问题额外要求真实schedule来源及当前调度正常。回归/发布不替代正式恢复；已解决的同恢复run重复请求只返回原问题。
+  /credentials:
+    get:
+      summary: 我的新域凭据，最多100项；不返回秘密
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CredentialPageEnvelope'
+        '400':
+          description: 输入无效
+        '401':
+          description: 身份未认证
+        '404':
+          description: owner对象不存在
+        '408':
+          description: 请求未确认；先读取核对
+        '409':
+          description: revision/请求冲突，或凭据已失效/超出范围
+        '500':
+          description: 存储失败；不回传秘密
+    post:
+      summary: client UUID幂等创建，只写入秘密
+      x-implementation-status: implemented
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CredentialInput'
+      responses:
+        '201':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CredentialEnvelope'
+        '400':
+          description: 输入无效
+        '401':
+          description: 身份未认证
+        '404':
+          description: owner对象不存在
+        '408':
+          description: 请求未确认；先读取核对
+        '409':
+          description: revision/请求冲突，或凭据已失效/超出范围
+        '500':
+          description: 存储失败；不回传秘密
+  /credentials/{credential_id}:
+    parameters:
+      - in: path
+        name: credential_id
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      summary: 读取元数据以恢复未知请求
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CredentialEnvelope'
+        '400':
+          description: 输入无效
+        '401':
+          description: 身份未认证
+        '404':
+          description: owner对象不存在
+        '408':
+          description: 请求未确认；先读取核对
+        '409':
+          description: revision/请求冲突，或凭据已失效/超出范围
+        '500':
+          description: 存储失败；不回传秘密
+    patch:
+      summary: 完整元数据和expected_revision替换；secret留空保留
+      x-implementation-status: implemented
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CredentialInput'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CredentialEnvelope'
+        '400':
+          description: 输入无效
+        '401':
+          description: 身份未认证
+        '404':
+          description: owner对象不存在
+        '408':
+          description: 请求未确认；先读取核对
+        '409':
+          description: revision/请求冲突，或凭据已失效/超出范围
+        '500':
+          description: 存储失败；不回传秘密
+    delete:
+      summary: 撤销并清除密文，保留引用墓碑与既有结果
+      x-implementation-status: implemented
+      parameters:
+        - in: query
+          name: expected_revision
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CredentialEnvelope'
+        '400':
+          description: 输入无效
+        '401':
+          description: 身份未认证
+        '404':
+          description: owner对象不存在
+        '408':
+          description: 请求未确认；先读取核对
+        '409':
+          description: revision/请求冲突，或凭据已失效/超出范围
+        '500':
+          description: 存储失败；不回传秘密
+  /credentials/{credential_id}/checks:
+    parameters:
+      - in: path
+        name: credential_id
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      summary: 只读检查scope/有效期/秘密运行时可用性及浏览器授权协议
+      description: 不访问目标、不保存网站响应、不证明网站登录。真实授权由打开会话/HTTP取样/实时试采验证。
+      x-implementation-status: implemented
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CredentialCheckInput'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CredentialCheckEnvelope'
+        '400':
+          description: 输入无效
+        '401':
+          description: 身份未认证
+        '404':
+          description: owner对象不存在
+        '408':
+          description: 请求未确认；先读取核对
+        '409':
+          description: revision/请求冲突，或凭据已失效/超出范围
+        '500':
+          description: 存储失败；不回传秘密
 components:
   securitySchemes:
     collectorTrigger:
@@ -4661,6 +4836,247 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
   schemas:
+    Credential:
+      type: object
+      required:
+        - credential_id
+        - credential_ref
+        - revision
+        - name
+        - kind
+        - origin
+        - storage
+        - header
+        - prefix
+        - env
+        - expires_at
+        - mask_selectors
+        - status
+        - revoked_at
+        - created_at
+        - updated_at
+      properties:
+        credential_id:
+          type: string
+          format: uuid
+        credential_ref:
+          type: string
+        revision:
+          type: integer
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+        kind:
+          type: string
+          enum:
+            - http_header
+            - browser_cookie
+        origin:
+          type: string
+          description: 准确 origin；browser_cookie 仅HTTPS
+        storage:
+          type: string
+          enum:
+            - encrypted
+            - environment
+        header:
+          type: string
+          enum:
+            - ''
+            - Authorization
+            - Cookie
+            - X-API-Key
+            - API-Key
+            - X-Auth-Token
+        prefix:
+          type: string
+          maxLength: 128
+        env:
+          type: string
+          description: 环境引用仅允许 SCRAPIO_SECRET_ 前缀
+        expires_at:
+          type: string
+          format: date-time
+        mask_selectors:
+          type: array
+          maxItems: 10
+          items:
+            type: string
+            maxLength: 256
+        status:
+          type: string
+          enum:
+            - available
+            - expired
+            - revoked
+            - key_unavailable
+            - environment_missing
+        revoked_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    CredentialInput:
+      type: object
+      required:
+        - credential_id
+        - expected_revision
+        - name
+        - kind
+        - origin
+        - storage
+        - expires_at
+      properties:
+        credential_id:
+          type: string
+          format: uuid
+        expected_revision:
+          type: integer
+          minimum: 0
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+        kind:
+          type: string
+          enum:
+            - http_header
+            - browser_cookie
+        origin:
+          type: string
+          description: 准确 origin；browser_cookie 仅HTTPS
+        storage:
+          type: string
+          enum:
+            - encrypted
+            - environment
+        header:
+          type: string
+          enum:
+            - ''
+            - Authorization
+            - Cookie
+            - X-API-Key
+            - API-Key
+            - X-Auth-Token
+        prefix:
+          type: string
+          maxLength: 128
+        env:
+          type: string
+          description: 环境引用仅允许 SCRAPIO_SECRET_ 前缀
+        secret:
+          type: string
+          writeOnly: true
+          maxLength: 8192
+          description: 首次加密保存必填；更新留空保留原秘密；禁止换kind/origin后保留
+        expires_at:
+          type: string
+          format: date-time
+        mask_selectors:
+          type: array
+          maxItems: 10
+          items:
+            type: string
+            maxLength: 256
+      additionalProperties: false
+    CredentialCheckInput:
+      type: object
+      required:
+        - target_url
+        - kind
+      properties:
+        target_url:
+          type: string
+          format: uri
+        kind:
+          type: string
+          enum:
+            - http_header
+            - browser_cookie
+      additionalProperties: false
+    CredentialCheck:
+      type: object
+      required:
+        - credential_id
+        - revision
+        - runtime_ready
+        - website_authorization
+        - network_accessed
+        - checked_at
+      properties:
+        credential_id:
+          type: string
+          format: uuid
+        revision:
+          type: integer
+        runtime_ready:
+          type: boolean
+        website_authorization:
+          type: string
+          enum:
+            - unverified
+        network_accessed:
+          type: boolean
+          enum:
+            - false
+        checked_at:
+          type: string
+          format: date-time
+    CredentialPage:
+      type: object
+      required:
+        - items
+        - encryption_ready
+        - limit
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Credential'
+          maxItems: 100
+        encryption_ready:
+          type: boolean
+        limit:
+          type: integer
+          enum:
+            - 100
+    CredentialEnvelope:
+      type: object
+      required:
+        - data
+        - request_id
+      properties:
+        data:
+          $ref: '#/components/schemas/Credential'
+        request_id:
+          type: string
+    CredentialCheckEnvelope:
+      type: object
+      required:
+        - data
+        - request_id
+      properties:
+        data:
+          $ref: '#/components/schemas/CredentialCheck'
+        request_id:
+          type: string
+    CredentialPageEnvelope:
+      type: object
+      required:
+        - data
+        - request_id
+      properties:
+        data:
+          $ref: '#/components/schemas/CredentialPage'
+        request_id:
+          type: string
     QualityPolicy:
       type: object
       properties:
@@ -5710,6 +6126,11 @@ components:
           type: array
           items:
             type: string
+        credential_revision:
+          type: integer
+        credential_updated_at:
+          type: string
+          format: date-time
     PublicationSampleIdentity:
       type: object
       properties:
@@ -7005,7 +7426,9 @@ components:
       properties:
         method:
           type: string
-          enum: [GET, POST]
+          enum:
+            - GET
+            - POST
           default: GET
         query:
           type: object
@@ -7023,8 +7446,8 @@ components:
           description: POST JSON 值，最多 64 KiB；不支持 GET body；拒绝密码/token 等已知秘密键。
         credential_ref:
           type: string
-          example: '${secret:example_api}'
-          description: 可选；绑定服务端环境变量、owner_ids 和准确 origin，仅运行时注入认证头，不保存实际秘密。
+          example: ${secret:example_api}
+          description: 支持部署 ${secret:name} 或新域 ${credential:uuid} 引用；只在运行时解析
         timeout_ms:
           type: integer
           minimum: 100
@@ -7768,6 +8191,10 @@ components:
           type: boolean
         supports_quality_issues:
           type: boolean
+        supports_credentials:
+          type: boolean
+        supports_browser_authorization:
+          type: boolean
     DraftResponse:
       type: object
       required:
@@ -7903,6 +8330,15 @@ components:
               config:
                 type: object
                 additionalProperties: true
+        browser_auth:
+          type: object
+          additionalProperties: false
+          required:
+            - credential_ref
+          properties:
+            credential_ref:
+              type: string
+              pattern: ^\$\{credential:[0-9a-f-]{36}\}$
     Viewport:
       type: object
       required:

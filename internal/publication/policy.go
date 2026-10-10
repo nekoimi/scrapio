@@ -14,16 +14,18 @@ import (
 const ContractVersion = "publish.v1"
 
 type Capabilities struct {
-	DefinitionHash  string   `json:"definition_hash"`
-	Contract        string   `json:"contract"`
-	Interpreter     string   `json:"interpreter"`
-	BrowserProtocol string   `json:"browser_protocol"`
-	Session         bool     `json:"session"`
-	Commands        bool     `json:"commands"`
-	Snapshot        bool     `json:"snapshot"`
-	HTTP            bool     `json:"http"`
-	CredentialReady bool     `json:"credential_ready"`
-	Actions         []string `json:"actions"`
+	CredentialRevision  int       `json:"credential_revision"`
+	CredentialUpdatedAt time.Time `json:"credential_updated_at"`
+	DefinitionHash      string    `json:"definition_hash"`
+	Contract            string    `json:"contract"`
+	Interpreter         string    `json:"interpreter"`
+	BrowserProtocol     string    `json:"browser_protocol"`
+	Session             bool      `json:"session"`
+	Commands            bool      `json:"commands"`
+	Snapshot            bool      `json:"snapshot"`
+	HTTP                bool      `json:"http"`
+	CredentialReady     bool      `json:"credential_ready"`
+	Actions             []string  `json:"actions"`
 }
 type Issue struct {
 	Code     string `json:"code"`
@@ -55,6 +57,9 @@ func CheckCapabilities(plan trial.Plan, c Capabilities) Result {
 		r.Block("CONTRACT_UNAVAILABLE", "当前发布/提取契约不可用", "", "", "", "")
 	}
 	if plan.EntryType == "web" {
+		if plan.CredentialRef != "" && !c.CredentialReady {
+			r.Block("CREDENTIAL_UNAVAILABLE", "浏览器授权不可用或服务不支持隔离授权协议", "", "", "", "")
+		}
 		if c.BrowserProtocol != "editor.v1" || !c.Session || !c.Commands || !c.Snapshot {
 			r.Block("BROWSER_CAPABILITY_UNAVAILABLE", "浏览器会话、动作及快照能力必须可用", "", "", "", "")
 		}
@@ -166,4 +171,12 @@ func Merge(a *Result, b Result) {
 	a.Ready = a.Ready && b.Ready
 	a.Issues = append(a.Issues, b.Issues...)
 	a.Warnings = append(a.Warnings, b.Warnings...)
+}
+
+func CheckCredentialTrial(c Capabilities, started time.Time) Result {
+	r := NewResult()
+	if !c.CredentialUpdatedAt.IsZero() && !started.After(c.CredentialUpdatedAt) {
+		r.Block("CREDENTIAL_TRIAL_STALE", "凭据已变化，请以当前授权重新实时试采", "", "", "", "")
+	}
+	return r
 }

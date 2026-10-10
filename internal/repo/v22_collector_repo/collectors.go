@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/nekoimi/scrapio/internal/capture"
+	"github.com/nekoimi/scrapio/internal/credential"
 	"github.com/nekoimi/scrapio/internal/db"
 	"github.com/nekoimi/scrapio/internal/db/table"
 	"github.com/nekoimi/scrapio/internal/editor"
@@ -88,6 +89,9 @@ func validationState(row *table.V22Collector) (string, []string) {
 }
 
 func validateDefinition(raw json.RawMessage, entryURL string) ValidationResult {
+	if _, e := credential.DefinitionRef(raw); e != nil {
+		return ValidationResult{Errors: []string{"browser_auth requires a managed credential reference only"}}
+	}
 	if err := output.ValidateDefinition(raw); err != nil {
 		return ValidationResult{Errors: []string{err.Error()}}
 	}
@@ -390,6 +394,9 @@ func Update(ownerID, id int64, input UpdateInput) (*table.V22Collector, []string
 	}
 	if len(input.Definition) == 0 || !json.Valid(input.Definition) {
 		return nil, nil, errors.New("definition must be valid JSON")
+	}
+	if _, e := credential.DefinitionRef(input.Definition); e != nil {
+		return nil, nil, e
 	}
 	var definitionObject map[string]any
 	if err := json.Unmarshal(input.Definition, &definitionObject); err != nil || definitionObject == nil {

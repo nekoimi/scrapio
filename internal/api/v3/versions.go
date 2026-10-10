@@ -11,12 +11,14 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/nekoimi/scrapio/internal/capture"
 	"github.com/nekoimi/scrapio/internal/config"
+	"github.com/nekoimi/scrapio/internal/credential"
 	"github.com/nekoimi/scrapio/internal/db/table"
 	"github.com/nekoimi/scrapio/internal/drission_rod"
 	"github.com/nekoimi/scrapio/internal/editor"
 	"github.com/nekoimi/scrapio/internal/extraction"
 	"github.com/nekoimi/scrapio/internal/publication"
 	"github.com/nekoimi/scrapio/internal/repo/v22_collector_repo"
+	"github.com/nekoimi/scrapio/internal/repo/v22_credential_repo"
 	"github.com/nekoimi/scrapio/internal/repo/v22_version_repo"
 )
 
@@ -63,9 +65,31 @@ func definitionCapabilities(ctx context.Context, ownerID int64, entryType, entry
 				}
 				_, _, _, err = capture.Credential(httpCfg, ownerID, entryURL, request.CredentialRef)
 				c.CredentialReady = err == nil
+				if credential.ID(request.CredentialRef) != "" && err == nil {
+					row, _, e := v22_credential_repo.Resolve(ctx, ownerID, entryURL, request.CredentialRef, "http_header")
+					if e != nil {
+						c.CredentialReady = false
+					} else {
+						c.CredentialRevision = row.Revision
+						c.CredentialUpdatedAt = row.UpdatedAt
+					}
+				}
 			}
 		}
 		return c
+	}
+	ref, authErr := credential.DefinitionRef([]byte(definition))
+	if authErr != nil {
+		return c
+	}
+	if ref != "" {
+		row, _, e := v22_credential_repo.Resolve(ctx, ownerID, entryURL, ref, "browser_cookie")
+		if e != nil {
+			return c
+		}
+		c.CredentialRevision = row.Revision
+		c.CredentialUpdatedAt = row.UpdatedAt
+		c.CredentialReady = browser != nil && browser.ProbeEditorAuthorization(ctx) == nil
 	}
 	c.BrowserProtocol = drission_rod.EditorProtocolVersion
 	if browser == nil {

@@ -11,18 +11,20 @@ import (
 	"github.com/nekoimi/scrapio/internal/config"
 	"github.com/nekoimi/scrapio/internal/drission_rod"
 	"github.com/nekoimi/scrapio/internal/editor"
+	"github.com/nekoimi/scrapio/internal/repo/v22_credential_repo"
 	"github.com/nekoimi/scrapio/internal/trial"
 )
 
 type source struct {
-	browser  *drission_rod.DrissionRod
-	cfg      *config.Config
-	ownerID  int64
-	plan     trial.Plan
-	input    trial.Input
-	id       string
-	state    drission_rod.EditorSessionState
-	document trial.FixedDocument
+	credentialRevision int
+	browser            *drission_rod.DrissionRod
+	cfg                *config.Config
+	ownerID            int64
+	plan               trial.Plan
+	input              trial.Input
+	id                 string
+	state              drission_rod.EditorSessionState
+	document           trial.FixedDocument
 }
 
 // NewSource shares browser/HTTP acquisition and scope enforcement between
@@ -61,7 +63,12 @@ func (s *source) Start(ctx context.Context) error {
 	if s.browser == nil {
 		return errors.New("BROWSER_UNAVAILABLE")
 	}
-	state, err := s.browser.CreateEditorSession(ctx, drission_rod.EditorSessionInput{SessionID: s.id, URL: s.plan.URL, TTL: sessionTTL(s.input.Budget.Seconds), Width: 1280, Height: 800})
+	authorization, revision, authErr := v22_credential_repo.Browser(ctx, s.ownerID, s.plan.URL, s.plan.CredentialRef)
+	if authErr != nil {
+		return errors.New("CREDENTIAL_UNAVAILABLE")
+	}
+	s.credentialRevision = revision
+	state, err := s.browser.CreateEditorSession(ctx, drission_rod.EditorSessionInput{Authorization: authorization, SessionID: s.id, URL: s.plan.URL, TTL: sessionTTL(s.input.Budget.Seconds), Width: 1280, Height: 800})
 	if err != nil {
 		return browserFailure(err)
 	}
@@ -172,6 +179,12 @@ func sessionTTL(seconds int) time.Duration {
 
 // Refresh only expiry, never adopt a changed page state or replay an action.
 func (s *source) keepAlive(ctx context.Context) error {
+	if s.plan.CredentialRef != "" {
+		_, revision, e := v22_credential_repo.Browser(ctx, s.ownerID, s.plan.URL, s.plan.CredentialRef)
+		if e != nil || revision != s.credentialRevision {
+			return errors.New("CREDENTIAL_UNAVAILABLE")
+		}
+	}
 	if err := s.checkState(); err != nil {
 		return err
 	}

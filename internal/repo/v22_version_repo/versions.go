@@ -201,6 +201,7 @@ func Publish(ctx context.Context, ownerID, collectorID int64, key string, input 
 		return nil, ErrConflict
 	}
 	current := publication.CheckCapabilities(st.plan, caps)
+	publication.Merge(&current, publication.CheckCredentialTrial(caps, st.trial.CreatedAt))
 	publication.Merge(&current, publication.CheckTrial(st.trial.Status, st.trial.CollectorRevision, st.trial.DefinitionHash, st.trial.FinishedAt, st.input, st.summary, input.ExpectedRevision, st.manifest.DefinitionHash, check.AcceptLimited, time.Now()))
 	if !current.Ready {
 		return nil, ErrBlocked

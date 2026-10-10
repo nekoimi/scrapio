@@ -17,6 +17,7 @@ import (
 	"github.com/nekoimi/scrapio/internal/drission_rod"
 	"github.com/nekoimi/scrapio/internal/repo/v22_capture_repo"
 	"github.com/nekoimi/scrapio/internal/repo/v22_collector_repo"
+	"github.com/nekoimi/scrapio/internal/repo/v22_credential_repo"
 	"github.com/nekoimi/scrapio/internal/repo/v22_sample_repo"
 	"github.com/nekoimi/scrapio/internal/repo/v22_session_repo"
 	"github.com/nekoimi/scrapio/internal/sample"
@@ -128,6 +129,13 @@ func CreateSample(browser *drission_rod.DrissionRod) http.HandlerFunc {
 			if session.CollectorId != id || session.Status != "ready" || session.PageStateId != source.PageStateId || !session.ExpiresAt.After(time.Now()) || browser == nil {
 				fail(w, r, 409, "SCREENSHOT_UNAVAILABLE", "页面已变化或会话不可用；可取消截图后保存原快照样例", false, "sample", "")
 				return
+			}
+			if session.CredentialRef != "" {
+				_, revision, e := v22_credential_repo.Browser(r.Context(), admin.Id, session.TargetURL, session.CredentialRef)
+				if e != nil || revision != session.CredentialRevision {
+					fail(w, r, 409, "CREDENTIAL_UNAVAILABLE", "授权已变化，不能保存此会话截图", false, "credential", "")
+					return
+				}
 			}
 			ctx, cancel := context.WithTimeout(r.Context(), 4*time.Second)
 			state, frameErr := browser.FrameEditorSession(ctx, session.Id, source.PageStateId)

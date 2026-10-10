@@ -91,7 +91,7 @@ func Comparable(definition, schema, input, entryType string) string {
 	}
 	delete(output, "check_id")
 	sort.Strings(i.Origins)
-	return publication.Hash([]any{entryType, root["entry_url"], root["http_request"], paths, output, json.RawMessage(schema), i})
+	return publication.Hash([]any{entryType, root["entry_url"], root["http_request"], root["browser_auth"], paths, output, json.RawMessage(schema), i})
 }
 
 type Finding struct {

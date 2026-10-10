@@ -162,6 +162,7 @@ func load(s *xorm.Session, ownerID, collectorID int64, revision int, trialID str
 }
 func evaluate(ctx context.Context, st *state, caps publication.Capabilities, acceptLimited bool) (publication.Result, []sampleProof, error) {
 	result := publication.CheckCapabilities(st.plan, caps)
+	publication.Merge(&result, publication.CheckCredentialTrial(caps, st.trial.CreatedAt))
 	if caps.DefinitionHash != st.manifest.DefinitionHash {
 		return result, nil, ErrConflict
 	}

@@ -2,6 +2,8 @@ package drission_rod
 
 import (
 	"context"
+	"encoding/json"
+	"github.com/nekoimi/scrapio/internal/credential"
 	"time"
 
 	"github.com/google/uuid"
@@ -11,11 +13,12 @@ import (
 const EditorProtocolVersion = "editor.v1"
 
 type EditorSessionInput struct {
-	SessionID string
-	URL       string
-	TTL       time.Duration
-	Width     int32
-	Height    int32
+	Authorization credential.Authorization
+	SessionID     string
+	URL           string
+	TTL           time.Duration
+	Width         int32
+	Height        int32
 }
 
 type EditorSessionState struct {
@@ -44,6 +47,14 @@ func (d *DrissionRod) CreateEditorSession(ctx context.Context, input EditorSessi
 		TtlSeconds:      int32(input.TTL.Seconds()),
 		ViewportWidth:   input.Width,
 		ViewportHeight:  input.Height,
+	}
+	if input.Authorization.Origin != "" {
+		request.ProtocolVersion = "editor.auth.v1"
+		raw, e := json.Marshal(input.Authorization)
+		if e != nil {
+			return EditorSessionState{}, e
+		}
+		request.AuthorizationJson = string(raw)
 	}
 	client := d.Client()
 	if client == nil {
@@ -131,4 +142,22 @@ func (d *DrissionRod) ProbeEditor(ctx context.Context) error {
 		return &BrowserError{Code: "EDITOR_PROTOCOL_INVALID", Message: "unexpected editor probe response"}
 	}
 	return err
+}
+
+// An older browser rejects editor.auth.v1 instead of ignoring authorization.
+func (d *DrissionRod) ProbeEditorAuthorization(ctx context.Context) error {
+	client := d.Client()
+	if client == nil {
+		return &BrowserError{Code: "BROWSER_UNAVAILABLE"}
+	}
+	call, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	response, e := client.GetEditorSession(call, &pb.EditorSessionRequest{ProtocolVersion: "editor.auth.v1", SessionId: "protocol-probe"})
+	if e != nil {
+		return e
+	}
+	if response.ErrorCode != "AUTHORIZATION_SUPPORTED" {
+		return &BrowserError{Code: "AUTHORIZATION_UNAVAILABLE"}
+	}
+	return nil
 }

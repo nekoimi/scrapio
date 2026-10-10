@@ -1377,7 +1377,7 @@ export const staticRoutes: Array<RouteRecordRaw> = [
 			{ path: 'records/:recordID', name: 'v22Record', component: () => import('/@/views/app/data.vue'), meta: { title: '记录详情' } },
 			{ path: 'runs/:id', name: 'v22Run', component: () => import('/@/views/app/run-detail.vue'), meta: { title: '运行详情' } },
 			{ path: 'pages/:id', name: 'v22Page', component: () => import('/@/views/app/page-detail.vue'), meta: { title: '页面证据' } },
-			{ path: 'settings', name: 'v22Settings', component: () => import('/@/views/app/pending.vue'), props: { section: '设置' }, meta: { title: '设置' } },
+			{ path: 'settings', name: 'v22Settings', component: () => import('/@/views/app/credentials.vue'), meta: { title: '设置' } },
 		],
 	},
 	{

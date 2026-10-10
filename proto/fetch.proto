@@ -88,6 +88,8 @@ message EditorSessionCreateRequest {
   int32 ttl_seconds = 5;
   int32 viewport_width = 6;
   int32 viewport_height = 7;
+  // Transient authorization; never echoed or logged. Requires editor.auth.v1.
+  string authorization_json = 8;
 }
 
 message EditorSessionRequest {

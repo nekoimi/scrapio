@@ -48,6 +48,8 @@ services:
       DB_DSN: postgres://${POSTGRES_USER:-scrapio}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-scrapio}?sslmode=disable
       CRAWLER_DRISSION_ROD_GRPC_IP: scrapio-browser
       CRAWLER_DRISSION_ROD_GRPC_PORT: 8191
+      SCRAPIO_CREDENTIAL_KEY: ${SCRAPIO_CREDENTIAL_KEY:-}
+      # Deployment references must be explicitly passed as SCRAPIO_SECRET_<NAME>.
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
       APP_EXTERNAL_BASE_URL: ${APP_EXTERNAL_BASE_URL:-}
       QUICK_API_TOKEN: ${QUICK_API_TOKEN:-}

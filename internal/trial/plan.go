@@ -9,6 +9,7 @@ import (
 	"net/url"
 
 	"github.com/nekoimi/scrapio/internal/capture"
+	"github.com/nekoimi/scrapio/internal/credential"
 	"github.com/nekoimi/scrapio/internal/editor"
 	"github.com/nekoimi/scrapio/internal/extraction"
 	"github.com/nekoimi/scrapio/internal/output"
@@ -71,11 +72,12 @@ type Step struct {
 	Plan   extraction.Plan
 }
 type Plan struct {
-	URL       string
-	EntryType string
-	Request   capture.HTTPRequest
-	Steps     []Step
-	Output    output.Config
+	CredentialRef string
+	URL           string
+	EntryType     string
+	Request       capture.HTTPRequest
+	Steps         []Step
+	Output        output.Config
 }
 
 func Compile(raw []byte, entryType string) (Plan, error) {
@@ -94,6 +96,14 @@ func Compile(raw []byte, entryType string) (Plan, error) {
 		return p, err
 	}
 	p.URL = root.URL
+	ref, authErr := credential.DefinitionRef(raw)
+	if authErr != nil {
+		return p, authErr
+	}
+	p.CredentialRef = ref
+	if entryType == "json" && ref != "" {
+		return p, errors.New("browser authorization requires web entrance")
+	}
 	var err error
 	p.Output, err = output.DecodeConfig(root.Output)
 	if err != nil {

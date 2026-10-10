@@ -119,6 +119,9 @@ func (w *Worker) execute(parent context.Context, row *table.V22Run, browser *dri
 			caps.Session = browser.ProbeEditor(probe) == nil
 			caps.Commands = browser.ProbeEditorCommands(probe) == nil
 			caps.Snapshot = browser.ProbeEditorSnapshot(probe) == nil
+			if plan.CredentialRef != "" {
+				caps.CredentialReady = browser.ProbeEditorAuthorization(probe) == nil
+			}
 		}
 		stop()
 		if !publication.CheckCapabilities(plan, caps).Ready {

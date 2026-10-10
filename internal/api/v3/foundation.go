@@ -63,6 +63,12 @@ func CapabilitiesWithBrowser(browser *drission_rod.DrissionRod) http.HandlerFunc
 				cancel()
 			}
 		}
+		authorization := false
+		if ready {
+			ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+			authorization = browser.ProbeEditorAuthorization(ctx) == nil
+			cancel()
+		}
 		reason := "浏览器服务未连接"
 		if ready {
 			reason = "editor.v1 已连接；动作能力见 supported_actions，页面创建需浏览器可用"
@@ -76,6 +82,7 @@ func CapabilitiesWithBrowser(browser *drission_rod.DrissionRod) http.HandlerFunc
 			"supports_snapshot_capture":   snapshots, "supports_extraction_preview": true,
 			"supports_samples": true, "supports_sample_checks": true,
 			"supports_sample_regressions": true, "supports_version_comparisons": true, "supports_version_restores": true,
+			"supports_credentials": true, "supports_browser_authorization": authorization,
 			"supports_quality_policies": true, "supports_quality_issues": true,
 			"supports_output_checks": true, "supports_logical_tables": true,
 			"supports_trials": true, "supports_trial_events": true,

@@ -104,7 +104,7 @@ func (r *HTTPRequest) Validate() error {
 			return errors.New("body must be JSON without literal secret fields")
 		}
 	}
-	if r.CredentialRef != "" && !regexp.MustCompile(`^\$\{secret:[a-zA-Z0-9_-]{1,64}\}$`).MatchString(r.CredentialRef) {
+	if r.CredentialRef != "" && !regexp.MustCompile(`^\$\{(?:secret:[a-zA-Z0-9_-]{1,64}|credential:[0-9a-f-]{36})\}$`).MatchString(r.CredentialRef) {
 		return errors.New("credential_ref must use ${secret:name}")
 	}
 	return nil

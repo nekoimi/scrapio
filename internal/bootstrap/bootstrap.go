@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/nekoimi/scrapio/internal/bean"
+	"github.com/nekoimi/scrapio/internal/capture"
 	"github.com/nekoimi/scrapio/internal/config"
 	"github.com/nekoimi/scrapio/internal/crawler"
 	"github.com/nekoimi/scrapio/internal/crawler/providers/javdb"
@@ -15,6 +16,7 @@ import (
 	"github.com/nekoimi/scrapio/internal/plugin/delivery"
 	"github.com/nekoimi/scrapio/internal/qualityworker"
 	"github.com/nekoimi/scrapio/internal/regressionworker"
+	"github.com/nekoimi/scrapio/internal/repo/v22_credential_repo"
 	"github.com/nekoimi/scrapio/internal/runworker"
 	"github.com/nekoimi/scrapio/internal/scheduleworker"
 	"github.com/nekoimi/scrapio/internal/server"
@@ -24,6 +26,7 @@ import (
 
 func BeanLifecycle() *bean.LifecycleManager {
 	ctx := bean.ContextWithDefaultRegistry(context.Background())
+	capture.ResolveManaged = v22_credential_repo.HTTP
 	// 加载配置
 	bean.MustRegisterPtr[config.Config](ctx, config.Load())
 	// 数据库

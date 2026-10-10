@@ -2,6 +2,8 @@ import request from '/@/utils/request';
 import { Session } from '/@/utils/storage';
 
 export interface RepairContext {repair_id:string;source_collector_id:string;target_collector_id:string;run_id:string;version_id:string;version_number:number;current_published_version_id:string|null;current_published_version_number:number;target_revision:number;pending_draft:boolean;archived:boolean;mode:string;step_id:string;stage:string;reason:string;failed_step_id:string;failed_stage:string;document_id:string;capture_id:string;evidence_status:'available'|'missing'|'corrupt'|'too_large'|'unsupported';format:string;field_keys:string[];step_compatible:boolean}
+export interface Credential {credential_id:string;credential_ref:string;revision:number;name:string;kind:'http_header'|'browser_cookie';origin:string;storage:'encrypted'|'environment';header:string;prefix:string;env:string;expires_at:string;mask_selectors:string[];status:string;revoked_at:string|null;created_at:string;updated_at:string}
+export interface CredentialInput {credential_id:string;expected_revision:number;name:string;kind:'http_header'|'browser_cookie';origin:string;storage:'encrypted'|'environment';header:string;prefix:string;env:string;secret:string;expires_at:string;mask_selectors:string[]}
 export interface Identity { id: string; username: string }
 export interface QualityPolicy {enabled:boolean;min_valid_records:number;max_invalid_percent:number;drop_percent:number;failure_runs:number;recovery_runs:number;schedule_grace_minutes:number}
 export interface QualityFacts {run_id:string;version_id:string;comparison_key:string;status:string;reason:string;committed:boolean;network_accessed:boolean;valid_records:number;invalid_records:number;field_keys:string[];pages:number;list_pages:number;failed_step_id:string;failed_stage:string;finished_at:string;started_at:string}
@@ -13,6 +15,7 @@ export interface RegressionEvaluation {status:string;error_code?:string;record_c
 export interface RegressionJob {job_id:string;collector_id:string;kind:'regression'|'comparison';collector_revision:number;base_version_id:string;target_version_id:string;base_hash:string;target_hash:string;snapshot_hash:string;status:string;total:number;completed:number;error_code:string;created_at:string;finished_at:string|null;report:{verdict?:string;definition?:RegressionDiff;alignment?:string;samples?:{sample_id:string;name:string;revision:number;step_id:string;stage:string;kind:string;content_hash:string;expected_hash:string;target:RegressionEvaluation;base?:RegressionEvaluation;records?:RegressionDiff}[]}}
 export interface VersionRestore {restore_id:string;collector_id:string;version_id:string;target_collector_id:string;created_at:string}
 export interface Capabilities {
+ supports_credentials?:boolean;supports_browser_authorization?:boolean;
  supports_quality_policies?:boolean;
  supports_quality_issues?:boolean;
  supports_sample_regressions?:boolean;
@@ -200,6 +203,11 @@ export interface DataView {view_id:string;table_id:string;name:string;revision:n
 export interface DataExport {export_id:string;table_id:string;format:'csv'|'json';status:string;progress:number;row_count:number;query:RecordQuery;schema:TableSchema;captured_at:string;created_at:string;finished_at:string|null;expires_at:string;file_bytes:number;file_hash:string;error_code:string}
 export interface ExportInput {format:'csv'|'json';snapshot_id:string;query:RecordQuery;confirmed:boolean}
 export const appApi = {
+ credentials:()=>request({url:'/api/v3/credentials',method:'get',timeout:8000}).then((r:any)=>r.data as {items:Credential[];encryption_ready:boolean;limit:number}),
+ credential:(id:string)=>request({url:`/api/v3/credentials/${id}`,method:'get',timeout:8000}).then((r:any)=>r.data as Credential),
+ saveCredential:(data:CredentialInput)=>request({url:data.expected_revision?`/api/v3/credentials/${data.credential_id}`:'/api/v3/credentials',method:data.expected_revision?'patch':'post',data,timeout:8000}).then((r:any)=>r.data as Credential),
+ revokeCredential:(id:string,revision:number)=>request({url:`/api/v3/credentials/${id}?expected_revision=${revision}`,method:'delete',timeout:8000}).then((r:any)=>r.data as Credential),
+ checkCredential:(id:string,target:string,kind:string)=>request({url:`/api/v3/credentials/${id}/checks`,method:'post',data:{target_url:target,kind},timeout:8000}).then((r:any)=>r.data as {credential_id:string;revision:number;runtime_ready:boolean;website_authorization:'unverified';network_accessed:false;checked_at:string}),
  quality:(id:string)=>request({url:`/api/v3/collectors/${id}/quality`,method:'get',timeout:8000}).then((r:any)=>r.data as QualityState),
  qualityPolicy:(id:string)=>request({url:`/api/v3/collectors/${id}/quality-policy`,method:'get',timeout:8000}).then((r:any)=>r.data as QualityPolicyView),
  saveQualityPolicy:(id:string,data:{expected_revision:number;policy:QualityPolicy;baseline_run_id:string})=>request({url:`/api/v3/collectors/${id}/quality-policy`,method:'put',data,timeout:8000}).then((r:any)=>r.data as QualityPolicyView),

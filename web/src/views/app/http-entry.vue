@@ -19,7 +19,7 @@
 			><label>普通请求头（JSON 对象）<textarea v-model="headersText" rows="3" /></label
 			><label v-if="httpMethod === 'POST'">JSON 请求体<textarea v-model="bodyText" rows="4" /></label
 			><label>凭据引用（可选）<input v-model="credentialRef" placeholder="${secret:example_api}" /></label>
-			<p class="muted">Authorization、Cookie、API key 和密码须使用服务端配置的引用；不支持在参数/请求体中填写秘密。完整凭据管理在 D04 接入。</p>
+			<CredentialPicker v-model="credentialRef" kind="http_header" :target="entryURL" :disabled="busy||blocked" /><p class="muted">认证头使用已管理凭据或部署 ${secret:name} 引用；参数/请求体中不得填写秘密。</p>
 			<button :disabled="!requestDirty || advanced" @click="saveRequest">保存入口请求</button>
 		</fieldset>
 		<button :disabled="busy || blocked" @click="reloadDraft">重新加载已保存草稿</button>
@@ -124,6 +124,7 @@
 import { computed, onBeforeUnmount, onMounted, nextTick, ref, watch } from 'vue';
 import JsonTreeNode from './json-tree-node.vue';
 import FieldOptions from './field-options.vue';
+import CredentialPicker from './credential-picker.vue';
 import { appApi, type Collector, type HTTPEntryRequest, type InputCapture, type JSONRecordPlan, type JSONCaptureCheck } from './api';
 const props = defineProps<{ draft: Collector; blocked: boolean }>();
 const emit = defineEmits<{ (event: 'draft-saved', draft: Collector): void; (event: 'capture-saved', capture: InputCapture): void }>();

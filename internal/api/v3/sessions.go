@@ -7,14 +7,17 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	"github.com/nekoimi/scrapio/internal/credential"
 	"github.com/nekoimi/scrapio/internal/db/table"
 	"github.com/nekoimi/scrapio/internal/drission_rod"
 	"github.com/nekoimi/scrapio/internal/pkg/request"
 	"github.com/nekoimi/scrapio/internal/repo/v22_collector_repo"
+	"github.com/nekoimi/scrapio/internal/repo/v22_credential_repo"
 	"github.com/nekoimi/scrapio/internal/repo/v22_session_repo"
 )
 
@@ -97,6 +100,8 @@ func CreateBrowserSession(browser *drission_rod.DrissionRod) http.HandlerFunc {
 				} else {
 					fail(w, r, http.StatusNotFound, "NOT_FOUND", "collector not found", false, "create_session", "collector_id")
 				}
+			} else if errors.Is(err, credential.ErrUnavailable) {
+				fail(w, r, 409, "CREDENTIAL_UNAVAILABLE", "凭据已过期、撤销或超出范围，先修复授权", false, "credential", "")
 			} else if errors.Is(err, v22_session_repo.ErrIdempotencyConflict) {
 				fail(w, r, http.StatusConflict, "IDEMPOTENCY_CONFLICT", err.Error(), false, "create_session", "Idempotency-Key")
 			} else if errors.Is(err, v22_session_repo.ErrUnsupportedEntry) {
@@ -121,7 +126,13 @@ func CreateBrowserSession(browser *drission_rod.DrissionRod) http.HandlerFunc {
 			fail(w, r, http.StatusServiceUnavailable, "BROWSER_UNAVAILABLE", "浏览器服务未配置", true, "create_session", "")
 			return
 		}
-		state, err := browser.CreateEditorSession(r.Context(), drission_rod.EditorSessionInput{SessionID: sessionID, URL: row.TargetURL, TTL: editorSessionTTL, Width: int32(row.ViewportWidth), Height: int32(row.ViewportHeight)})
+		authorization, revision, authErr := v22_credential_repo.Browser(r.Context(), admin.Id, row.TargetURL, row.CredentialRef)
+		if authErr != nil || revision != row.CredentialRevision {
+			_ = v22_session_repo.SetStatus(admin.Id, row.Id, "failed")
+			fail(w, r, 409, "CREDENTIAL_UNAVAILABLE", "凭据已变化/过期或超出范围，请修复授权并重新打开会话", false, "credential", "")
+			return
+		}
+		state, err := browser.CreateEditorSession(r.Context(), drission_rod.EditorSessionInput{Authorization: authorization, SessionID: sessionID, URL: row.TargetURL, TTL: editorSessionTTL, Width: int32(row.ViewportWidth), Height: int32(row.ViewportHeight)})
 		if err != nil {
 			// A timeout does not prove that the remote creation failed. Keep
 			// the request retryable with the same session ID; remote TTL reaps it.
@@ -370,6 +381,16 @@ func refreshOwnedSessionFromBrowser(r *http.Request, ownerID int64, sessionID st
 	if err != nil || terminalSession(session.Status) {
 		return session, err
 	}
+	if session.CredentialRef != "" {
+		_, revision, e := v22_credential_repo.Browser(r.Context(), ownerID, session.TargetURL, session.CredentialRef)
+		if e != nil || revision != session.CredentialRevision {
+			_ = v22_session_repo.SetStatus(ownerID, sessionID, "expired")
+			if browser != nil {
+				_ = browser.CloseEditorSession(r.Context(), sessionID)
+			}
+			return v22_session_repo.Get(ownerID, sessionID)
+		}
+	}
 	if !session.ExpiresAt.After(time.Now()) {
 		err = v22_session_repo.SetStatus(ownerID, sessionID, "expired")
 	} else if browser == nil {
@@ -441,6 +462,14 @@ func loadOwnedSession(w http.ResponseWriter, r *http.Request) (*table.Admin, *ta
 	if err != nil {
 		fail(w, r, http.StatusInternalServerError, "INTERNAL", err.Error(), true, "storage", "")
 		return nil, nil, false
+	}
+	if session.CredentialRef != "" && r.Method != "DELETE" && !strings.HasSuffix(r.URL.Path, "/close") && session.Status == "ready" {
+		_, revision, e := v22_credential_repo.Browser(r.Context(), admin.Id, session.TargetURL, session.CredentialRef)
+		if e != nil || revision != session.CredentialRevision {
+			_ = v22_session_repo.SetStatus(admin.Id, session.Id, "expired")
+			fail(w, r, 409, "CREDENTIAL_UNAVAILABLE", "授权已过期、撤销或变化，请关闭并重新打开会话", false, "credential", "")
+			return nil, nil, false
+		}
 	}
 	return admin, session, true
 }

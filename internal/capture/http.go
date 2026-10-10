@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/nekoimi/scrapio/internal/config"
+	"github.com/nekoimi/scrapio/internal/credential"
 	"golang.org/x/net/html"
 )
 
@@ -43,7 +44,18 @@ func NewClient(allowPrivate bool) *http.Client {
 	return &http.Client{Transport: transport}
 }
 
+// ResolveManaged is installed by bootstrap; standalone/offline callers fail closed.
+var ResolveManaged func(context.Context, int64, string, string) (string, string, string, error)
+
 func Credential(cfg *config.HTTPEntryConfig, ownerID int64, target, ref string) (string, string, string, error) {
+	if strings.HasPrefix(ref, "${credential:") {
+		if ResolveManaged == nil {
+			return "", "", "", errors.New("managed credential unavailable")
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		return ResolveManaged(ctx, ownerID, target, ref)
+	}
 	if ref == "" {
 		return "", "", "", nil
 	}
@@ -152,7 +164,18 @@ func Execute(ctx context.Context, client *http.Client, input Input, request HTTP
 	result.FinalURL = response.Request.URL.String()
 	result.StatusCode = response.StatusCode
 	result.ContentType = response.Header.Get("Content-Type")
-	if secret != "" {
+	secrets := []string{secret}
+	if strings.EqualFold(authHeader, "Cookie") {
+		if cookies, e := credential.Cookies(secret); e == nil {
+			for _, cookie := range cookies {
+				secrets = append(secrets, cookie.Value)
+			}
+		}
+	}
+	for _, secret := range secrets {
+		if secret == "" {
+			continue
+		}
 		result.FinalURL = strings.ReplaceAll(result.FinalURL, secret, "[REDACTED]")
 		result.ContentType = strings.ReplaceAll(result.ContentType, secret, "[REDACTED]")
 	}
@@ -174,6 +197,11 @@ func Execute(ctx context.Context, client *http.Client, input Input, request HTTP
 		return result
 	}
 	content, err := Sanitize(string(data), input.Format, secret)
+	for _, part := range secrets {
+		if err == nil && part != "" && part != secret {
+			content, err = Sanitize(content, input.Format, part)
+		}
+	}
 	if err != nil {
 		result.ErrorCode = "INVALID_CONTENT"
 		result.ErrorStage = "parse"

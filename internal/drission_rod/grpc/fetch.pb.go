@@ -754,8 +754,10 @@ type EditorSessionCreateRequest struct {
 	TtlSeconds      int32                  `protobuf:"varint,5,opt,name=ttl_seconds,json=ttlSeconds,proto3" json:"ttl_seconds,omitempty"`
 	ViewportWidth   int32                  `protobuf:"varint,6,opt,name=viewport_width,json=viewportWidth,proto3" json:"viewport_width,omitempty"`
 	ViewportHeight  int32                  `protobuf:"varint,7,opt,name=viewport_height,json=viewportHeight,proto3" json:"viewport_height,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// Transient authorization; never echoed or logged. Requires editor.auth.v1.
+	AuthorizationJson string `protobuf:"bytes,8,opt,name=authorization_json,json=authorizationJson,proto3" json:"authorization_json,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *EditorSessionCreateRequest) Reset() {
@@ -835,6 +837,13 @@ func (x *EditorSessionCreateRequest) GetViewportHeight() int32 {
 		return x.ViewportHeight
 	}
 	return 0
+}
+
+func (x *EditorSessionCreateRequest) GetAuthorizationJson() string {
+	if x != nil {
+		return x.AuthorizationJson
+	}
+	return ""
 }
 
 type EditorSessionRequest struct {
@@ -1583,7 +1592,7 @@ const file_fetch_proto_rawDesc = "" +
 	"\x10protocol_version\x18\x02 \x01(\tR\x0fprotocolVersion\x12\x1d\n" +
 	"\n" +
 	"request_id\x18\x03 \x01(\tR\trequestId\x12\x18\n" +
-	"\amessage\x18\x04 \x01(\tR\amessage\"\x88\x02\n" +
+	"\amessage\x18\x04 \x01(\tR\amessage\"\xb7\x02\n" +
 	"\x1aEditorSessionCreateRequest\x12)\n" +
 	"\x10protocol_version\x18\x01 \x01(\tR\x0fprotocolVersion\x12\x1d\n" +
 	"\n" +
@@ -1594,7 +1603,8 @@ const file_fetch_proto_rawDesc = "" +
 	"\vttl_seconds\x18\x05 \x01(\x05R\n" +
 	"ttlSeconds\x12%\n" +
 	"\x0eviewport_width\x18\x06 \x01(\x05R\rviewportWidth\x12'\n" +
-	"\x0fviewport_height\x18\a \x01(\x05R\x0eviewportHeight\"\xc4\x01\n" +
+	"\x0fviewport_height\x18\a \x01(\x05R\x0eviewportHeight\x12-\n" +
+	"\x12authorization_json\x18\b \x01(\tR\x11authorizationJson\"\xc4\x01\n" +
 	"\x14EditorSessionRequest\x12)\n" +
 	"\x10protocol_version\x18\x01 \x01(\tR\x0fprotocolVersion\x12\x1d\n" +
 	"\n" +

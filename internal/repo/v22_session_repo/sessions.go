@@ -1,7 +1,10 @@
 package v22_session_repo
 
 import (
+	"context"
 	"errors"
+	"github.com/nekoimi/scrapio/internal/credential"
+	"github.com/nekoimi/scrapio/internal/repo/v22_credential_repo"
 	"time"
 
 	"github.com/nekoimi/scrapio/internal/db"
@@ -64,9 +67,19 @@ func Create(ownerID, collectorID int64, expectedRevision int, sessionID, idempot
 	if collector.Revision != expectedRevision {
 		return nil, ErrRevisionConflict
 	}
+	ref, e := credential.DefinitionRef([]byte(collector.Definition))
+	if e != nil {
+		return nil, e
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	_, revision, e := v22_credential_repo.Browser(ctx, ownerID, collector.EntryURL, ref)
+	if e != nil {
+		return nil, e
+	}
 	now := time.Now()
 	row := &table.V22BrowserSession{
-		Id: sessionID, OwnerId: ownerID, CollectorId: collectorID, DraftRevision: expectedRevision,
+		CredentialRef: ref, CredentialRevision: revision, Id: sessionID, OwnerId: ownerID, CollectorId: collectorID, DraftRevision: expectedRevision,
 		TargetURL: collector.EntryURL, Status: "creating", ExpiresAt: now.Add(ttl), ViewportWidth: width, ViewportHeight: height,
 		CreatedAt: now, UpdatedAt: now,
 	}
