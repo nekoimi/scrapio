@@ -18,7 +18,7 @@
 					<button v-if="identityError" @click="loadIdentity">重试身份</button></span
 				>
 			</header>
-			<main><router-view /></main>
+			<main class="app-content" tabindex="0" aria-label="页面内容"><router-view /></main>
 		</div>
 	</div>
 </template>

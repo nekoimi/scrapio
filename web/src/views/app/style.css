@@ -1,6 +1,6 @@
-.scrapio-app { min-height: 100vh; display: flex; background: #f5f6f8; color: #22293a; font-family: Inter, 'Microsoft YaHei', sans-serif; }
+.scrapio-app { height: 100vh; height: 100dvh; min-height: 0; overflow: hidden; display: flex; background: #f5f6f8; color: #22293a; font-family: Inter, 'Microsoft YaHei', sans-serif; }
 .scrapio-app * { box-sizing: border-box; }
-.app-side { width: 220px; background: #172239; color: #dbe3f2; display: flex; flex-direction: column; padding: 28px 15px; flex-shrink: 0; }
+.app-side { width: 220px; min-height: 0; overflow-y: auto; background: #172239; color: #dbe3f2; display: flex; flex-direction: column; padding: 28px 15px; flex-shrink: 0; }
 .app-brand { color: white; display: flex; align-items: center; gap: 12px; font-size: 22px; font-weight: 700; padding: 0 12px 38px; text-decoration: none; }
 .app-brand small { display: block; color: #a8b8d3; font-size: 11px; font-weight: 400; letter-spacing: 2px; margin-top: 2px; }
 .brand-mark { background: #4e6fce; border-radius: 11px; width: 36px; height: 36px; text-align: center; line-height: 36px; }
@@ -10,8 +10,10 @@
 .app-side nav a.router-link-active { color: #fff; background: #30466e; }
 .side-bottom { margin-top: auto; padding: 20px 12px 0; border-top: 1px solid #34445f; }
 .side-bottom a { color: #c8d6f5; font-size: 12px; text-decoration: none; }
-.app-main { flex: 1; min-width: 0; }
-.app-top { height: 66px; padding: 0 32px; background: #fff; border-bottom: 1px solid #e7eaf0; display: flex; align-items: center; justify-content: space-between; }
+.app-main { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.app-content { flex: 1; min-width: 0; min-height: 0; overflow: auto; }
+.scrapio-app .app-content:focus-visible { outline: 2px solid #4567c4 !important; outline-offset: -2px; }
+.app-top { height: 66px; flex-shrink: 0; padding: 0 32px; background: #fff; border-bottom: 1px solid #e7eaf0; display: flex; align-items: center; justify-content: space-between; }
 .app-top span { color: #68758a; font-size: 13px; }
 .app-page { max-width: 1140px; padding: 52px 48px; margin: 0 auto; }
 .app-page h1 { font-size: 34px; letter-spacing: -.6px; margin: 10px 0; }
@@ -65,7 +67,7 @@
 .conflict-box p { line-height: 1.6; }
 .conflict-box button { border: 0; border-radius: 7px; background: #8b5b22; color: white; padding: 9px 13px; cursor: pointer; }
 .app-error button { margin-left: 10px; }
-@media (max-width: 760px) { .scrapio-app { display: block; } .app-side { width: 100%; padding: 14px; } .app-brand { padding-bottom: 12px; } .app-side nav { display: flex; overflow-x: auto; } .app-side nav a { white-space: nowrap; } .nav-caption, .side-bottom { display: none; } .app-page { padding: 32px 20px; } .app-grid { grid-template-columns: 1fr; } }
+@media (max-width: 760px) { .scrapio-app { flex-direction: column; } .app-side { width: 100%; max-height: 45dvh; padding: 14px; } .app-brand { padding-bottom: 12px; } .app-side nav { display: flex; overflow-x: auto; flex-shrink: 0; } .app-side nav a { white-space: nowrap; } .nav-caption, .side-bottom { display: none; } .app-page { padding: 32px 20px; } .app-grid { grid-template-columns: 1fr; } }
 
 /* Editor action panel shares the new product's neutral blue palette. */
 .editor-action-workspace { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 22px; margin-top: 24px; border-top: 1px solid #e4e8ef; padding-top: 22px; }
