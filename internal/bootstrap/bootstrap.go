@@ -9,6 +9,7 @@ import (
 	"github.com/nekoimi/scrapio/internal/crawler/providers/javdb"
 	"github.com/nekoimi/scrapio/internal/db"
 	"github.com/nekoimi/scrapio/internal/drission_rod"
+	"github.com/nekoimi/scrapio/internal/exportworker"
 	"github.com/nekoimi/scrapio/internal/job"
 	"github.com/nekoimi/scrapio/internal/plugin"
 	"github.com/nekoimi/scrapio/internal/plugin/delivery"
@@ -35,6 +36,7 @@ func BeanLifecycle() *bean.LifecycleManager {
 	bean.MustRegister[bean.Lifecycle](ctx, trialworker.New())
 	bean.MustRegister[bean.Lifecycle](ctx, runworker.New())
 	bean.MustRegister[bean.Lifecycle](ctx, scheduleworker.New())
+	bean.MustRegister[bean.Lifecycle](ctx, exportworker.New())
 	pluginRegistry := plugin.NewRegistry()
 	delivery.RegisterBuiltins(pluginRegistry, bean.PtrFromContext[config.Config](ctx))
 	bean.MustRegisterPtr[plugin.Registry](ctx, pluginRegistry)

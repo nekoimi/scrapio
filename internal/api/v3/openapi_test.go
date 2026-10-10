@@ -26,7 +26,7 @@ func TestA02A03OpenAPIContract(t *testing.T) {
 	paths := doc["paths"].(map[string]any)
 	for path, item := range paths {
 		for method, value := range item.(map[string]any) {
-			if method != "get" && method != "post" && method != "put" && method != "delete" {
+			if method != "get" && method != "post" && method != "put" && method != "delete" && method != "patch" {
 				continue
 			}
 			op := value.(map[string]any)
@@ -34,7 +34,7 @@ func TestA02A03OpenAPIContract(t *testing.T) {
 				continue
 			}
 			for code, value := range op["responses"].(map[string]any) {
-				if code != "200" && code != "201" {
+				if code != "200" && code != "201" && code != "202" {
 					continue
 				}
 				response := value.(map[string]any)
@@ -47,6 +47,9 @@ func TestA02A03OpenAPIContract(t *testing.T) {
 					continue
 				}
 				schema := media["schema"].(map[string]any)
+				if schema["format"] == "binary" {
+					continue
+				}
 				if ref, ok := schema["$ref"].(string); ok {
 					var target any = doc
 					for _, part := range strings.Split(strings.TrimPrefix(ref, "#/"), "/") {

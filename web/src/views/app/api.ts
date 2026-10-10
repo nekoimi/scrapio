@@ -6,6 +6,9 @@ export interface Capabilities {
  supports_publication?:boolean;
  supports_schedules?:boolean;
  supports_api_triggers?:boolean;
+ supports_data_queries?:boolean;
+ supports_data_views?:boolean;
+ supports_data_exports?:boolean;
  supports_version_runs?:boolean;
  supports_output_checks?:boolean;
  supports_logical_tables?:boolean;
@@ -168,7 +171,22 @@ export interface DocumentAsset {document_id:string;status:'available'|'unavailab
 export interface ScheduleConfig {expected_revision:number;enabled:boolean;cron:string;timezone:string;overlap:'skip'|'queue';input:RunInput}
 export interface CollectorSchedule {collector_id:string;revision:number;enabled:boolean;cron:string;timezone:string;overlap:'skip'|'queue';input:RunInput;next_at:string|null;last_decision:string;last_run_id:string;updated_at:string}
 export interface CollectorAPIKey {id:string;collector_id:string;name:string;input:RunInput;created_at:string;revoked_at:string|null}
+export interface RecordQuery {filters:{field:string;op:string;value?:string|boolean}[];sort:{field:string;direction:'asc'|'desc'};columns:string[]}
+export interface QueryPage extends DataPage {snapshot_id:string;captured_at:string;expires_at:string;total:number;query:RecordQuery;schema:TableSchema;schema_version:number}
+export interface DataView {view_id:string;table_id:string;name:string;revision:number;query:RecordQuery;created_at:string;updated_at:string}
+export interface DataExport {export_id:string;table_id:string;format:'csv'|'json';status:string;progress:number;row_count:number;query:RecordQuery;schema:TableSchema;captured_at:string;created_at:string;finished_at:string|null;expires_at:string;file_bytes:number;file_hash:string;error_code:string}
+export interface ExportInput {format:'csv'|'json';snapshot_id:string;query:RecordQuery;confirmed:boolean}
 export const appApi = {
+ queryRecords:(id:string,query:RecordQuery,cursor='')=>get<QueryPage>(`/api/v3/tables/${id}/records?limit=25&query=${encodeURIComponent(JSON.stringify(query))}&cursor=${encodeURIComponent(cursor)}`),
+ dataViews:(id:string)=>get<{items:DataView[];limit:number}>(`/api/v3/tables/${id}/views`),
+ saveDataView:(id:string,data:{id:string;name:string;expected_revision:number;query:RecordQuery})=>request({url:`/api/v3/tables/${id}/views`,method:'post',data}).then((r:any)=>r.data as DataView),
+ deleteDataView:(id:string,revision:number)=>request({url:`/api/v3/views/${id}?expected_revision=${revision}`,method:'delete'}),
+ createDataExport:(id:string,data:ExportInput,key:string)=>request({url:`/api/v3/tables/${id}/exports`,method:'post',data,headers:{'Idempotency-Key':key}}).then((r:any)=>r.data as DataExport),
+ dataExports:(id:string,cursor='')=>get<{items:DataExport[];has_more:boolean;next_cursor:string}>(`/api/v3/tables/${id}/exports?limit=25&cursor=${encodeURIComponent(cursor)}`),
+ dataExport:(id:string)=>get<DataExport>(`/api/v3/exports/${id}`),
+ dataExportByKey:(key:string)=>request({url:'/api/v3/exports/by-key',method:'get',headers:{'Idempotency-Key':key}}).then((r:any)=>r.data as DataExport),
+ cancelDataExport:(id:string)=>request({url:`/api/v3/exports/${id}/cancel`,method:'post'}).then((r:any)=>r.data as DataExport),
+ downloadDataExport:(id:string)=>request({url:`/api/v3/exports/${id}/download`,method:'get',responseType:'blob'}).then((r:any)=>r as Blob),
  schedule:(id:string)=>get<CollectorSchedule|null>(`/api/v3/collectors/${id}/schedule`),
  saveSchedule:(id:string,data:ScheduleConfig)=>request({url:`/api/v3/collectors/${id}/schedule`,method:'put',data}).then((response:any)=>response.data as CollectorSchedule),
  scheduleEvents:(id:string)=>get<{items:DataRow[];limit:number}>(`/api/v3/collectors/${id}/schedule/events`),

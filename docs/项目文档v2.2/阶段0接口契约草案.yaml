@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
   title: scrapio v2.2 editor contract spike
-  version: 0.15.0-c02
-  description: A02～C02 开发契约：固定版本定时与方案级 API 触发、连续运行、跨轮去重和诊断检查点。触发入队不等于执行或提交成功；真实环境验收另行记录。
+  version: 0.16.0-c03
+  description: A02～C03 开发契约：固定版本采集、定时/API 触发、冻结数据查询与保存视图、幂等异步 CSV/JSON 导出。真实迁移、并发和页面验收另行记录。
 servers:
   - url: /api/v3
 security:
@@ -2539,7 +2539,7 @@ paths:
           $ref: '#/components/responses/Error'
   /tables/{table_id}/records:
     get:
-      summary: 新数据表记录，按首次观察时间/ID 稳定降序分页
+      summary: 冻结快照上的数据过滤/排序与稳定分页
       parameters:
         - name: table_id
           in: path
@@ -2559,18 +2559,19 @@ paths:
             minimum: 1
             maximum: 50
             default: 25
+        - in: query
+          name: query
+          schema:
+            type: string
+            maxLength: 8192
+          description: JSON 编码 RecordQuery；省略使用默认筛选/全部列。数值筛选以十进制字符串提交。
       responses:
         '200':
           description: 成功；返回当前用户的新 v2.2 数据域
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  data:
-                    $ref: '#/components/schemas/RecordDataPage'
-                  request_id:
-                    type: string
+                $ref: '#/components/schemas/QueryPageEnvelope'
         '400':
           $ref: '#/components/responses/Error'
         '401':
@@ -2579,9 +2580,16 @@ paths:
           $ref: '#/components/responses/Error'
         '408':
           $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '410':
+          $ref: '#/components/responses/Error'
         '500':
           $ref: '#/components/responses/Error'
       x-implementation-status: implemented
+      description: >-
+        第一页捕获一致可见数据与 Schema，最多 10000 条/16 MiB、30 分钟有效，每 owner 最多五个未引用快照（淘汰最旧）。cursor 为 q:snapshotUUID:offset；续页必须使用同 query。导出使用相同
+        snapshot_id/query，快照不是墙钟截止重建，数据更新不改变分页。410 时重新查询。
   /tables/{table_id}/statistics:
     get:
       summary: 记录数量、最近有效更新与来源方案
@@ -3171,6 +3179,336 @@ paths:
         '408':
           $ref: '#/components/responses/Error'
         '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      x-implementation-status: implemented
+  /tables/{table_id}/views:
+    parameters:
+      - in: path
+        name: table_id
+        required: true
+        schema:
+          type: string
+    get:
+      summary: 读取最多 30 个保存视图
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataViewsEnvelope'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '408':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '410':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      x-implementation-status: implemented
+    post:
+      summary: 新建或按 revision 保存视图，未知结果可同请求重试
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DataViewInput'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataViewEnvelope'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '408':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '410':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      x-implementation-status: implemented
+  /views/{view_id}:
+    parameters:
+      - in: path
+        name: view_id
+        required: true
+        schema:
+          type: string
+          format: uuid
+    patch:
+      summary: 按 revision 更新 owner 的视图
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DataViewUpdate'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataViewEnvelope'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '408':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '410':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      x-implementation-status: implemented
+    delete:
+      summary: 按 revision 删除视图，不删除记录
+      parameters:
+        - in: query
+          name: expected_revision
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataViewDeletedEnvelope'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '408':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '410':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      x-implementation-status: implemented
+  /tables/{table_id}/exports:
+    parameters:
+      - in: path
+        name: table_id
+        required: true
+        schema:
+          type: string
+    get:
+      summary: 读取导出历史，固定创建时间游标分页
+      parameters:
+        - in: query
+          name: cursor
+          schema:
+            type: string
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 25
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataExportsEnvelope'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '408':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '410':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      x-implementation-status: implemented
+    post:
+      summary: 基于已确认查询快照创建幂等异步 CSV/JSON 导出
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DataExportInput'
+      description: 原 snapshot_id+query 冻结值和顺序，后续采集不影响；同请求键返回原任务。每账户最多 3 活跃、20 有效、200 保留记录；文件 24 小时、元数据与请求键 7 天，最多 10000 行/16 MiB。
+      responses:
+        '202':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataExportEnvelope'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '408':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '410':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      x-implementation-status: implemented
+  /exports/by-key:
+    get:
+      summary: 按 Idempotency-Key 找原导出，未知结果只查询
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataExportEnvelope'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '408':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '410':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      x-implementation-status: implemented
+  /exports/{export_id}:
+    parameters:
+      - in: path
+        name: export_id
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      summary: 读取 owner 的导出状态
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataExportEnvelope'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '408':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '410':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      x-implementation-status: implemented
+  /exports/{export_id}/cancel:
+    parameters:
+      - in: path
+        name: export_id
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      summary: 取消 queued/running 并隔离旧 lease；不影响正式数据
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataExportEnvelope'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '408':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '410':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      x-implementation-status: implemented
+  /exports/{export_id}/download:
+    parameters:
+      - in: path
+        name: export_id
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      summary: 授权下载成功且未过期的文件；检查长度/hash，不返回公开 URL
+      responses:
+        '200':
+          description: 文件字节；Content-Disposition 附件，Cache-Control:no-store
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+            application/json:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '410':
           $ref: '#/components/responses/Error'
         '500':
           $ref: '#/components/responses/Error'
@@ -5231,6 +5569,12 @@ components:
           type: boolean
         supports_api_triggers:
           type: boolean
+        supports_data_queries:
+          type: boolean
+        supports_data_views:
+          type: boolean
+        supports_data_exports:
+          type: boolean
     DraftResponse:
       type: object
       required:
@@ -6730,6 +7074,353 @@ components:
               type: string
               enum:
                 - api
+          additionalProperties: false
+        request_id:
+          type: string
+      additionalProperties: false
+
+    RecordFilter:
+      type: object
+      required:
+        - field
+        - op
+      properties:
+        field:
+          type: string
+        op:
+          type: string
+          enum:
+            - eq
+            - ne
+            - contains
+            - gt
+            - gte
+            - lt
+            - lte
+            - empty
+            - not_empty
+        value:
+          oneOf:
+            - type: string
+            - type: boolean
+            - type: number
+          description: 数值字段推荐以十进制字符串提交，规范化响应也是字符串以避免 JS 舍入。empty/not_empty 不传 value。
+      additionalProperties: false
+    RecordQuery:
+      type: object
+      required:
+        - filters
+        - sort
+        - columns
+      properties:
+        filters:
+          type: array
+          maxItems: 8
+          items:
+            $ref: '#/components/schemas/RecordFilter'
+        sort:
+          type: object
+          required:
+            - field
+            - direction
+          properties:
+            field:
+              type: string
+              description: 动态 scalar field_key 或 @first_observed_at/@last_observed_at/@revision
+            direction:
+              type: string
+              enum:
+                - asc
+                - desc
+          additionalProperties: false
+        columns:
+          type: array
+          maxItems: 30
+          uniqueItems: true
+          items:
+            type: string
+      additionalProperties: false
+    QueryPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/DataRecord'
+        next_cursor:
+          type: string
+        has_more:
+          type: boolean
+        snapshot_id:
+          type: string
+          format: uuid
+        captured_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+        total:
+          type: integer
+        query:
+          $ref: '#/components/schemas/RecordQuery'
+        schema:
+          $ref: '#/components/schemas/LogicalTableSchema'
+        schema_version:
+          type: integer
+    QueryPageEnvelope:
+      type: object
+      required:
+        - data
+        - request_id
+      properties:
+        data:
+          $ref: '#/components/schemas/QueryPage'
+        request_id:
+          type: string
+      additionalProperties: false
+    DataView:
+      type: object
+      required:
+        - view_id
+        - table_id
+        - name
+        - revision
+        - query
+        - created_at
+        - updated_at
+      properties:
+        view_id:
+          type: string
+          format: uuid
+        table_id:
+          type: string
+        name:
+          type: string
+        revision:
+          type: integer
+        query:
+          $ref: '#/components/schemas/RecordQuery'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      additionalProperties: false
+    DataViewInput:
+      type: object
+      required:
+        - id
+        - name
+        - expected_revision
+        - query
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+        expected_revision:
+          type: integer
+          minimum: 0
+        query:
+          $ref: '#/components/schemas/RecordQuery'
+      additionalProperties: false
+    DataViewUpdate:
+      type: object
+      required:
+        - name
+        - expected_revision
+        - query
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+        expected_revision:
+          type: integer
+          minimum: 1
+        query:
+          $ref: '#/components/schemas/RecordQuery'
+      additionalProperties: false
+    DataViewEnvelope:
+      type: object
+      required:
+        - data
+        - request_id
+      properties:
+        data:
+          $ref: '#/components/schemas/DataView'
+        request_id:
+          type: string
+      additionalProperties: false
+    DataViewsEnvelope:
+      type: object
+      required:
+        - data
+        - request_id
+      properties:
+        data:
+          type: object
+          required:
+            - items
+            - limit
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/DataView'
+            limit:
+              type: integer
+              enum:
+                - 30
+          additionalProperties: false
+        request_id:
+          type: string
+      additionalProperties: false
+    DataViewDeletedEnvelope:
+      type: object
+      required:
+        - data
+        - request_id
+      properties:
+        data:
+          type: object
+          required:
+            - deleted
+          properties:
+            deleted:
+              type: boolean
+              enum:
+                - true
+          additionalProperties: false
+        request_id:
+          type: string
+      additionalProperties: false
+    DataExportInput:
+      type: object
+      required:
+        - format
+        - snapshot_id
+        - query
+        - confirmed
+      properties:
+        format:
+          type: string
+          enum:
+            - csv
+            - json
+        snapshot_id:
+          type: string
+          format: uuid
+        query:
+          $ref: '#/components/schemas/RecordQuery'
+        confirmed:
+          type: boolean
+          enum:
+            - true
+      additionalProperties: false
+    DataExport:
+      type: object
+      required:
+        - export_id
+        - table_id
+        - format
+        - status
+        - progress
+        - row_count
+        - query
+        - schema
+        - captured_at
+        - created_at
+        - finished_at
+        - expires_at
+        - file_bytes
+        - file_hash
+        - error_code
+      properties:
+        export_id:
+          type: string
+          format: uuid
+        table_id:
+          type: string
+        format:
+          type: string
+          enum:
+            - csv
+            - json
+        status:
+          type: string
+          enum:
+            - queued
+            - running
+            - succeeded
+            - failed
+            - cancelled
+            - expired
+        progress:
+          type: integer
+        row_count:
+          type: integer
+        query:
+          $ref: '#/components/schemas/RecordQuery'
+        schema:
+          $ref: '#/components/schemas/LogicalTableSchema'
+        captured_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+        finished_at:
+          type: string
+          format: date-time
+          nullable: true
+        expires_at:
+          type: string
+          format: date-time
+        file_bytes:
+          type: integer
+        file_hash:
+          type: string
+        error_code:
+          type: string
+      additionalProperties: false
+    DataExportEnvelope:
+      type: object
+      required:
+        - data
+        - request_id
+      properties:
+        data:
+          $ref: '#/components/schemas/DataExport'
+        request_id:
+          type: string
+      additionalProperties: false
+    DataExportsEnvelope:
+      type: object
+      required:
+        - data
+        - request_id
+      properties:
+        data:
+          type: object
+          required:
+            - items
+            - has_more
+            - next_cursor
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/DataExport'
+            has_more:
+              type: boolean
+            next_cursor:
+              type: string
           additionalProperties: false
         request_id:
           type: string

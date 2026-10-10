@@ -8,7 +8,9 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/nekoimi/scrapio/internal/dataquery"
 	"github.com/nekoimi/scrapio/internal/repo/v22_data_repo"
+	"github.com/nekoimi/scrapio/internal/repo/v22_query_repo"
 )
 
 func dataRead(w http.ResponseWriter, r *http.Request, fn func(context.Context, int64) (any, error)) {
@@ -22,8 +24,10 @@ func dataRead(w http.ResponseWriter, r *http.Request, fn func(context.Context, i
 	value, err := fn(ctx, admin.Id)
 	if err != nil {
 		switch {
+		case errors.Is(err, v22_query_repo.ErrCapacity), errors.Is(err, v22_query_repo.ErrConflict), errors.Is(err, v22_query_repo.ErrExpired):
+			dataWorkError(w, r, err)
 		case errors.Is(err, v22_data_repo.ErrInvalid):
-			fail(w, r, 400, "INVALID_ARGUMENT", "读取参数或游标无效", false, "data", "")
+			fail(w, r, 400, "INVALID_ARGUMENT", err.Error(), false, "data", "")
 		case errors.Is(err, v22_data_repo.ErrNotFound):
 			fail(w, r, 404, "NOT_FOUND", "数据、来源或分页锚点不存在", false, "data", "")
 		case errors.Is(err, context.DeadlineExceeded):
@@ -56,7 +60,11 @@ func TableRecords(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return nil, err
 		}
-		return v22_data_repo.Records(ctx, owner, id, r.URL.Query().Get("cursor"), limit)
+		q, err := dataquery.Decode(r.URL.Query().Get("query"))
+		if err != nil {
+			return nil, errors.Join(v22_data_repo.ErrInvalid, err)
+		}
+		return v22_query_repo.Records(ctx, owner, id, q, r.URL.Query().Get("cursor"), limit)
 	})
 }
 func TableStatistics(w http.ResponseWriter, r *http.Request) {

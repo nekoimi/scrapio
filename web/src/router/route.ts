@@ -1369,6 +1369,7 @@ export const staticRoutes: Array<RouteRecordRaw> = [
 			{ path: 'collectors/:id', name: 'v22CollectorDetail', component: () => import('/@/views/app/collector-detail.vue'), meta: { title: '采集方案' } },
 			{ path: 'data', name: 'v22Data', component: () => import('/@/views/app/data.vue'), meta: { title: '数据' } },
 			{ path: 'runs', name: 'v22Runs', component: () => import('/@/views/app/runs.vue'), meta: { title: '运行' } },
+			{ path:'data/:id/exports',name:'v22Exports',component:()=>import('/@/views/app/exports.vue'),meta:{title:'导出任务'} },
 			{ path: 'data/:id', name: 'v22Table', component: () => import('/@/views/app/data.vue'), meta: { title: '数据表' } },
 			{ path: 'records/:recordID', name: 'v22Record', component: () => import('/@/views/app/data.vue'), meta: { title: '记录详情' } },
 			{ path: 'runs/:id', name: 'v22Run', component: () => import('/@/views/app/run-detail.vue'), meta: { title: '运行详情' } },
