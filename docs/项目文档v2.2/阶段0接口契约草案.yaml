@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
   title: scrapio v2.2 editor contract spike
-  version: 0.18.0-c05
-  description: A02～C05 开发契约：固定版本采集、定时/API、冻结查询和导出、完整运行中心、日常首页与方案健康。真实迁移、并发和页面验收另行记录。
+  version: 0.19.0-d01
+  description: A02～D01 开发契约：固定版本采集、定时/API、冻结查询和导出、完整运行中心、日常首页与方案健康、失败输入修复草稿。真实迁移、并发和页面验收另行记录。
 servers:
   - url: /api/v3
 security:
@@ -146,6 +146,168 @@ paths:
           $ref: '#/components/responses/Error'
     parameters:
       - $ref: '#/components/parameters/CollectorId'
+  /runs/{run_id}/repair-context:
+    parameters:
+      - name: run_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      summary: 读取正式失败运行修复上下文
+      description: 仅failed/partial与当前owner；不修改草稿或访问网站，字段诊断只返回键；原文校验后明确状态。
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: RepairContext
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - request_id
+                properties:
+                  data:
+                    $ref: '#/components/schemas/RepairContext'
+                  request_id:
+                    type: string
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '408':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      parameters:
+        - name: document_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: 由页面树显式选择，必须属于该运行。
+  /collectors/{collector_id}/repair-drafts:
+    parameters:
+      - $ref: '#/components/parameters/CollectorId'
+    post:
+      summary: 关联失败输入到现有草稿或另建原版本草稿
+      description: >-
+        continue不修改现有定义；fork复制原运行冻结定义/入口并移除原output确认，revision=1，不复制调度/发布/样例。上下文+离线副本+新草稿同事务；expected_revision冲突不覆盖。同owner最多100个，同key同输入复用、异输入409。认证后存储5秒，超时/异常先查by-key。
+      x-implementation-status: implemented
+      responses:
+        '201':
+          description: RepairContext
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - request_id
+                properties:
+                  data:
+                    $ref: '#/components/schemas/RepairContext'
+                  request_id:
+                    type: string
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '408':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RepairDraftInput'
+  /repair-drafts/by-key:
+    get:
+      summary: 查询原修复请求，不再次创建
+      description: 按owner/key恢复已提交结果。未知/未提交404，查询不会创建。
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: RepairContext
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - request_id
+                properties:
+                  data:
+                    $ref: '#/components/schemas/RepairContext'
+                  request_id:
+                    type: string
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '408':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+  /repair-drafts/{repair_id}:
+    parameters:
+      - name: repair_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      summary: 读取持久修复来源与输入
+      description: owner授权。离线副本独立于原文保留；副本缺失/损坏更新状态，不改用其他文档或访问网站。草稿后续修改用当前revision重新预览。
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: RepairContext
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - request_id
+                properties:
+                  data:
+                    $ref: '#/components/schemas/RepairContext'
+                  request_id:
+                    type: string
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '408':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
   /capabilities:
     get:
       summary: 可用编辑与运行能力
@@ -4264,6 +4426,9 @@ components:
         loop_stop:
           type: string
           description: 真实重复页或空页停止标记
+        error_code:
+          type: string
+          description: 已取得输入但提取失败的诊断码；该文档不代表成功提取，不可提交候选。
     RunResults:
       type: object
       properties:
@@ -4851,6 +5016,9 @@ components:
         loop_stop:
           type: string
           description: 真实重复页或空页停止标记
+        error_code:
+          type: string
+          description: 已取得输入但提取失败的诊断码；该文档不代表成功提取，不可提交候选。
     TrialList:
       type: object
       properties:
@@ -6179,6 +6347,130 @@ components:
           enum:
             - 6
       description: 同一 PostgreSQL REPEATABLE READ 只读快照；window_start=as_of-24h。活动为此完成时间窗口内 succeeded/limited 且 committed 的写入决策累计，非唯一记录净增/趋势。分区最多6项，总数独立统计。
+    RepairContext:
+      type: object
+      required:
+        - repair_id
+        - source_collector_id
+        - target_collector_id
+        - run_id
+        - version_id
+        - version_number
+        - current_published_version_id
+        - current_published_version_number
+        - target_revision
+        - pending_draft
+        - archived
+        - mode
+        - step_id
+        - stage
+        - reason
+        - failed_step_id
+        - failed_stage
+        - document_id
+        - capture_id
+        - evidence_status
+        - format
+        - field_keys
+        - step_compatible
+      properties:
+        repair_id:
+          type: string
+          description: 准备阶段为空，创建后为持久上下文UUID。
+        source_collector_id:
+          type: string
+        target_collector_id:
+          type: string
+          description: 准备阶段为空。
+        run_id:
+          type: string
+          format: uuid
+        version_id:
+          type: string
+          format: uuid
+        version_number:
+          type: integer
+        current_published_version_id:
+          type: string
+          nullable: true
+          description: 准备/创建时来源方案当前发布指针，可能不同于原版本。
+        current_published_version_number:
+          type: integer
+          minimum: 0
+          description: 来源方案准备时当前发布版本号，尚未发布为0。
+        target_revision:
+          type: integer
+          minimum: 1
+        pending_draft:
+          type: boolean
+        archived:
+          type: boolean
+        mode:
+          type: string
+          description: 准备为空，创建后continue/fork。
+        step_id:
+          type: string
+          description: 带入输入的步骤，可与实际失败步骤不同。
+        stage:
+          type: string
+        reason:
+          type: string
+        failed_step_id:
+          type: string
+        failed_stage:
+          type: string
+        document_id:
+          type: string
+        capture_id:
+          type: string
+          description: 仅成功复制的离线输入有ID，缺失不请求网站。
+        evidence_status:
+          type: string
+          enum:
+            - available
+            - missing
+            - corrupt
+            - too_large
+            - unsupported
+        format:
+          type: string
+        field_keys:
+          type: array
+          maxItems: 64
+          items:
+            type: string
+        step_compatible:
+          type: boolean
+          description: 准备/创建时步骤/格式/角色匹配，不代表回归通过。
+      additionalProperties: false
+    RepairDraftInput:
+      type: object
+      required:
+        - run_id
+        - document_id
+        - mode
+        - expected_revision
+        - confirmed
+      properties:
+        run_id:
+          type: string
+          format: uuid
+        document_id:
+          type: string
+          description: 空则自动选同attempt/失败步骤/角色文档；页面树可显式选择本运行文档。
+        mode:
+          type: string
+          enum:
+            - continue
+            - fork
+        expected_revision:
+          type: integer
+          minimum: 1
+        confirmed:
+          type: boolean
+          enum:
+            - true
+      additionalProperties: false
     CapabilitiesResponse:
       type: object
       properties:
@@ -6266,6 +6558,8 @@ components:
         supports_home_overview:
           type: boolean
         supports_collector_health:
+          type: boolean
+        supports_repair_drafts:
           type: boolean
     DraftResponse:
       type: object

@@ -35,6 +35,11 @@
 				<p class="muted">停止不能撤销已发生的网站动作。执行中可手动刷新，完成后结果持久保留。</p>
 			</section>
 			<RunCompletion :run="run" />
+			<RunRepair
+				v-if="['failed', 'partial'].includes(run.status)"
+				:run="run"
+				:document-id="typeof route.query.repair_document === 'string' ? route.query.repair_document : ''"
+			/>
 			<RunDiagnostics :key="`diagnostics:${run.run_id}:${run.event_seq}`" :run="run" />
 			<RunRetry :run="run" />
 			<RunCheckpoints :run-id="run.run_id" :event-seq="run.event_seq" />
@@ -70,6 +75,7 @@ import { ref, watch, onBeforeUnmount } from 'vue';
 import { useRoute } from 'vue-router';
 import { appApi, type FormalRun, type PublishedVersion, type DataRow } from './api';
 import RunCompletion from './run-completion.vue';
+import RunRepair from './run-repair.vue';
 import RunInspector from './run-inspector.vue';
 import RunDiagnostics from './run-diagnostics.vue';
 import RunRetry from './run-retry.vue';

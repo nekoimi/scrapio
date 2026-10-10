@@ -125,7 +125,7 @@ function useSample(value: SavedSample) {
 	stage.value = value.stage;
 	emit('capture-selected', value.capture);
 }
-defineExpose({ hasUnsavedChanges: () => !!samplePanel.value?.hasUnsavedChanges() || !!outputPanel.value?.hasUnsavedChanges() });
+defineExpose({ selectInput, hasUnsavedChanges: () => !!samplePanel.value?.hasUnsavedChanges() || !!outputPanel.value?.hasUnsavedChanges() });
 const props = defineProps<{ draft: Collector; session?: BrowserSession; capture?: InputCapture; blocked: boolean }>();
 const emit = defineEmits<{
 	(event: 'draft-saved', draft: Collector): void;
@@ -280,6 +280,12 @@ function clearPending() {
 	pendingKey.value = '';
 	sessionStorage.removeItem(storageKey());
 }
+function selectInput(step: string, role: string) {
+	if (props.blocked || !steps.value.some((s: any) => s.step_id === step) || (role !== 'list' && role !== 'detail')) return;
+	stepID.value = step;
+	stage.value = role;
+}
+
 function focus(field: ExtractedField) {
 	if (stale.value) return;
 	emit('focus-field', preview.value!.result.step_id, field.field_key, preview.value!.result.stage);

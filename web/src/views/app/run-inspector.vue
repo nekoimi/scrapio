@@ -27,6 +27,7 @@
 				<p v-if="inspectError" class="app-error">{{ inspectError }} <button @click="inspect(selected)">重新读取</button></p>
 				<template v-if="detail">
 					<h3>{{ document.stage }} · {{ document.step_id }}</h3>
+					<p v-if="document.error_code" class="status-error">提取失败：{{ document.error_code }}</p>
 					<p class="source-url">{{ document.source_url }}</p>
 					<p>
 						有效 {{ document.extraction?.valid_count || 0 }} · 无效 {{ document.extraction?.invalid_count || 0 }} · 匹配
@@ -47,6 +48,7 @@
 					</article>
 					<p v-if="!records.length">当前条件没有记录。</p>
 					<router-link :to="`/app/pages/${detail.page_id}`">打开页面证据和原始文档</router-link>
+					<router-link :to="`/app/runs/${runId}?repair_document=${detail.page_id}#repair`">带此页面修复方案</router-link>
 					<p class="muted">此面板只读已保存提取证据，原值和最终值保持序列化 JSON；不重新访问网站、不执行页面脚本。</p>
 				</template>
 				<p v-else-if="!inspectBusy">选择左侧页面，检查字段、定位和转换结果。</p>

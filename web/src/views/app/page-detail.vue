@@ -9,7 +9,8 @@
 				<div class="editor-actions">
 					<router-link :to="`/app/runs/${page.run_id}`">返回来源运行</router-link
 					><router-link :to="`/app/runs/${page.run_id}?version=1`">发布 v{{ page.version_number }}</router-link
-					><router-link v-if="page.parent_page_id" :to="`/app/pages/${page.parent_page_id}`">父列表页面</router-link>
+					><router-link :to="`/app/runs/${page.run_id}?repair_document=${page.page_id}#repair`">带此页面到运行修复入口</router-link>
+					<router-link v-if="page.parent_page_id" :to="`/app/pages/${page.parent_page_id}`">父列表页面</router-link>
 				</div>
 				<p class="source-url">{{ result.source_url }}</p>
 				<p>
@@ -19,6 +20,7 @@
 				<p class="muted">来源网址仅作为证据展示，此页不会重新访问目标网站。当前保存的是 HTML/JSON 文档，不包含截图。</p>
 			</section>
 			<h2>字段提取诊断</h2>
+			<p v-if="result.error_code" class="status-error">提取失败：{{ result.error_code }}；原始输入保留供离线修复，不代表成功提取。</p>
 			<article v-for="r in result.extraction?.records || []" :key="r.index" class="trace-item">
 				<strong>来源记录 {{ r.index + 1 }} · {{ r.valid ? '有效' : '无效' }}</strong>
 				<div v-for="f in r.fields" :key="f.field_key">

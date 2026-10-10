@@ -13,6 +13,7 @@ import (
 )
 
 type Document struct {
+	ErrorCode     string            `json:"error_code,omitempty"`
 	ID            string            `json:"document_id"`
 	StepID        string            `json:"step_id"`
 	Stage         string            `json:"stage"`
@@ -232,6 +233,24 @@ func (r Runner) Run(ctx context.Context) (summary Summary) {
 		}
 		result, err := extraction.Extract(ctx, extraction.Input{Content: fixed.Content, Format: fixed.Format, URL: fixed.URL, BaseURL: fixed.BaseURL, Stage: stage}, p)
 		if err != nil {
+			// Preserve an intact bounded input even when extraction itself fails.
+			// The existing emit adapter still checks cancellation/lease fencing;
+			// this never turns failure evidence into eligible output candidates.
+			if ctx.Err() == nil && len(fixed.Content) > 0 && len(fixed.Content) <= capture.MaxBytes {
+				doc := &Document{ErrorCode: errorCode(err), StepID: step.ID, Stage: stage, ParentIndex: parent, ListPage: page, CaptureID: fixed.CaptureID, URL: fixed.URL, BaseURL: fixed.BaseURL, Format: fixed.Format, Content: fixed.Content, ContentHash: fixed.Hash, Result: result}
+				raw, _ := json.Marshal(doc)
+				if size+len(raw)+len(fixed.Content) <= 8*capture.MaxBytes {
+					if saveErr := emit("failed", doc.ErrorCode, doc); saveErr != nil {
+						return fixed, saveErr
+					}
+					summary.Pages++
+					if stage == "list" {
+						summary.ListPages++
+					} else {
+						summary.Details++
+					}
+				}
+			}
 			return fixed, err
 		}
 		doc := &Document{StepID: step.ID, Stage: stage, ParentIndex: parent, ListPage: page, CaptureID: fixed.CaptureID, URL: fixed.URL, BaseURL: fixed.BaseURL, Format: fixed.Format, Content: fixed.Content, ContentHash: fixed.Hash, Result: result}

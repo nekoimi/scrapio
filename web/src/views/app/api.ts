@@ -1,6 +1,7 @@
 import request from '/@/utils/request';
 import { Session } from '/@/utils/storage';
 
+export interface RepairContext {repair_id:string;source_collector_id:string;target_collector_id:string;run_id:string;version_id:string;version_number:number;current_published_version_id:string|null;current_published_version_number:number;target_revision:number;pending_draft:boolean;archived:boolean;mode:string;step_id:string;stage:string;reason:string;failed_step_id:string;failed_stage:string;document_id:string;capture_id:string;evidence_status:'available'|'missing'|'corrupt'|'too_large'|'unsupported';format:string;field_keys:string[];step_compatible:boolean}
 export interface Identity { id: string; username: string }
 export interface Capabilities {
  supports_publication?:boolean;
@@ -12,6 +13,7 @@ export interface Capabilities {
  supports_run_center?:boolean;
  supports_home_overview?:boolean;
  supports_collector_health?:boolean;
+ supports_repair_drafts?:boolean;
  supports_run_retries?:boolean;
  run_retry_scopes?:string[];
  supports_version_runs?:boolean;
@@ -254,6 +256,10 @@ export const appApi = {
   checkSample:(id:string,revision:number,sampleRevision:number,key:string)=>request({url:`/api/v3/samples/${id}/checks`,method:'post',data:{expected_revision:revision,sample_revision:sampleRevision},headers:{'Idempotency-Key':key}}).then((response:any)=>response.data as SampleCheck),
   sampleScreenshot:(url:string)=>request({url,method:'get',responseType:'blob'}).then((response:any)=>response as Blob),
   previewSample:(id:string,sampleID:string,revision:number)=>request({url:`/api/v3/collectors/${id}/previews`,method:'post',data:{sample_id:sampleID,expected_revision:revision}}).then((response:any)=>response.data as ExtractionPreview),
+  prepareRepair:(runID:string,documentID='')=>request({url:`/api/v3/runs/${encodeURIComponent(runID)}/repair-context?document_id=${encodeURIComponent(documentID)}`,method:'get',timeout:8000}).then((r:any)=>r.data as RepairContext),
+  createRepair:(collectorID:string,input:{run_id:string;document_id:string;mode:'continue'|'fork';expected_revision:number;confirmed:boolean},key:string)=>request({url:`/api/v3/collectors/${collectorID}/repair-drafts`,method:'post',data:input,headers:{'Idempotency-Key':key},timeout:8000}).then((r:any)=>r.data as RepairContext),
+  repair:(id:string)=>request({url:`/api/v3/repair-drafts/${encodeURIComponent(id)}`,method:'get',timeout:8000}).then((r:any)=>r.data as RepairContext),
+  repairByKey:(key:string)=>request({url:'/api/v3/repair-drafts/by-key',method:'get',headers:{'Idempotency-Key':key},timeout:8000}).then((r:any)=>r.data as RepairContext),
   me: () => get<Identity>('/api/v3/me'),
   capabilities: () => get<Capabilities>('/api/v3/capabilities'),
   home: () => request({url:'/api/v3/home',method:'get',timeout:8000}).then((r:any)=>r.data as HomeState),
