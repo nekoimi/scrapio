@@ -47,26 +47,29 @@ func publicationCapabilities(ctx context.Context, ownerID, collectorID int64, br
 	if !has {
 		return publication.Capabilities{}, v22_version_repo.ErrNotFound
 	}
-	c := publication.Capabilities{DefinitionHash: publication.DefinitionHash(row.Definition), Contract: publication.ContractVersion, Interpreter: extraction.InterpreterVersion, Actions: []string{}}
-	if row.EntryType == "json" {
+	return definitionCapabilities(ctx, ownerID, row.EntryType, row.EntryURL, row.Definition, browser, cfg), nil
+}
+func definitionCapabilities(ctx context.Context, ownerID int64, entryType, entryURL, definition string, browser *drission_rod.DrissionRod, cfg *config.Config) publication.Capabilities {
+	c := publication.Capabilities{DefinitionHash: publication.DefinitionHash(definition), Contract: publication.ContractVersion, Interpreter: extraction.InterpreterVersion, Actions: []string{}}
+	if entryType == "json" {
 		c.HTTP = true
 		var root map[string]json.RawMessage
-		if json.Unmarshal([]byte(row.Definition), &root) == nil {
+		if json.Unmarshal([]byte(definition), &root) == nil {
 			request, err := capture.DecodeRequest(root["http_request"])
 			if err == nil {
 				var httpCfg *config.HTTPEntryConfig
 				if cfg != nil {
 					httpCfg = cfg.HTTPEntry
 				}
-				_, _, _, err = capture.Credential(httpCfg, ownerID, row.EntryURL, request.CredentialRef)
+				_, _, _, err = capture.Credential(httpCfg, ownerID, entryURL, request.CredentialRef)
 				c.CredentialReady = err == nil
 			}
 		}
-		return c, nil
+		return c
 	}
 	c.BrowserProtocol = drission_rod.EditorProtocolVersion
 	if browser == nil {
-		return c, nil
+		return c
 	}
 	probe, cancel := context.WithTimeout(ctx, 4*time.Second)
 	defer cancel()
@@ -78,7 +81,7 @@ func publicationCapabilities(ctx context.Context, ownerID, collectorID int64, br
 	if c.Commands {
 		c.Actions = append([]string{}, editor.Actions...)
 	}
-	return c, nil
+	return c
 }
 func publishCheckDTO(row *table.V22PublishCheck) map[string]any {
 	return map[string]any{
@@ -88,7 +91,7 @@ func publishCheckDTO(row *table.V22PublishCheck) map[string]any {
 	}
 }
 func versionDTO(row *table.V22Version, detail bool) map[string]any {
-	value := map[string]any{"version_id": row.Id, "collector_id": strconv.FormatInt(row.CollectorId, 10), "number": row.Number, "collector_revision": row.CollectorRevision, "name": row.Name, "entry_type": row.EntryType, "definition_hash": row.DefinitionHash, "check_id": row.CheckId, "trial_id": row.TrialId, "contract_version": row.ContractVersion, "interpreter_version": row.InterpreterVersion, "capability_hash": row.CapabilityHash, "manifest_hash": row.ManifestHash, "note": row.Note, "published_by": strconv.FormatInt(row.PublishedBy, 10), "created_at": row.CreatedAt, "run_available": false, "run_unavailable_reason": "正式运行执行器在 B06 接入；当前版本已冻结，可作为运行输入"}
+	value := map[string]any{"version_id": row.Id, "collector_id": strconv.FormatInt(row.CollectorId, 10), "number": row.Number, "collector_revision": row.CollectorRevision, "name": row.Name, "entry_type": row.EntryType, "definition_hash": row.DefinitionHash, "check_id": row.CheckId, "trial_id": row.TrialId, "contract_version": row.ContractVersion, "interpreter_version": row.InterpreterVersion, "capability_hash": row.CapabilityHash, "manifest_hash": row.ManifestHash, "note": row.Note, "published_by": strconv.FormatInt(row.PublishedBy, 10), "created_at": row.CreatedAt, "run_available": true, "run_unavailable_reason": ""}
 	if detail {
 		value["definition"] = json.RawMessage(row.Definition)
 		value["output_schema"] = json.RawMessage(row.OutputSchema)

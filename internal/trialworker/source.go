@@ -25,6 +25,12 @@ type source struct {
 	document trial.FixedDocument
 }
 
+// NewSource shares browser/HTTP acquisition and scope enforcement between
+// trials and formal runs. The supplied session ID is journaled before use.
+func NewSource(browser *drission_rod.DrissionRod, cfg *config.Config, ownerID int64, plan trial.Plan, input trial.Input, sessionID string) trial.Source {
+	return &source{browser: browser, cfg: cfg, ownerID: ownerID, plan: plan, input: input, id: sessionID}
+}
+
 func (s *source) Start(ctx context.Context) error {
 	if !trial.Allowed(s.plan.URL, s.input.Origins) {
 		return errors.New("ORIGIN_OUT_OF_SCOPE")

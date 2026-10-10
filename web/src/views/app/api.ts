@@ -109,6 +109,17 @@ async function streamTrial(id:string,after:number,signal:AbortSignal,onEvent:(ev
  try{while(!signal.aborted){const {value,done}=await reader.read();if(done)return;buffer+=decoder.decode(value,{stream:true}).replace(/\r\n/g,'\n');let boundary=buffer.indexOf('\n\n');while(boundary>=0){const lines=buffer.slice(0,boundary).split('\n');buffer=buffer.slice(boundary+2);const idLine=lines.find(line=>line.startsWith('id:'));const data=lines.filter(line=>line.startsWith('data:')).map(line=>line.slice(5).trim()).join('\n');if(idLine&&data)onEvent({sequence:Number(idLine.slice(3)),payload:JSON.parse(data)});boundary=buffer.indexOf('\n\n')}}}finally{await reader.cancel().catch(()=>undefined);reader.releaseLock()}
 }
 
+export interface RunInput {version_id:string;confirmed:boolean;allowed_origins:string[];budget:TrialInput['budget']}
+export interface RunWrite {document_id:string;record_index:number;source_url:string;stage:string;record_id:string;observation_id:string;decision:'created'|'updated'|'unchanged';record_revision:number;changed_fields:string[];values_json:string}
+export interface FormalRun {run_id:string;collector_id:string;version_id:string;version_number:number;collector_revision:number;definition_hash:string;status:string;attempt:number;cancel_requested:boolean;current_step_id:string;current_stage:string;event_seq:number;input:RunInput;summary:Trial['summary']&{committed?:boolean;counts?:Record<string,number>;writes?:RunWrite[]};trigger_source:'manual';created_at:string;started_at?:string;finished_at?:string;dry_run:false;contract_version:string}
+async function streamRun(id:string,after:number,signal:AbortSignal,onEvent:(event:TrialEvent)=>void):Promise<void>{
+ const base=(import.meta.env.VITE_API_URL||'').replace(/\/+$/,'');
+ const response=await fetch(`${base}/api/v3/runs/${id}/events?after=${after}`,{headers:{Authorization:Session.get('token')||'',Accept:'text/event-stream'},credentials:'same-origin',signal});
+ if(!response.ok||!response.body||!response.headers.get('Content-Type')?.includes('text/event-stream'))throw Object.assign(new Error('正式运行事件流不可用'),{terminal:[401,403,404].includes(response.status)});
+ const reader=response.body.getReader(),decoder=new TextDecoder();let buffer='';
+ try{while(!signal.aborted){const {value,done}=await reader.read();if(done)return;buffer+=decoder.decode(value,{stream:true}).replace(/\r\n/g,'\n');let boundary=buffer.indexOf('\n\n');while(boundary>=0){const lines=buffer.slice(0,boundary).split('\n');buffer=buffer.slice(boundary+2);const idLine=lines.find(line=>line.startsWith('id:'));const data=lines.filter(line=>line.startsWith('data:')).map(line=>line.slice(5).trim()).join('\n');if(idLine&&data)onEvent({sequence:Number(idLine.slice(3)),payload:JSON.parse(data)});boundary=buffer.indexOf('\n\n')}}}finally{await reader.cancel().catch(()=>undefined);reader.releaseLock()}
+}
+
 async function streamBrowserSession(id: string, signal: AbortSignal, onSession: (session: BrowserSession) => void): Promise<void> {
   const baseURL = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
   const response = await fetch(`${baseURL}/api/v3/browser-sessions/${id}/events`, {
@@ -148,6 +159,13 @@ async function streamBrowserSession(id: string, signal: AbortSignal, onSession: 
 }
 
 export const appApi = {
+  streamRun,
+  createRun:(id:string,input:RunInput,key:string)=>request({url:`/api/v3/collectors/${id}/runs`,method:'post',data:input,headers:{'Idempotency-Key':key}}).then((response:any)=>response.data as FormalRun),
+  runs:(collectorID:string,cursor='')=>get<{items:FormalRun[];has_more:boolean;next_cursor:string}>(`/api/v3/runs?collector_id=${encodeURIComponent(collectorID)}&limit=25${cursor?`&cursor=${encodeURIComponent(cursor)}`:''}`),
+  run:(id:string)=>get<FormalRun>(`/api/v3/runs/${id}`),
+  runByKey:(key:string)=>request({url:'/api/v3/runs/by-key',method:'get',headers:{'Idempotency-Key':key}}).then((response:any)=>response.data as FormalRun),
+  cancelRun:(id:string)=>request({url:`/api/v3/runs/${id}/cancel`,method:'post'}).then((response:any)=>response.data as FormalRun),
+  runResults:(id:string,cursor='')=>get<{items:TrialDocument[];has_more:boolean;next_cursor:string;summary:FormalRun['summary'];status:string}>(`/api/v3/runs/${id}/results?limit=5${cursor?`&cursor=${encodeURIComponent(cursor)}`:''}`),
   createPublishCheck:(id:string,input:{expected_revision:number;trial_id:string;accept_limited:boolean},key:string)=>request({url:`/api/v3/collectors/${id}/publish-checks`,method:'post',data:input,headers:{'Idempotency-Key':key}}).then((response:any)=>response.data as PublishCheck),
   publishCheck:(id:string,checkID:string)=>get<PublishCheck>(`/api/v3/collectors/${id}/publish-checks/${checkID}`),
   publishCheckByKey:(id:string,key:string)=>request({url:`/api/v3/collectors/${id}/publish-checks/by-key`,method:'get',headers:{'Idempotency-Key':key}}).then((response:any)=>response.data as PublishCheck),

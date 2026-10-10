@@ -113,14 +113,16 @@
 					{{ item.comparison.assertion_count }} 断言
 				</li>
 			</ul>
-			<button disabled>首次正式运行 · 等待 B06</button>
-			<p class="muted">{{ selectedVersion.run_unavailable_reason }}；发布不会创建空跑或伪造运行成功。</p>
+			<RunPanel v-if="selectedVersion.run_available" ref="runPanel" :version="selectedVersion" />
+			<p v-else class="muted">{{ selectedVersion.run_unavailable_reason }}</p>
 		</section>
 	</section>
 </template>
 <script setup lang="ts">
 import { computed, onMounted, onBeforeUnmount, ref } from 'vue';
 import { appApi, type Collector, type Trial, type PublishCheck, type PublishedVersion, type PublishIssue } from './api';
+import RunPanel from './run-panel.vue';
+const runPanel = ref<InstanceType<typeof RunPanel>>();
 const props = defineProps<{ draft: Collector; blocked: boolean }>();
 const emit = defineEmits<{
 	(event: 'focus-field', step: string, key: string, stage: string): void;
@@ -251,7 +253,7 @@ async function applyPublished(value: PublishedVersion) {
 	selectedVersion.value = value;
 	evidence.value = undefined;
 	emit('published', value);
-	message.value = `已发布 v${value.number}；正式运行将在 B06 接入。`;
+	message.value = `已发布 v${value.number}；可在摘要中确认范围后创建正式运行。`;
 	try {
 		await loadVersions(false);
 	} catch (cause) {
@@ -331,5 +333,5 @@ onBeforeUnmount(() => {
 	viewEpoch++;
 	if (timer) clearInterval(timer);
 });
-defineExpose({ hasUnsavedChanges: () => busy.value || !!pendingCheck.value || !!pendingPublish.value });
+defineExpose({ hasUnsavedChanges: () => busy.value || !!pendingCheck.value || !!pendingPublish.value || !!runPanel.value?.hasUnsavedChanges() });
 </script>

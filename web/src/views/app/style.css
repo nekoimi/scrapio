@@ -170,3 +170,5 @@
 .publication-panel pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:360px;overflow:auto}
 .publication-panel li{margin:8px 0}
 .publication-panel textarea{min-width:240px}
+.run-budget{border:0;padding:0;min-width:0}
+.run-panel pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:360px;overflow:auto}

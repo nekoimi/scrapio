@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
   title: scrapio v2.2 editor contract spike
-  version: 0.11.0-b05
-  description: A02～B05 开发契约：草稿、会话、动作、点选、快照、提取、样例、逻辑表、输出确认、有界试采与不可变发布版本。发版实环境验收另行记录；正式运行/数据写入接 B06。
+  version: 0.12.0-b06
+  description: A02～B06 开发契约：新草稿编辑/试采/发布及固定版本有界正式运行、租约恢复与记录原子提交。真实环境验收另行记录；基础数据列表及追溯接 B07，连续分页接 C01。
 servers:
   - url: /api/v3
 security:
@@ -2246,6 +2246,297 @@ paths:
           $ref: '#/components/responses/Error'
         '500':
           $ref: '#/components/responses/Error'
+  /collectors/{collector_id}/runs:
+    parameters:
+      - $ref: '#/components/parameters/CollectorId'
+    post:
+      summary: 确认固定发布版本/范围预算，持久排队；不使用最新草稿
+      x-implementation-status: implemented
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RunInput'
+      responses:
+        '202':
+          description: FormalRun
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/FormalRun'
+                  request_id:
+                    type: string
+                required:
+                  - data
+                  - request_id
+          headers:
+            Location:
+              schema:
+                type: string
+              description: 运行状态地址
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '408':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      description: 触发来源固定manual；同键同输入只创建一条任务。发布时confirmed不可复用。协议探测最多4秒，创建事务另5秒。
+  /runs:
+    get:
+      summary: 当前owner新域运行稳定分页；summary省略output/writes
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: RunPage
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/RunPage'
+                  request_id:
+                    type: string
+                required:
+                  - data
+                  - request_id
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '408':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      parameters:
+        - name: collector_id
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 25
+        - name: cursor
+          in: query
+          schema:
+            type: string
+            format: uuid
+            description: 上一页末run_id
+  /runs/by-key:
+    parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+    get:
+      summary: 恢复原创建请求，不重发网站动作
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: FormalRun
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/FormalRun'
+                  request_id:
+                    type: string
+                required:
+                  - data
+                  - request_id
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '408':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+  /runs/{run_id}:
+    parameters:
+      - name: run_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      summary: 固定版本/attempt/状态与完整提交摘要
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: FormalRun
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/FormalRun'
+                  request_id:
+                    type: string
+                required:
+                  - data
+                  - request_id
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '408':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+  /runs/{run_id}/results:
+    parameters:
+      - name: run_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      summary: 当前运行文档诊断/出处分页；资产读取接B07
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: RunResults
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/RunResults'
+                  request_id:
+                    type: string
+                required:
+                  - data
+                  - request_id
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '408':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      parameters:
+        - name: cursor
+          in: query
+          schema:
+            type: string
+            description: 文档事件序号
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 10
+            default: 5
+  /runs/{run_id}/cancel:
+    parameters:
+      - name: run_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      summary: 幂等取消：停止派生/写入，已提交终态不可撤销
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: FormalRun
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/FormalRun'
+                  request_id:
+                    type: string
+                required:
+                  - data
+                  - request_id
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '408':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      description: 取消与提交在run锁上串行；先提交则返回原终态。外部POST/点击效果不能撤销。
+  /runs/{run_id}/events:
+    parameters:
+      - name: run_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      summary: 有序SSE；Last-Event-ID/after恢复，终态事务提交后才结束
+      x-implementation-status: implemented
+      parameters:
+        - name: Last-Event-ID
+          in: header
+          schema:
+            type: string
+        - name: after
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+      responses:
+        '200':
+          description: id为sequence；data含status/step_id/stage/code。45秒窗口，心跳，终态后结束。
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
 components:
   securitySchemes:
     bearerAuth:
@@ -2295,6 +2586,375 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
   schemas:
+    RunInput:
+      type: object
+      properties:
+        version_id:
+          type: string
+          format: uuid
+        confirmed:
+          type: boolean
+          enum:
+            - true
+          description: 正式运行重新确认，不继承试采授权
+        allowed_origins:
+          type: array
+          maxItems: 5
+          items:
+            type: string
+          description: live 1..5 精确 origin；offline 必须为空
+        budget:
+          type: object
+          required:
+            - seconds
+            - pages
+            - records
+            - details
+          properties:
+            seconds:
+              type: integer
+              minimum: 5
+              maximum: 120
+            pages:
+              type: integer
+              minimum: 1
+              maximum: 10
+              description: 提取文档数量，包括列表与详情；返回检查不计提取文档
+            records:
+              type: integer
+              minimum: 1
+              maximum: 20
+              description: 输出角色累计候选数
+            details:
+              type: integer
+              minimum: 0
+              maximum: 5
+      required:
+        - version_id
+        - confirmed
+        - allowed_origins
+        - budget
+      additionalProperties: false
+    RunWrite:
+      type: object
+      properties:
+        document_id:
+          type: string
+          format: uuid
+        record_index:
+          type: integer
+        source_url:
+          type: string
+        stage:
+          type: string
+          enum:
+            - list
+            - detail
+        record_id:
+          type: string
+          format: uuid
+        observation_id:
+          type: string
+          format: uuid
+        decision:
+          type: string
+          enum:
+            - created
+            - updated
+            - unchanged
+        record_revision:
+          type: integer
+        changed_fields:
+          type: array
+          items:
+            type: string
+        values_json:
+          type: string
+          description: 最终保存值JSON文本，保留大整数；原候选保存于observation
+    RunSummary:
+      type: object
+      properties:
+        status:
+          type: string
+        stop_reason:
+          type: string
+        failed_step_id:
+          type: string
+        failed_stage:
+          type: string
+        pages:
+          type: integer
+        candidates:
+          type: integer
+        network_accessed:
+          type: boolean
+          description: live 开始调度时保守标记可能访问
+        dry_run:
+          type: boolean
+          enum:
+            - false
+        warnings:
+          type: array
+          items:
+            type: string
+        output:
+          $ref: '#/components/schemas/RunOutput'
+        committed:
+          type: boolean
+          description: 本批记录/观察/修订与终态已原子提交
+        counts:
+          type: object
+          additionalProperties:
+            type: integer
+            minimum: 0
+          description: created/updated/unchanged正式保存计数；未提交时为0
+        writes:
+          type: array
+          items:
+            $ref: '#/components/schemas/RunWrite'
+    RunOutput:
+      type: object
+      properties:
+        ready:
+          type: boolean
+        compatibility:
+          type: object
+          properties:
+            compatible:
+              type: boolean
+            issues:
+              type: array
+              items:
+                $ref: '#/components/schemas/OutputIssue'
+            warnings:
+              type: array
+              items:
+                $ref: '#/components/schemas/OutputIssue'
+        counts:
+          type: object
+          properties:
+            created:
+              type: integer
+            updated:
+              type: integer
+            unchanged:
+              type: integer
+            invalid:
+              type: integer
+            conflict:
+              type: integer
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/OutputDecision'
+          maxItems: 20
+        warnings:
+          type: array
+          items:
+            type: string
+        network_accessed:
+          type: boolean
+          enum:
+            - false
+        dry_run:
+          type: boolean
+          description: 提交成功false；失败诊断预判可能true。是否实际提交读summary.committed
+    FormalRun:
+      type: object
+      properties:
+        publication_contract:
+          type: string
+          description: 发布时固定契约；不支持时拒绝执行。
+        interpreter_version:
+          type: string
+          description: 固定版本解释器；升级不隐式重新解释。
+        run_id:
+          type: string
+          format: uuid
+        collector_id:
+          type: string
+        version_id:
+          type: string
+          format: uuid
+        version_number:
+          type: integer
+        collector_revision:
+          type: integer
+        definition_hash:
+          type: string
+        status:
+          type: string
+          enum:
+            - queued
+            - running
+            - succeeded
+            - partial
+            - limited
+            - failed
+            - cancelled
+        attempt:
+          type: integer
+        cancel_requested:
+          type: boolean
+        current_step_id:
+          type: string
+        current_stage:
+          type: string
+        event_seq:
+          type: integer
+        input:
+          $ref: '#/components/schemas/RunInput'
+        summary:
+          $ref: '#/components/schemas/RunSummary'
+        trigger_source:
+          type: string
+          enum:
+            - manual
+        created_at:
+          type: string
+          format: date-time
+          nullable: true
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+        finished_at:
+          type: string
+          format: date-time
+          nullable: true
+        dry_run:
+          type: boolean
+          enum:
+            - false
+        contract_version:
+          type: string
+          enum:
+            - run.v1
+      required:
+        - run_id
+        - collector_id
+        - version_id
+        - status
+        - attempt
+        - event_seq
+        - input
+        - summary
+        - dry_run
+      description: 固定版本正式运行；列表summary省略output/writes，详情完整；lease token不会返回客户端。
+    RunPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/FormalRun'
+        has_more:
+          type: boolean
+        next_cursor:
+          type: string
+          description: 上一页末run_id，空值表示结束
+    RunExtraction:
+      type: object
+      description: 预览最多 20 记录，字段最多 50 匹配/8 KiB 原值，总输出最多 2 MiB；截断不静默变成有效候选。
+      properties:
+        interpreter_version:
+          type: string
+          example: extract.v1
+        stage:
+          type: string
+          enum:
+            - list
+            - detail
+        step_id:
+          type: string
+        match_count:
+          type: integer
+          description: JSON 数组总数；HTML 最多计数 1000，match_count_lower_bound 为 true 时是下限。
+        match_count_lower_bound:
+          type: boolean
+          description: 是否只完成部分范围计数；与实际预览记录的截取状态分开。
+        truncated:
+          type: boolean
+        valid_count:
+          type: integer
+        invalid_count:
+          type: integer
+        network_accessed:
+          type: boolean
+          enum:
+            - false
+        dry_run:
+          type: boolean
+          enum:
+            - false
+        warnings:
+          type: array
+          items:
+            type: string
+        records:
+          type: array
+          maxItems: 20
+          items:
+            type: object
+            properties:
+              index:
+                type: integer
+              valid:
+                type: boolean
+              values:
+                type: object
+                additionalProperties: true
+              fields:
+                type: array
+                maxItems: 30
+                items:
+                  $ref: '#/components/schemas/ExtractionField'
+    RunDocument:
+      type: object
+      properties:
+        document_id:
+          type: string
+          format: uuid
+        step_id:
+          type: string
+        stage:
+          type: string
+          enum:
+            - list
+            - detail
+        parent_record_index:
+          type: integer
+          description: '-1 表示不适用/离线未验证关联'
+        list_page:
+          type: integer
+        capture_id:
+          type: string
+        source_url:
+          type: string
+        base_url:
+          type: string
+        format:
+          type: string
+        content_hash:
+          type: string
+        extraction:
+          $ref: '#/components/schemas/RunExtraction'
+    RunResults:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/RunDocument'
+        has_more:
+          type: boolean
+        next_cursor:
+          type: string
+          description: 文档事件序号；无更多为空
+        summary:
+          $ref: '#/components/schemas/RunSummary'
+        status:
+          type: string
     PublishCheckInput:
       type: object
       properties:
@@ -2559,8 +3219,8 @@ components:
         run_available:
           type: boolean
           enum:
-            - false
-          description: B06 正式执行接入前固定false
+            - true
+          description: 正式执行协议已接入；实际能力在创建/执行时校验
         run_unavailable_reason:
           type: string
         definition:
@@ -2571,7 +3231,7 @@ components:
           description: 详情接口返回；列表省略
         runtime_config:
           $ref: '#/components/schemas/TrialInput'
-          description: 冻结试采范围和预算作为运行默认配置；B06 必须重新确认，不能复用confirmed授权
+          description: 冻结试采范围和预算作为运行默认配置；正式运行必须重新确认，不能复用confirmed授权
       required:
         - version_id
         - collector_id
@@ -3825,13 +4485,16 @@ components:
     CapabilitiesResponse:
       type: object
       properties:
+        run_contract:
+          type: string
+          enum: [run.v1]
         supports_publication:
           type: boolean
           description: 发布检查/不可变版本能力；不代表实际浏览器就绪。
         supports_version_runs:
           type: boolean
-          enum: [false]
-          description: B06 接入前正式执行不可用。
+          enum: [true]
+          description: run.v1 正式运行可用，实际能力在创建/执行时校验。
         editor_protocol:
           type: string
           example: editor.v1

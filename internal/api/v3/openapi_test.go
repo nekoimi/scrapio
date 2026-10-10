@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -45,7 +46,26 @@ func TestA02A03OpenAPIContract(t *testing.T) {
 				if !has {
 					continue
 				}
-				properties := media["schema"].(map[string]any)["properties"].(map[string]any)
+				schema := media["schema"].(map[string]any)
+				if ref, ok := schema["$ref"].(string); ok {
+					var target any = doc
+					for _, part := range strings.Split(strings.TrimPrefix(ref, "#/"), "/") {
+						mapping, ok := target.(map[string]any)
+						if !ok {
+							t.Fatalf("invalid schema reference %s", ref)
+						}
+						target = mapping[part]
+					}
+					resolved, ok := target.(map[string]any)
+					if !ok {
+						t.Fatalf("missing schema reference %s", ref)
+					}
+					schema = resolved
+				}
+				properties, ok := schema["properties"].(map[string]any)
+				if !ok {
+					t.Fatalf("%s %s %s missing envelope properties", method, path, code)
+				}
 				if properties["data"] == nil || properties["request_id"] == nil {
 					t.Fatalf("%s %s %s is missing success envelope", method, path, code)
 				}
