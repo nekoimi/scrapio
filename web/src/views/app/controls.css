@@ -165,9 +165,14 @@
 .scrapio-app summary { cursor: pointer; color: var(--app-control-text); line-height: 1.6; }
 .scrapio-app .app-content a:not(.primary-link) { color: var(--app-control-primary); }
 .scrapio-app .app-content a:hover { text-decoration: underline; }
-@media (max-width: 760px) {
+.scrapio-app .url-row input { flex: 1 1 0; }
+.scrapio-app .url-row select { flex: 0 0 auto; width: auto; min-width: 128px; }
+.scrapio-app .url-row button { flex: 0 0 auto; }
+@media (max-width: 900px) {
  .scrapio-app .url-row { flex-wrap: wrap; }
  .scrapio-app .url-row input { flex-basis: 100%; }
+}
+@media (max-width: 760px) {
  .scrapio-app .editor-actions > label { flex-basis: 100%; }
  .scrapio-app .publication-panel textarea { min-width: 0; }
 }
