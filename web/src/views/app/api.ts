@@ -9,6 +9,9 @@ export interface Capabilities {
  supports_data_queries?:boolean;
  supports_data_views?:boolean;
  supports_data_exports?:boolean;
+ supports_run_center?:boolean;
+ supports_run_retries?:boolean;
+ run_retry_scopes?:string[];
  supports_version_runs?:boolean;
  supports_output_checks?:boolean;
  supports_logical_tables?:boolean;
@@ -117,7 +120,7 @@ async function streamTrial(id:string,after:number,signal:AbortSignal,onEvent:(ev
 export interface RunCheckpoint {step_id:string;list_page:number;list_pages:number;document_id:string;source_url:string;content_hash:string;state:'page_captured'|'page_complete'|'action_pending'|'awaiting_page'|'stopped';next_target:string;stop_reason:string;pages:number;candidates:number;details:number;duplicate_records:number}
 export interface RunInput {version_id:string;confirmed:boolean;allowed_origins:string[];budget:TrialInput['budget']}
 export interface RunWrite {document_id:string;record_index:number;source_url:string;stage:string;record_id:string;observation_id:string;decision:'created'|'updated'|'unchanged';record_revision:number;changed_fields:string[];values_json:string}
-export interface FormalRun {run_id:string;collector_id:string;version_id:string;version_number:number;collector_revision:number;definition_hash:string;status:string;attempt:number;cancel_requested:boolean;current_step_id:string;current_stage:string;event_seq:number;input:RunInput;summary:Trial['summary']&{committed?:boolean;counts?:Record<string,number>;writes?:RunWrite[];list_pages?:number;details?:number;duplicate_records?:number;duplicate_details?:number;last_checkpoint?:RunCheckpoint};trigger_source:'manual'|'schedule'|'api';created_at:string;started_at?:string;finished_at?:string;dry_run:false;contract_version:string}
+export interface FormalRun {run_id:string;collector_id:string;version_id:string;version_number:number;collector_revision:number;definition_hash:string;status:string;attempt:number;cancel_requested:boolean;current_step_id:string;current_stage:string;event_seq:number;input:RunInput;summary:Trial['summary']&{committed?:boolean;counts?:Record<string,number>;writes?:RunWrite[];list_pages?:number;details?:number;duplicate_records?:number;duplicate_details?:number;last_checkpoint?:RunCheckpoint};retry_of:string|null;retry_scope:string;controls:{can_cancel:boolean;can_retry:boolean;retry_scopes:string[];retry_block_reason:string};trigger_source:'manual'|'schedule'|'api';created_at:string;started_at?:string;finished_at?:string;dry_run:false;contract_version:string}
 async function streamRun(id:string,after:number,signal:AbortSignal,onEvent:(event:TrialEvent)=>void):Promise<void>{
  const base=(import.meta.env.VITE_API_URL||'').replace(/\/+$/,'');
  const response=await fetch(`${base}/api/v3/runs/${id}/events?after=${after}`,{headers:{Authorization:Session.get('token')||'',Accept:'text/event-stream'},credentials:'same-origin',signal});
@@ -193,7 +196,7 @@ export const appApi = {
  apiKeys:(id:string)=>get<{items:CollectorAPIKey[]}>(`/api/v3/collectors/${id}/api-keys`),
  createAPIKey:(id:string,data:{id:string;name:string;input:RunInput})=>request({url:`/api/v3/collectors/${id}/api-keys`,method:'post',data}).then((response:any)=>response.data as {credential:CollectorAPIKey;token:string}),
  revokeAPIKey:(id:string,keyID:string)=>request({url:`/api/v3/collectors/${id}/api-keys/${keyID}`,method:'delete'}).then((response:any)=>response.data as {revoked:boolean}),
-  checkpoints:(id:string,cursor='')=>get<DataPage>(`/api/v3/runs/${encodeURIComponent(id)}/checkpoints?limit=25&cursor=${encodeURIComponent(cursor)}`),
+  runCheckpoints:(id:string,cursor='')=>get<DataPage>(`/api/v3/runs/${encodeURIComponent(id)}/checkpoints?limit=25&cursor=${encodeURIComponent(cursor)}`),
   table:(id:string)=>get<LogicalTable>(`/api/v3/tables/${encodeURIComponent(id)}`),
   tableStats:(id:string)=>get<DataRow>(`/api/v3/tables/${encodeURIComponent(id)}/statistics`),
   records:(id:string,cursor='')=>get<DataPage>(`/api/v3/tables/${encodeURIComponent(id)}/records?limit=25&cursor=${encodeURIComponent(cursor)}`),
@@ -202,11 +205,15 @@ export const appApi = {
   revisions:(id:string,cursor='')=>get<DataPage>(`/api/v3/records/${encodeURIComponent(id)}/revisions?limit=25&cursor=${encodeURIComponent(cursor)}`),
   pages:(id:string,cursor='')=>get<DataPage>(`/api/v3/runs/${encodeURIComponent(id)}/pages?limit=25&cursor=${encodeURIComponent(cursor)}`),
   page:(id:string)=>get<DataRow>(`/api/v3/pages/${encodeURIComponent(id)}`),
-  runAttempts:(id:string)=>get<{scope:'run';items:DataRow[]}>(`/api/v3/runs/${encodeURIComponent(id)}/attempts`),
+  runAttempts:(id:string,cursor='')=>get<DataPage&{scope:'run'}>(`/api/v3/runs/${encodeURIComponent(id)}/attempts?limit=25&cursor=${encodeURIComponent(cursor)}`),
   document:(id:string,offset=0)=>get<DocumentAsset>(`/api/v3/documents/${encodeURIComponent(id)}?limit=32768&offset=${offset}`),
+  runStatistics:(collectorID='')=>get<{counts:Record<string,number>;scope:string}>(`/api/v3/runs/statistics?collector_id=${encodeURIComponent(collectorID)}`),
+  runDiagnostics:(id:string,cursor='')=>get<DataPage>(`/api/v3/runs/${id}/diagnostics?limit=25&cursor=${encodeURIComponent(cursor)}`),
+  runCoverage:(id:string)=>get<DataRow>(`/api/v3/runs/${id}/coverage`),
+  retryRun:(id:string,key:string)=>request({url:`/api/v3/runs/${id}/retries`,method:'post',data:{scope:'full_run',confirmed:true},headers:{'Idempotency-Key':key}}).then((r:any)=>r.data as FormalRun),
   streamRun,
   createRun:(id:string,input:RunInput,key:string)=>request({url:`/api/v3/collectors/${id}/runs`,method:'post',data:input,headers:{'Idempotency-Key':key}}).then((response:any)=>response.data as FormalRun),
-  runs:(collectorID='',cursor='')=>get<{items:FormalRun[];has_more:boolean;next_cursor:string}>(`/api/v3/runs?collector_id=${encodeURIComponent(collectorID)}&limit=25${cursor?`&cursor=${encodeURIComponent(cursor)}`:''}`),
+  runs:(collectorID='',cursor='',status='',source='')=>get<{items:FormalRun[];has_more:boolean;next_cursor:string}>(`/api/v3/runs?collector_id=${encodeURIComponent(collectorID)}&limit=25&status=${encodeURIComponent(status)}&source=${encodeURIComponent(source)}${cursor?`&cursor=${encodeURIComponent(cursor)}`:''}`),
   run:(id:string)=>get<FormalRun>(`/api/v3/runs/${id}`),
   runByKey:(key:string)=>request({url:'/api/v3/runs/by-key',method:'get',headers:{'Idempotency-Key':key}}).then((response:any)=>response.data as FormalRun),
   cancelRun:(id:string)=>request({url:`/api/v3/runs/${id}/cancel`,method:'post'}).then((response:any)=>response.data as FormalRun),
@@ -228,7 +235,6 @@ export const appApi = {
   cancelTrial:(id:string)=>request({url:`/api/v3/trials/${id}/cancel`,method:'post'}).then((response:any)=>response.data as Trial),
   deleteTrial:(id:string)=>request({url:`/api/v3/trials/${id}`,method:'delete'}),
   tables:(cursor='')=>get<{items:LogicalTable[];next_cursor:string;has_more:boolean}>(`/api/v3/tables?limit=25${cursor?`&cursor=${encodeURIComponent(cursor)}`:''}`),
-  table:(id:string)=>get<LogicalTable>(`/api/v3/tables/${id}`),
   outputCheck:(id:string,checkID:string)=>get<OutputCheck>(`/api/v3/collectors/${id}/output-checks/${checkID}`),
   outputCheckByKey:(id:string,key:string)=>request({url:`/api/v3/collectors/${id}/output-checks/by-key`,method:'get',headers:{'Idempotency-Key':key}}).then((response:any)=>response.data as OutputCheck),
   createOutputCheck:(id:string,input:OutputCheckInput,key:string)=>request({url:`/api/v3/collectors/${id}/output-checks`,method:'post',data:input,headers:{'Idempotency-Key':key}}).then((response:any)=>response.data as OutputCheck),

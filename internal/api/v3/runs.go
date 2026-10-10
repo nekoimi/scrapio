@@ -19,7 +19,7 @@ import (
 )
 
 func runDTO(row *table.V22Run) map[string]any {
-	return map[string]any{"run_id": row.Id, "collector_id": strconv.FormatInt(row.CollectorId, 10), "version_id": row.VersionId, "version_number": row.VersionNumber, "collector_revision": row.CollectorRevision, "definition_hash": row.DefinitionHash, "status": row.Status, "attempt": row.Attempt, "cancel_requested": row.CancelRequested, "current_step_id": row.CurrentStep, "current_stage": row.CurrentStage, "event_seq": row.EventSeq, "input": json.RawMessage(row.Input), "summary": json.RawMessage(row.Summary), "trigger_source": row.TriggerSource, "created_at": row.CreatedAt, "started_at": row.StartedAt, "finished_at": row.FinishedAt, "dry_run": false, "contract_version": runmodel.ContractVersion, "publication_contract": row.PublicationContract, "interpreter_version": row.InterpreterVersion}
+	return map[string]any{"retry_of": row.RetryOf, "retry_scope": row.RetryScope, "controls": runmodel.RunControls(row.Status, row.CancelRequested), "run_id": row.Id, "collector_id": strconv.FormatInt(row.CollectorId, 10), "version_id": row.VersionId, "version_number": row.VersionNumber, "collector_revision": row.CollectorRevision, "definition_hash": row.DefinitionHash, "status": row.Status, "attempt": row.Attempt, "cancel_requested": row.CancelRequested, "current_step_id": row.CurrentStep, "current_stage": row.CurrentStage, "event_seq": row.EventSeq, "input": json.RawMessage(row.Input), "summary": json.RawMessage(row.Summary), "trigger_source": row.TriggerSource, "created_at": row.CreatedAt, "started_at": row.StartedAt, "finished_at": row.FinishedAt, "dry_run": false, "contract_version": runmodel.ContractVersion, "publication_contract": row.PublicationContract, "interpreter_version": row.InterpreterVersion}
 }
 func runListDTO(row *table.V22Run) map[string]any {
 	value := runDTO(row)
@@ -116,7 +116,7 @@ func ListRuns(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
-	rows, more, err := v22_run_repo.List(ctx, admin.Id, collector, r.URL.Query().Get("cursor"), limit)
+	rows, more, err := v22_run_repo.FilteredList(ctx, admin.Id, collector, r.URL.Query().Get("cursor"), limit, v22_run_repo.Filter{Status: r.URL.Query().Get("status"), Source: r.URL.Query().Get("source")})
 	if err != nil {
 		runError(w, r, err)
 		return

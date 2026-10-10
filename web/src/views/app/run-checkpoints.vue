@@ -7,7 +7,7 @@
 		<p class="muted">检查点是已保存的执行证据，正式记录是否提交以运行结果为准。中断后保留最后状态，不自动重放点击或请求。</p>
 		<p v-if="loading" role="status">读取中…</p>
 		<p v-if="message" class="app-error">{{ message }}</p>
-		<p v-if="!loading && !items.length">暂无连续运行检查点；旧运行不会补造检查点。</p>
+		<p v-if="!loading && !message && !items.length">暂无连续运行检查点；旧运行不会补造检查点。</p>
 		<article v-for="item in items" :key="item.checkpoint_id" class="trace-item">
 			<strong>{{ stateLabel(item.state) }} · {{ cp(item).step_id }} · 列表轮次 {{ cp(item).list_page }}</strong>
 			<p>
@@ -54,7 +54,7 @@ async function load(more = false) {
 	loading.value = true;
 	message.value = '';
 	try {
-		const r = await appApi.checkpoints(props.runId, more ? cursor.value : '');
+		const r = await appApi.runCheckpoints(props.runId, more ? cursor.value : '');
 		if (token === epoch) {
 			items.value = more ? [...items.value, ...r.items] : r.items;
 			cursor.value = r.next_cursor;

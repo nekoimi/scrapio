@@ -21,6 +21,8 @@ export function runStatus(value: string): string {
 	return (
 		(
 			{
+				unknown: '动作结果未知',
+				skipped: '未执行',
 				queued: '排队中',
 				running: '执行中',
 				succeeded: '已完成',

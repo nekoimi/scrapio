@@ -59,7 +59,7 @@
 			<p v-for="warning in selected.summary.warnings || []" :key="warning" class="status-warn">{{ warning }}</p>
 			<div class="editor-actions">
 				<button :disabled="busy" @click="refreshSelected">刷新状态和结果</button
-				><button v-if="!terminal(selected.status)" :disabled="busy || selected.cancel_requested" @click="cancel">
+				><button v-if="selected.controls?.can_cancel" :disabled="busy || selected.cancel_requested" @click="cancel">
 					{{ selected.cancel_requested ? '正在停止…' : '取消运行' }}
 				</button>
 			</div>
@@ -337,7 +337,8 @@ async function recover() {
 	}
 }
 async function cancel() {
-	if (busy.value || !selected.value) return;
+	if (busy.value || !selected.value || !selected.value.controls?.can_cancel) return;
+ if(!window.confirm('确认停止后续执行及本批写入？已发生的网站动作不能撤销；若已完成提交，会返回已完成状态。'))return;
 	busy.value = true;
 	const id = selected.value.run_id,
 		token = epoch;

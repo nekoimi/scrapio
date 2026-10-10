@@ -1,9 +1,34 @@
 <template>
 	<div class="app-page">
 		<div class="eyebrow">SCRAPIO / RUNS</div>
-		<h1>运行</h1>
+		<h1>运行中心</h1>
 		<p class="lead">查看正式采集的状态、结果和结束原因。</p>
-		<button :disabled="loading" @click="reload">刷新</button>
+		<section class="app-card">
+			<p v-if="stats">
+				保留历史 {{ stats.total }} · 排队 {{ stats.queued }} · 执行中 {{ stats.running }} · 完成 {{ stats.succeeded }} · 有限覆盖
+				{{ stats.limited }} · 未完整通过 {{ stats.partial }} · 失败 {{ stats.failed }} · 取消 {{ stats.cancelled }}
+			</p>
+			<p class="muted">统计为当前方案范围的全部保留历史，与状态/来源筛选和已加载分页无关。</p>
+			<div class="command-form-grid">
+				<label>方案 ID<input v-model="collectorFilter" placeholder="留空查看全部" /></label>
+				<label
+					>状态<select v-model="statusFilter">
+						<option value="">全部</option>
+						<option v-for="s in statuses" :key="s" :value="s">{{ runStatus(s) }}</option>
+					</select></label
+				>
+				<label
+					>来源<select v-model="sourceFilter">
+						<option value="">全部</option>
+						<option value="manual">手动</option>
+						<option value="schedule">定时</option>
+						<option value="api">API</option>
+						<option value="retry">重试</option>
+					</select></label
+				>
+			</div>
+			<button :disabled="loading" @click="reload">应用筛选 / 刷新</button>
+		</section>
 		<p v-if="loading" role="status">正在读取…</p>
 		<p v-if="message" class="app-error">{{ message }}</p>
 		<div class="record-preview-table">
@@ -27,7 +52,7 @@
 						<td>
 							<router-link :to="`/app/collectors/${r.collector_id}`">v{{ r.version_number }} · 方案 {{ r.collector_id }}</router-link>
 						</td>
-						<td>{{ { manual: '手动', schedule: '定时', api: 'API' }[r.trigger_source] }}</td>
+						<td>{{ r.retry_of ? '重试' : { manual: '手动', schedule: '定时', api: 'API' }[r.trigger_source] }}</td>
 						<td>{{ runStatus(r.status) }}</td>
 						<td>
 							{{ r.summary.committed ? '已提交' : '未提交' }} · 新增 {{ r.summary.counts?.created || 0 }} / 更新
@@ -39,8 +64,8 @@
 				</tbody>
 			</table>
 		</div>
-		<section v-if="!loading && !items.length" class="app-card">
-			<h2>还没有正式运行</h2>
+		<section v-if="!loading && !message && !items.length" class="app-card">
+			<h2>当前条件没有运行</h2>
 			<p>发布一个采集方案，并确认范围后运行。</p>
 			<router-link to="/app/collectors">打开采集方案</router-link>
 		</section>
@@ -54,7 +79,13 @@ import { readError, runStatus } from './data-read';
 const items = ref<FormalRun[]>([]),
 	cursor = ref(''),
 	loading = ref(false),
-	message = ref('');
+	message = ref(''),
+	collectorFilter = ref(''),
+	statusFilter = ref(''),
+	sourceFilter = ref(''),
+	stats = ref<Record<string, number>>();
+const statuses = ['queued', 'running', 'succeeded', 'limited', 'partial', 'failed', 'cancelled'];
+let applied = { collector: '', status: '', source: '' };
 let epoch = 0;
 async function load(more = false) {
 	if (loading.value) return;
@@ -62,7 +93,11 @@ async function load(more = false) {
 	loading.value = true;
 	message.value = '';
 	try {
-		const r = await appApi.runs('', more ? cursor.value : '');
+		const [r, counts] = await Promise.all([
+			appApi.runs(applied.collector, more ? cursor.value : '', applied.status, applied.source),
+			appApi.runStatistics(applied.collector),
+		]);
+		if (token === epoch) stats.value = counts.counts;
 		if (token === epoch) {
 			items.value = more ? [...items.value, ...r.items] : r.items;
 			cursor.value = r.next_cursor;
@@ -74,6 +109,14 @@ async function load(more = false) {
 	}
 }
 function reload() {
+	if (collectorFilter.value && !/^[1-9][0-9]*$/.test(collectorFilter.value)) {
+		message.value = '方案 ID 需为正整数';
+		return;
+	}
+	applied = { collector: collectorFilter.value, status: statusFilter.value, source: sourceFilter.value };
+	items.value = [];
+	cursor.value = '';
+	stats.value = undefined;
 	epoch++;
 	loading.value = false;
 	void load();

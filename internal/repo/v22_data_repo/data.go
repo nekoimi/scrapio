@@ -181,7 +181,7 @@ func Pages(ctx context.Context, owner int64, runID, cursor string, limit int) (P
 		args = append(args, n)
 	}
 	args = append(args, limit+1)
-	rows, err := query(ctx, `SELECT d.id AS page_id,d.run_id,d.attempt::text,d.sequence::text,(d.result-'extraction')::text AS metadata_json,CASE WHEN d.content='' THEN 'unavailable' ELSE 'stored' END AS evidence_status FROM v22_run_documents d JOIN v22_runs r ON r.id=d.run_id WHERE d.run_id=? AND r.owner_id=?`+clause+" ORDER BY d.sequence LIMIT ?", args...)
+	rows, err := query(ctx, `SELECT d.id AS page_id,d.run_id,d.attempt::text,d.sequence::text,(SELECT p.id FROM v22_run_documents p WHERE p.run_id=d.run_id AND p.attempt=d.attempt AND p.result->>'stage'='list' AND p.result->>'step_id'=d.result->>'step_id' AND p.result->>'list_page'=d.result->>'list_page' AND d.result->>'stage'='detail' ORDER BY p.sequence LIMIT 1) AS parent_page_id,(d.result-'extraction')::text AS metadata_json,CASE WHEN d.content='' THEN 'unavailable' ELSE 'stored' END AS evidence_status FROM v22_run_documents d JOIN v22_runs r ON r.id=d.run_id WHERE d.run_id=? AND r.owner_id=?`+clause+" ORDER BY d.sequence LIMIT ?", args...)
 	return paged(rows, limit, "page_id"), err
 }
 func PageDetail(ctx context.Context, owner int64, id string) (Row, error) {
@@ -191,13 +191,8 @@ func PageDetail(ctx context.Context, owner int64, id string) (Row, error) {
 	return one(ctx, `SELECT d.id AS page_id,d.run_id,d.attempt::text,d.sequence::text,d.result::text AS result_json,r.version_id,r.version_number::text,r.collector_id::text,CASE WHEN d.content='' THEN 'unavailable' ELSE 'stored' END AS evidence_status,(SELECT p.id FROM v22_run_documents p WHERE p.run_id=d.run_id AND p.attempt=d.attempt AND p.result->>'stage'='list' AND p.result->>'step_id'=d.result->>'step_id' AND p.result->>'list_page'=d.result->>'list_page' AND d.result->>'stage'='detail' ORDER BY p.sequence LIMIT 1) AS parent_page_id FROM v22_run_documents d JOIN v22_runs r ON r.id=d.run_id WHERE d.id=? AND r.owner_id=?`, id, owner)
 }
 func Attempts(ctx context.Context, owner int64, runID string) ([]Row, error) {
-	if !validID(runID) {
-		return nil, ErrInvalid
-	}
-	if _, err := one(ctx, "SELECT id FROM v22_runs WHERE id=? AND owner_id=?", runID, owner); err != nil {
-		return nil, err
-	}
-	return query(ctx, `SELECT a.attempt::text,a.status,a.started_at::text,a.finished_at::text,a.summary::text AS summary_json FROM v22_run_attempts a JOIN v22_runs r ON r.id=a.run_id WHERE a.run_id=? AND r.owner_id=? ORDER BY a.attempt LIMIT 50`, runID, owner)
+	page, err := AttemptsPage(ctx, owner, runID, "", 50)
+	return page.Items, err
 }
 
 type Asset struct {

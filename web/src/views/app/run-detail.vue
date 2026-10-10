@@ -9,7 +9,7 @@
 			><section class="app-card">
 				<h2>{{ runStatus(run.status) }} · 固定发布 v{{ run.version_number }}</h2>
 				<p>
-					来源：{{ { manual: '手动', schedule: '定时', api: 'API' }[run.trigger_source] }} · {{ run.run_id }} ·
+					来源：{{ run.retry_of ? '重试' : { manual: '手动', schedule: '定时', api: 'API' }[run.trigger_source] }} · {{ run.run_id }} ·
 					{{ new Date(run.created_at).toLocaleString() }}
 				</p>
 				<p>
@@ -22,12 +22,21 @@
 				</p>
 				<p v-for="w in run.summary.warnings || []" :key="w" class="status-warn">{{ w }}</p>
 				<router-link :to="`/app/collectors/${run.collector_id}`">打开采集方案</router-link>
-				<button v-if="['queued', 'running'].includes(run.status)" :disabled="loading || run.cancel_requested" @click="cancel">
+				<button v-if="run.controls?.can_cancel" :disabled="loading || run.cancel_requested" @click="cancelConfirm = true">
 					{{ run.cancel_requested ? '正在停止…' : '停止后续执行' }}
 				</button>
+				<p v-if="run.cancel_requested && run.status === 'running'" role="status">
+					取消请求已接受，等待当前尝试结束；旧尝试已不能继续保存证据或写入。
+				</p>
+				<div v-if="cancelConfirm" class="status-warn">
+					<p>确认停止后续执行和本批写入？取消不能撤销网站动作；若提交已完成，会返回已完成状态。</p>
+					<button :disabled="loading" @click="cancel">确认停止</button><button :disabled="loading" @click="cancelConfirm = false">返回</button>
+				</div>
 				<p class="muted">停止不能撤销已发生的网站动作。执行中可手动刷新，完成后结果持久保留。</p>
 			</section>
 			<RunCompletion :run="run" />
+			<RunDiagnostics :key="`diagnostics:${run.run_id}:${run.event_seq}`" :run="run" />
+			<RunRetry :run="run" />
 			<RunCheckpoints :run-id="run.run_id" :event-seq="run.event_seq" />
 			<details :open="route.query.version === '1'">
 				<summary>固定发布版本与规则</summary>
@@ -47,15 +56,8 @@
 					<pre>{{ a.summary_json }}</pre>
 				</details>
 			</article>
-			<h2>实际页面证据</h2>
-			<p class="muted">仅展示已持久化的文档。动作失败但未取得文档的页面不出现在此列表，失败原因见运行诊断。没有截图时不展示截图。</p>
-			<p v-if="!pages.length">暂无保存的页面文档。</p>
-			<article v-for="p in pages" :key="p.page_id" class="trace-item">
-				<router-link :to="`/app/pages/${p.page_id}`">{{ meta(p).stage }} · {{ meta(p).step_id }} · 列表页 {{ meta(p).list_page }}</router-link>
-				<p class="source-url">{{ meta(p).source_url }}</p>
-				<small>attempt {{ p.attempt }} · {{ p.evidence_status === 'stored' ? '文档已保存，读取时校验' : '文档不可用' }}</small>
-			</article>
-			<button v-if="cursor" :disabled="loading" @click="morePages">更多页面证据</button>
+			<button v-if="attemptCursor" :disabled="loading" @click="moreAttempts">更多运行尝试</button>
+			<RunInspector :key="`pages:${run.run_id}:${run.event_seq}`" :run-id="run.run_id" />
 			<details>
 				<summary>运行摘要与缺失诊断</summary>
 				<pre>{{ JSON.stringify({ ...run.summary, writes: undefined }, null, 2) }}</pre>
@@ -68,29 +70,30 @@ import { ref, watch, onBeforeUnmount } from 'vue';
 import { useRoute } from 'vue-router';
 import { appApi, type FormalRun, type PublishedVersion, type DataRow } from './api';
 import RunCompletion from './run-completion.vue';
+import RunInspector from './run-inspector.vue';
+import RunDiagnostics from './run-diagnostics.vue';
+import RunRetry from './run-retry.vue';
 import RunCheckpoints from './run-checkpoints.vue';
-import { readError, runStatus, parseJSON } from './data-read';
+import { readError, runStatus } from './data-read';
 const route = useRoute(),
 	run = ref<FormalRun>(),
 	version = ref<PublishedVersion>(),
-	pages = ref<DataRow[]>([]),
 	attempts = ref<DataRow[]>([]),
-	cursor = ref(''),
+	attemptCursor = ref(''),
+	cancelConfirm = ref(false),
 	loading = ref(false),
 	message = ref('');
 let epoch = 0;
-const meta = (p: DataRow) => parseJSON<Record<string, any>>(p.metadata_json, {});
 async function reload() {
 	const token = ++epoch;
 	loading.value = true;
 	message.value = '';
 	try {
 		const id = String(route.params.id);
-		const [r, p, a] = await Promise.all([appApi.run(id), appApi.pages(id), appApi.runAttempts(id)]);
+		const [r, a] = await Promise.all([appApi.run(id), appApi.runAttempts(id)]);
 		if (token !== epoch) return;
 		run.value = r;
-		pages.value = p.items;
-		cursor.value = p.next_cursor;
+		attemptCursor.value = a.next_cursor;
 		attempts.value = a.items;
 		version.value = undefined;
 		const v = await appApi.version(r.version_id);
@@ -101,15 +104,15 @@ async function reload() {
 		if (token === epoch) loading.value = false;
 	}
 }
-async function morePages() {
+async function moreAttempts() {
 	if (loading.value || !run.value) return;
 	const token = epoch;
 	loading.value = true;
 	try {
-		const p = await appApi.pages(run.value.run_id, cursor.value);
+		const p = await appApi.runAttempts(run.value.run_id, attemptCursor.value);
 		if (token === epoch) {
-			pages.value.push(...p.items);
-			cursor.value = p.next_cursor;
+			attempts.value.push(...p.items);
+			attemptCursor.value = p.next_cursor;
 		}
 	} catch (e) {
 		if (token === epoch) message.value = readError(e);
@@ -123,7 +126,10 @@ async function cancel() {
 	loading.value = true;
 	try {
 		const r = await appApi.cancelRun(run.value.run_id);
-		if (token === epoch) run.value = r;
+		if (token === epoch) {
+			run.value = r;
+			cancelConfirm.value = false;
+		}
 	} catch (e) {
 		if (token === epoch) message.value = readError(e);
 	} finally {
@@ -135,9 +141,9 @@ watch(
 	() => {
 		run.value = undefined;
 		version.value = undefined;
-		pages.value = [];
 		attempts.value = [];
-		cursor.value = '';
+		attemptCursor.value = '';
+		cancelConfirm.value = false;
 		void reload();
 	},
 	{ immediate: true }

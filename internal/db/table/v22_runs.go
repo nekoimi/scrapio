@@ -3,20 +3,22 @@ package table
 import "time"
 
 type V22Run struct {
-	Id                  string `xorm:"varchar(36) pk"`
-	OwnerId             int64  `xorm:"owner_id"`
-	CollectorId         int64  `xorm:"collector_id"`
-	VersionId           string `xorm:"version_id"`
-	VersionNumber       int    `xorm:"version_number"`
-	CollectorRevision   int    `xorm:"collector_revision"`
-	Definition          string `xorm:"jsonb definition"`
-	DefinitionHash      string `xorm:"definition_hash"`
-	PublicationContract string `xorm:"publication_contract"`
-	InterpreterVersion  string `xorm:"interpreter_version"`
-	EntryType           string `xorm:"entry_type"`
-	OutputSchema        string `xorm:"jsonb output_schema"`
-	Input               string `xorm:"jsonb input"`
-	TriggerSource       string `xorm:"trigger_source"`
+	Id                  string  `xorm:"varchar(36) pk"`
+	OwnerId             int64   `xorm:"owner_id"`
+	CollectorId         int64   `xorm:"collector_id"`
+	VersionId           string  `xorm:"version_id"`
+	VersionNumber       int     `xorm:"version_number"`
+	CollectorRevision   int     `xorm:"collector_revision"`
+	Definition          string  `xorm:"jsonb definition"`
+	DefinitionHash      string  `xorm:"definition_hash"`
+	PublicationContract string  `xorm:"publication_contract"`
+	InterpreterVersion  string  `xorm:"interpreter_version"`
+	EntryType           string  `xorm:"entry_type"`
+	OutputSchema        string  `xorm:"jsonb output_schema"`
+	Input               string  `xorm:"jsonb input"`
+	TriggerSource       string  `xorm:"trigger_source"`
+	RetryOf             *string `xorm:"retry_of"`
+	RetryScope          string  `xorm:"retry_scope"`
 	Status              string
 	Attempt             int
 	LeaseToken          string     `xorm:"lease_token"`

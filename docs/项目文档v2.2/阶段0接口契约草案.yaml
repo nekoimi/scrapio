@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: scrapio v2.2 editor contract spike
-  version: 0.16.0-c03
+  version: 0.17.0-c04
   description: A02～C03 开发契约：固定版本采集、定时/API 触发、冻结数据查询与保存视图、幂等异步 CSV/JSON 导出。真实迁移、并发和页面验收另行记录。
 servers:
   - url: /api/v3
@@ -2342,6 +2342,28 @@ paths:
             type: string
             format: uuid
             description: 上一页末run_id
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum:
+              - queued
+              - running
+              - succeeded
+              - limited
+              - partial
+              - failed
+              - cancelled
+        - name: source
+          in: query
+          schema:
+            type: string
+            enum:
+              - manual
+              - schedule
+              - api
+              - retry
+      description: 按 owner/方案/状态/来源筛选；retry 为 retry_of 非空的手动重跑。游标锚点仍需符合当前筛选，锚点状态变化时重新读取第一页。
   /runs/by-key:
     parameters:
       - $ref: '#/components/parameters/IdempotencyKey'
@@ -2791,13 +2813,24 @@ paths:
       x-implementation-status: implemented
   /runs/{run_id}/attempts:
     get:
-      summary: 真实运行级尝试（最多 50 条；当前不自动重放）
+      summary: 运行级尝试分页；不会自动重放页面动作
       parameters:
         - name: run_id
           in: path
           required: true
           schema:
             type: string
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 25
       responses:
         '200':
           description: 成功；返回当前用户的新 v2.2 数据域
@@ -2855,13 +2888,24 @@ paths:
       x-implementation-status: implemented
   /pages/{page_id}/attempts:
     get:
-      summary: 页面所属尝试与运行级日志；不伪造页面重试
+      summary: 运行级尝试分页；不会自动重放页面动作
       parameters:
         - name: page_id
           in: path
           required: true
           schema:
             type: string
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 25
       responses:
         '200':
           description: 成功；返回当前用户的新 v2.2 数据域
@@ -3513,6 +3557,174 @@ paths:
         '500':
           $ref: '#/components/responses/Error'
       x-implementation-status: implemented
+  /runs/statistics:
+    get:
+      summary: 当前 owner/方案的完整保留历史状态统计，不受列表分页/状态/来源筛选影响
+      x-implementation-status: implemented
+      parameters:
+        - name: collector_id
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 当前 owner/方案的完整保留历史状态统计，不受列表分页/状态/来源筛选影响
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/RunStatistics'
+                  request_id:
+                    type: string
+                required:
+                  - data
+                  - request_id
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '408':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+  /runs/{run_id}/diagnostics:
+    get:
+      summary: 持久事件按 sequence 倒序分页；包括无文档的步骤/动作和终态；action 仅类型/编号，不含输入值
+      x-implementation-status: implemented
+      parameters:
+        - name: run_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 25
+      responses:
+        '200':
+          description: 持久事件按 sequence 倒序分页；包括无文档的步骤/动作和终态；action 仅类型/编号，不含输入值
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/RunDiagnosticPage'
+                  request_id:
+                    type: string
+                required:
+                  - data
+                  - request_id
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '408':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+  /runs/{run_id}/coverage:
+    get:
+      summary: 已保存文档全部提取计数，包含中间和重复记录；不推算站点总数
+      x-implementation-status: implemented
+      parameters:
+        - name: run_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 已保存文档全部提取计数，包含中间和重复记录；不推算站点总数
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/RunCoverage'
+                  request_id:
+                    type: string
+                required:
+                  - data
+                  - request_id
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '408':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+  /runs/{run_id}/retries:
+    post:
+      summary: 明确确认按原发布版本、原来源和预算从入口重新运行；新运行正式写入，不恢复旧 attempt
+      x-implementation-status: implemented
+      parameters:
+        - name: run_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '202':
+          description: 明确确认按原发布版本、原来源和预算从入口重新运行；新运行正式写入，不恢复旧 attempt
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/FormalRun'
+                  request_id:
+                    type: string
+                required:
+                  - data
+                  - request_id
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '408':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RunRetryInput'
+      description: >-
+        仅 full_run；原运行必须终止。复用不可变版本/输入，校验 frozen definition/schema/contracts 与目标能力；不取草稿。重复点击、输入、POST 等网站动作需确认。owner+key
+        幂等，绑定 retry_of+scope+原输入，异输入409。已知请求在能力/Schema后续变化时仍返回原运行。响应未知用 /runs/by-key 查询，不能自动换键重试。
 components:
   securitySchemes:
     collectorTrigger:
@@ -3823,6 +4035,17 @@ components:
           type: string
           enum:
             - run.v1
+        retry_of:
+          type: string
+          nullable: true
+          description: 原运行 ID；非重试为 null
+        retry_scope:
+          type: string
+          enum:
+            - ''
+            - full_run
+        controls:
+          $ref: '#/components/schemas/RunControls'
       required:
         - run_id
         - collector_id
@@ -5575,6 +5798,16 @@ components:
           type: boolean
         supports_data_exports:
           type: boolean
+        supports_run_center:
+          type: boolean
+        supports_run_retries:
+          type: boolean
+        run_retry_scopes:
+          type: array
+          items:
+            type: string
+            enum:
+              - full_run
     DraftResponse:
       type: object
       required:
@@ -6563,6 +6796,8 @@ components:
           enum:
             - stored
             - unavailable
+        parent_page_id:
+          type: string
       additionalProperties: false
       description: 页即已持久化运行文档，列表不返回内容或提取诊断；stored 表示保存，完整性在文档读取时校验。
     StoredPageDetail:
@@ -6615,6 +6850,10 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/RunAttemptRead'
+        next_cursor:
+          type: string
+        has_more:
+          type: boolean
       description: 运行级尝试记录，不返回租约或会话信息。
     PageAttemptsRead:
       type: object
@@ -6629,6 +6868,10 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/RunAttemptRead'
+        next_cursor:
+          type: string
+        has_more:
+          type: boolean
       description: 当前执行器没有独立页面重试；scope=run 表示真实运行尝试，page_attempt 标记该文档所属尝试，不能当成页面重试日志。
     DocumentAsset:
       type: object
@@ -7425,3 +7668,100 @@ components:
         request_id:
           type: string
       additionalProperties: false
+    RunRetryInput:
+      type: object
+      additionalProperties: false
+      required:
+        - scope
+        - confirmed
+      properties:
+        scope:
+          type: string
+          enum:
+            - full_run
+        confirmed:
+          type: boolean
+          enum:
+            - true
+    RunControls:
+      type: object
+      properties:
+        can_cancel:
+          type: boolean
+        can_retry:
+          type: boolean
+        retry_scopes:
+          type: array
+          items:
+            type: string
+            enum:
+              - full_run
+        retry_block_reason:
+          type: string
+      description: 当前状态允许的控制范围；POST 与 worker 仍需能力/版本/目标 Schema 校验。仅失败页面及检查点恢复不支持。
+    RunStatistics:
+      type: object
+      properties:
+        scope:
+          type: string
+          enum:
+            - retained_history
+        counts:
+          type: object
+          properties:
+            total:
+              type: integer
+            queued:
+              type: integer
+            running:
+              type: integer
+            succeeded:
+              type: integer
+            limited:
+              type: integer
+            partial:
+              type: integer
+            failed:
+              type: integer
+            cancelled:
+              type: integer
+    RunDiagnosticRow:
+      type: object
+      additionalProperties: false
+      properties:
+        sequence:
+          type: string
+        attempt:
+          type: string
+        created_at:
+          type: string
+        event_json:
+          type: string
+          description: >-
+            trial.Event JSON：step_id/stage/status/code/checkpoint；新
+            action={operation_id,type}。running→succeeded/failed/unknown。只有 running 无终结回执可能结果未知，禁止自动重放。
+    RunDiagnosticPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/RunDiagnosticRow'
+        next_cursor:
+          type: string
+        has_more:
+          type: boolean
+    RunCoverage:
+      type: object
+      additionalProperties: false
+      properties:
+        run_id:
+          type: string
+        captured_documents:
+          type: string
+        extracted_records:
+          type: string
+        valid_records:
+          type: string
+        invalid_records:
+          type: string

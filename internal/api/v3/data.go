@@ -118,8 +118,12 @@ func RunPages(w http.ResponseWriter, r *http.Request) {
 }
 func RunAttempts(w http.ResponseWriter, r *http.Request) {
 	dataRead(w, r, func(ctx context.Context, owner int64) (any, error) {
-		rows, err := v22_data_repo.Attempts(ctx, owner, mux.Vars(r)["run_id"])
-		return map[string]any{"scope": "run", "items": rows}, err
+		limit, err := readLimit(r)
+		if err != nil {
+			return nil, err
+		}
+		page, err := v22_data_repo.AttemptsPage(ctx, owner, mux.Vars(r)["run_id"], r.URL.Query().Get("cursor"), limit)
+		return map[string]any{"scope": "run", "items": page.Items, "has_more": page.More, "next_cursor": page.Next}, err
 	})
 }
 func PageDetail(w http.ResponseWriter, r *http.Request) {
@@ -133,8 +137,12 @@ func PageAttempts(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return nil, err
 		}
-		rows, err := v22_data_repo.Attempts(ctx, owner, row["run_id"])
-		return map[string]any{"scope": "run", "page_attempt": row["attempt"], "items": rows}, err
+		limit, err := readLimit(r)
+		if err != nil {
+			return nil, err
+		}
+		page, err := v22_data_repo.AttemptsPage(ctx, owner, row["run_id"], r.URL.Query().Get("cursor"), limit)
+		return map[string]any{"scope": "run", "page_attempt": row["attempt"], "items": page.Items, "has_more": page.More, "next_cursor": page.Next}, err
 	})
 }
 func DocumentAsset(w http.ResponseWriter, r *http.Request) {
@@ -164,5 +172,20 @@ func RunCheckpoints(w http.ResponseWriter, r *http.Request) {
 			return nil, err
 		}
 		return v22_data_repo.Checkpoints(ctx, owner, mux.Vars(r)["run_id"], r.URL.Query().Get("cursor"), limit)
+	})
+}
+
+func RunDiagnostics(w http.ResponseWriter, r *http.Request) {
+	dataRead(w, r, func(ctx context.Context, owner int64) (any, error) {
+		limit, err := readLimit(r)
+		if err != nil {
+			return nil, err
+		}
+		return v22_data_repo.Diagnostics(ctx, owner, mux.Vars(r)["run_id"], r.URL.Query().Get("cursor"), limit)
+	})
+}
+func RunCoverage(w http.ResponseWriter, r *http.Request) {
+	dataRead(w, r, func(ctx context.Context, owner int64) (any, error) {
+		return v22_data_repo.Coverage(ctx, owner, mux.Vars(r)["run_id"])
 	})
 }

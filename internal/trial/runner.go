@@ -44,12 +44,18 @@ type Source interface {
 	Action(context.Context, editor.Command) error
 	Close()
 }
+type ActionDiagnostic struct {
+	ID   int    `json:"operation_id"`
+	Type string `json:"type"`
+}
+
 type Event struct {
-	StepID     string      `json:"step_id,omitempty"`
-	Stage      string      `json:"stage,omitempty"`
-	Status     string      `json:"status"`
-	Code       string      `json:"code,omitempty"`
-	Checkpoint *Checkpoint `json:"checkpoint,omitempty"`
+	Action     *ActionDiagnostic `json:"action,omitempty"`
+	StepID     string            `json:"step_id,omitempty"`
+	Stage      string            `json:"stage,omitempty"`
+	Status     string            `json:"status"`
+	Code       string            `json:"code,omitempty"`
+	Checkpoint *Checkpoint       `json:"checkpoint,omitempty"`
 }
 type Summary struct {
 	Status           string          `json:"status"`
@@ -140,6 +146,34 @@ func (r Runner) Run(ctx context.Context) (summary Summary) {
 			return r.Emit(Event{StepID: currentStep, Stage: currentStage, Status: status, Code: code}, doc)
 		}
 		return nil
+	}
+	actionSequence := 0
+	executeAction := func(cmd editor.Command) error {
+		actionSequence++
+		a := &ActionDiagnostic{ID: actionSequence, Type: cmd.Type}
+		if r.Emit != nil {
+			if err := r.Emit(Event{StepID: currentStep, Stage: currentStage, Status: "running", Action: a}, nil); err != nil {
+				return err
+			}
+		}
+		// No command values/selectors are journaled here; values may contain credentials.
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		err := r.Source.Action(ctx, cmd)
+		status, code := "succeeded", ""
+		if err != nil {
+			status, code = "failed", errorCode(err)
+			if code == "ACTION_OUTCOME_UNCERTAIN" {
+				status = "unknown"
+			}
+		}
+		if r.Emit != nil {
+			if journalErr := r.Emit(Event{StepID: currentStep, Stage: currentStage, Status: status, Code: code, Action: a}, nil); journalErr != nil && err == nil {
+				return journalErr
+			}
+		}
+		return err
 	}
 	if r.Input.Mode == "live" {
 		if r.Source == nil {
@@ -293,7 +327,7 @@ func (r Runner) Run(ctx context.Context) (summary Summary) {
 				}
 				continue
 			}
-			if err := r.Source.Action(ctx, step.Action); err != nil {
+			if err := executeAction(step.Action); err != nil {
 				return fail(err)
 			}
 			if err := emit("succeeded", "", nil); err != nil {
@@ -401,7 +435,7 @@ func (r Runner) Run(ctx context.Context) (summary Summary) {
 						if err = emit("running", "", nil); err != nil {
 							return fail(err)
 						}
-						if err = r.Source.Action(ctx, cmd); err != nil {
+						if err = executeAction(cmd); err != nil {
 							return fail(err)
 						}
 						if _, err = take(step, "detail", path.Index, page); err != nil {
@@ -425,7 +459,7 @@ func (r Runner) Run(ctx context.Context) (summary Summary) {
 						if err = emit("running", "", nil); err != nil {
 							return fail(err)
 						}
-						if err = r.Source.Action(ctx, cmd); err != nil {
+						if err = executeAction(cmd); err != nil {
 							return fail(err)
 						}
 						if err = emit("running", "", nil); err != nil {
@@ -517,11 +551,11 @@ func (r Runner) Run(ctx context.Context) (summary Summary) {
 			if err = emit("running", "", nil); err != nil {
 				return fail(err)
 			}
-			if err = r.Source.Action(ctx, cmd); err != nil {
+			if err = executeAction(cmd); err != nil {
 				return fail(err)
 			}
 			if wait := step.Plan.HTML.NextPage.WaitMS; wait > 0 {
-				if err = r.Source.Action(ctx, editor.Command{Type: "wait", Value: strconv.Itoa(wait), TimeoutMS: wait + 500, Confirmed: true}); err != nil {
+				if err = executeAction(editor.Command{Type: "wait", Value: strconv.Itoa(wait), TimeoutMS: wait + 500, Confirmed: true}); err != nil {
 					return fail(err)
 				}
 			}

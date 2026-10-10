@@ -51,6 +51,10 @@ func Create(ctx context.Context, ownerID, collectorID int64, key string, input r
 // CreateTx shares caller's transaction, so a trigger decision and queued run commit together.
 // A nil capability snapshot defers the live capability check to the formal worker.
 func CreateTx(s *xorm.Session, ownerID, collectorID int64, key string, input runmodel.Input, caps *publication.Capabilities, source, overlap string) (*table.V22Run, error) {
+	return createTx(s, ownerID, collectorID, key, input, caps, source, overlap, nil)
+}
+
+func createTx(s *xorm.Session, ownerID, collectorID int64, key string, input runmodel.Input, caps *publication.Capabilities, source, overlap string, parent *table.V22Run) (*table.V22Run, error) {
 	if source != "manual" && source != "schedule" && source != "api" {
 		return nil, invalid("invalid trigger source")
 	}
@@ -63,6 +67,9 @@ func CreateTx(s *xorm.Session, ownerID, collectorID int64, key string, input run
 	fingerprint := publication.Hash([]any{collectorID, input})
 	if source != "manual" {
 		fingerprint = publication.Hash([]any{collectorID, input, source})
+	}
+	if parent != nil {
+		fingerprint = publication.Hash([]any{collectorID, input, "retry", parent.Id, "full_run"})
 	}
 	if err := idempotency.Lock(s, ownerID, "run.create", key); err != nil {
 		return nil, err
@@ -77,6 +84,9 @@ func CreateTx(s *xorm.Session, ownerID, collectorID int64, key string, input run
 			return nil, ErrConflict
 		}
 		return prior, nil
+	}
+	if parent != nil && !runmodel.RunControls(parent.Status, parent.CancelRequested).Retry {
+		return nil, ErrConflict
 	}
 	if source == "manual" && (strings.HasPrefix(key, "schedule:") || strings.HasPrefix(key, "api:")) {
 		return nil, invalid("reserved trigger request key prefix")
@@ -130,6 +140,9 @@ func CreateTx(s *xorm.Session, ownerID, collectorID int64, key string, input run
 	if !has {
 		return nil, ErrNotFound
 	}
+	if parent != nil && (v.DefinitionHash != parent.DefinitionHash || v.Definition != parent.Definition || v.OutputSchema != parent.OutputSchema || v.ContractVersion != parent.PublicationContract || v.InterpreterVersion != parent.InterpreterVersion) {
+		return nil, ErrConflict
+	}
 	plan, schema, err := VersionPlan(v)
 	if err != nil {
 		return nil, err
@@ -160,10 +173,14 @@ func CreateTx(s *xorm.Session, ownerID, collectorID int64, key string, input run
 	}
 	raw, _ := json.Marshal(input)
 	row := &table.V22Run{Id: uuid.NewString(), OwnerId: ownerID, CollectorId: collectorID, VersionId: v.Id, VersionNumber: v.Number, CollectorRevision: v.CollectorRevision, Definition: v.Definition, DefinitionHash: v.DefinitionHash, PublicationContract: v.ContractVersion, InterpreterVersion: v.InterpreterVersion, EntryType: v.EntryType, OutputSchema: v.OutputSchema, Input: string(raw), TriggerSource: source, Status: "queued", Summary: "{}", EventSeq: 1, IdempotencyKey: key, Fingerprint: fingerprint, CreatedAt: time.Now()}
+	if parent != nil {
+		row.RetryOf = &parent.Id
+		row.RetryScope = "full_run"
+	}
 	if _, err = s.InsertOne(row); err != nil {
 		return nil, err
 	}
-	event, _ := json.Marshal(map[string]string{"status": "queued", "trigger_source": source})
+	event, _ := json.Marshal(map[string]any{"status": "queued", "trigger_source": source, "retry_of": row.RetryOf, "retry_scope": row.RetryScope})
 	if _, err = s.Exec("INSERT INTO v22_run_events(run_id,sequence,attempt,payload) VALUES(?,1,0,?::jsonb)", row.Id, string(event)); err != nil {
 		return nil, err
 	}
@@ -209,34 +226,9 @@ func Get(ctx context.Context, ownerID int64, id, key string) (*table.V22Run, err
 	return r, nil
 }
 func List(ctx context.Context, ownerID, collectorID int64, cursor string, limit int) ([]table.V22Run, bool, error) {
-	if limit < 1 || limit > 50 {
-		return nil, false, invalid("limit must be 1..50")
-	}
-	s := db.Instance().Context(ctx).Where("owner_id=?", ownerID)
-	if collectorID > 0 {
-		s.And("collector_id=?", collectorID)
-	}
-	if cursor != "" {
-		anchor, err := Get(ctx, ownerID, cursor, "")
-		if err != nil {
-			return nil, false, err
-		}
-		if collectorID > 0 && anchor.CollectorId != collectorID {
-			return nil, false, ErrNotFound
-		}
-		s.And("(created_at,id)<(?,?)", anchor.CreatedAt, anchor.Id)
-	}
-	rows := []table.V22Run{}
-	err := s.Omit("definition", "output_schema").Desc("created_at", "id").Limit(limit + 1).Find(&rows)
-	if err != nil {
-		return nil, false, err
-	}
-	more := len(rows) > limit
-	if more {
-		rows = rows[:limit]
-	}
-	return rows, more, nil
+	return FilteredList(ctx, ownerID, collectorID, cursor, limit, Filter{})
 }
+
 func lock(s *xorm.Session, id string) (*table.V22Run, error) {
 	if _, err := s.QueryString("SELECT id FROM v22_runs WHERE id=? FOR UPDATE", id); err != nil {
 		return nil, err
