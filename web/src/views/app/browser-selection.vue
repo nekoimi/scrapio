@@ -99,7 +99,7 @@
 						<option value="load_more">点击加载更多</option>
 					</select></label
 				>
-				<button
+				<button class="primary-action"
 					:disabled="
 						!available ||
 						!check.match_count ||

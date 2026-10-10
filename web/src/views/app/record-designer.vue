@@ -67,7 +67,7 @@
 							{{ field.locator ? '改用容器自身' : '指定子元素' }}
 						</button>
 					</details>
-					<button @click="group.fields.splice(index, 1)">删除</button
+					<button class="danger-action" @click="group.fields.splice(index, 1)">删除</button
 					><button :disabled="index === 0" @click="moveField(group.fields, index, -1)">↑</button
 					><button :disabled="index === group.fields.length - 1" @click="moveField(group.fields, index, 1)">↓</button
 					><FieldOptions :field="field" :role="group.role" />
@@ -135,7 +135,7 @@
 				字段定位相对于各自记录容器；详情字段相对于整页。当前页面检查不连续运行。正式运行遵循已发布轮次上限与运行预算；加载更多的记录上限须能覆盖累积列表，超出会标记受限。重复/空页自动停止；动作后等待用于异步列表加载。
 			</p>
 			<div class="editor-actions">
-				<button :disabled="!localDirty || unsupported || !available" @click="saveAndPreview">{{ working ? '处理中…' : '保存并预览当前页' }}</button
+				<button class="primary-action" :disabled="!localDirty || unsupported || !available" @click="saveAndPreview">{{ working ? '处理中…' : '保存并预览当前页' }}</button
 				><button :disabled="!localDirty || unsupported" @click="save">只保存规则</button
 				><button :disabled="!localDirty || working" @click="undoLocal">撤销未保存规则</button>
 			</div>

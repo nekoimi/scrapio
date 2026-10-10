@@ -1,0 +1,185 @@
+/* Native controls share the template's Element Plus theme and state tokens. */
+.scrapio-app {
+ --app-control-primary: var(--el-color-primary, #409eff);
+ --app-control-border: var(--el-border-color, #dcdfe6);
+ --app-control-text: var(--el-text-color-regular, #606266);
+ --app-control-muted: var(--el-text-color-placeholder, #a8abb2);
+ --app-control-radius: var(--el-border-radius-base, 4px);
+}
+.scrapio-app button:not(.el-button) {
+ display: inline-flex;
+ align-items: center;
+ justify-content: center;
+ gap: 6px;
+ min-height: 34px;
+ max-width: 100%;
+ padding: 8px 14px;
+ border: 1px solid var(--app-control-border);
+ border-radius: var(--app-control-radius);
+ background: var(--el-fill-color-blank, #fff);
+ color: var(--app-control-text);
+ font: inherit;
+ font-size: 13px;
+ font-weight: 500;
+ line-height: 1.4;
+ text-align: center;
+ white-space: normal;
+ overflow-wrap: anywhere;
+ cursor: pointer;
+ transition: color .15s, border-color .15s, background-color .15s, box-shadow .15s;
+}
+.scrapio-app button:not(.el-button):hover:not(:disabled) {
+ color: var(--app-control-primary);
+ border-color: var(--el-color-primary-light-5, #a0cfff);
+ background: var(--el-color-primary-light-9, #ecf5ff);
+}
+.scrapio-app button:not(.el-button):active:not(:disabled) { border-color: var(--app-control-primary); }
+.scrapio-app button.primary-action,
+.scrapio-app .url-row button,
+.scrapio-app button[aria-selected="true"],
+.scrapio-app button[aria-pressed="true"],
+.scrapio-app button[aria-current="step"] {
+ color: var(--el-color-white, #fff);
+ border-color: var(--app-control-primary);
+ background: var(--app-control-primary);
+}
+.scrapio-app button.primary-action:hover:not(:disabled),
+.scrapio-app .url-row button:hover:not(:disabled),
+.scrapio-app button[aria-selected="true"]:hover:not(:disabled),
+.scrapio-app button[aria-pressed="true"]:hover:not(:disabled),
+.scrapio-app button[aria-current="step"]:hover:not(:disabled) {
+ color: var(--el-color-white, #fff);
+ background: var(--el-color-primary-light-3, #79bbff);
+ border-color: var(--el-color-primary-light-3, #79bbff);
+}
+.scrapio-app button.danger-action { color: var(--el-color-danger, #f56c6c); }
+.scrapio-app button.danger-action:hover:not(:disabled) {
+ color: var(--el-color-danger, #f56c6c);
+ background: var(--el-color-danger-light-9, #fef0f0);
+ border-color: var(--el-color-danger-light-5, #fab6b6);
+}
+.scrapio-app button:is(.text-action, .field-source, .step-title) {
+ min-height: 28px;
+ padding: 2px 4px;
+ border-color: transparent;
+ background: transparent;
+ color: var(--app-control-primary);
+ text-align: left;
+ justify-content: flex-start;
+ box-shadow: none;
+}
+.scrapio-app button.step-title { color: var(--el-text-color-primary, #303133); font-weight: 600; }
+.scrapio-app .step-controls button { min-height: 28px; padding: 4px 8px; font-size: 12px; }
+.scrapio-app button:not(.el-button):disabled {
+ color: var(--app-control-muted);
+ background: var(--el-fill-color-light, #f5f7fa);
+ border-color: var(--el-border-color-light, #e4e7ed);
+ opacity: 1;
+ cursor: not-allowed;
+}
+.scrapio-app button.primary-action:disabled {
+ color: var(--el-color-white, #fff);
+ background: var(--el-color-primary-light-5, #a0cfff);
+ border-color: var(--el-color-primary-light-5, #a0cfff);
+}
+.scrapio-app input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="range"]):not([type="file"]),
+.scrapio-app select,
+.scrapio-app textarea {
+ width: 100%;
+ min-width: 0;
+ max-width: 100%;
+ min-height: 36px;
+ padding: 8px 11px;
+ border: 1px solid var(--app-control-border);
+ border-radius: var(--app-control-radius);
+ background: var(--el-fill-color-blank, #fff);
+ color: var(--el-text-color-primary, #303133);
+ font: inherit;
+ font-size: 13px;
+ line-height: 1.5;
+ transition: border-color .15s, box-shadow .15s;
+}
+.scrapio-app select { cursor: pointer; }
+.scrapio-app textarea { display: block; min-height: 88px; resize: vertical; }
+.scrapio-app .definition-editor { min-height: 300px; font-family: ui-monospace, Consolas, monospace; }
+.scrapio-app input::placeholder,
+.scrapio-app textarea::placeholder { color: var(--app-control-muted); }
+.scrapio-app :is(input, select, textarea):hover:not(:disabled):not(:focus) { border-color: var(--el-border-color-hover, #c0c4cc); }
+.scrapio-app :is(input, select, textarea):focus {
+ border-color: var(--app-control-primary);
+ box-shadow: 0 0 0 2px var(--el-color-primary-light-8, #d9ecff);
+}
+.scrapio-app :is(input, select, textarea):is(:disabled, [readonly]) {
+ color: var(--el-text-color-disabled, #a8abb2);
+ background: var(--el-disabled-bg-color, #f5f7fa);
+ border-color: var(--el-disabled-border-color, #e4e7ed);
+}
+.scrapio-app :is(input, select, textarea):disabled { cursor: not-allowed; }
+.scrapio-app input[readonly], .scrapio-app textarea[readonly] { color: var(--app-control-text); }
+.scrapio-app :is(input[type="checkbox"], input[type="radio"]) {
+ display: inline-block;
+ flex: 0 0 auto;
+ width: 16px;
+ height: 16px;
+ min-width: 16px;
+ min-height: 16px;
+ padding: 0;
+ margin: 0 6px 0 0;
+ vertical-align: middle;
+ accent-color: var(--app-control-primary);
+ cursor: pointer;
+ box-shadow: none;
+}
+.scrapio-app label:has(> :is(input[type="checkbox"], input[type="radio"])) {
+ display: flex;
+ flex-direction: row;
+ align-items: baseline;
+ gap: 6px;
+ font-weight: 400;
+ line-height: 1.7;
+}
+.scrapio-app label > :is(input[type="checkbox"], input[type="radio"]) { align-self: baseline; }
+.scrapio-app label > :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) { display: block; margin-top: 6px; }
+.scrapio-app input[type="file"] { max-width: 100%; font: inherit; }
+.scrapio-app input[type="file"]::file-selector-button {
+ border: 1px solid var(--app-control-border);
+ border-radius: var(--app-control-radius);
+ padding: 8px 12px;
+ margin-right: 8px;
+ background: var(--el-fill-color-blank, #fff);
+ color: var(--app-control-text);
+ cursor: pointer;
+}
+.scrapio-app :is(button, input, select, textarea, summary, a):focus-visible {
+ outline: 2px solid var(--app-control-primary) !important;
+ outline-offset: 2px;
+}
+.scrapio-app .editor-actions { flex-wrap: wrap; gap: 10px; }
+.scrapio-app .editor-actions > label { flex: 1 1 180px; min-width: 0; }
+.scrapio-app .pane-heading { flex-wrap: wrap; gap: 12px; }
+.scrapio-app .pane-heading :is(h2, h3, h4) { margin-bottom: 0; }
+.scrapio-app .pane-heading { margin-bottom: 16px; }
+.scrapio-app .record-field-rule > :is(input, select) { flex: 0 1 180px; width: 180px; }
+.scrapio-app .command-form-grid { margin: 12px 0; }
+.scrapio-app .command-form-grid > label { min-width: 0; }
+.scrapio-app summary { cursor: pointer; color: var(--app-control-text); line-height: 1.6; }
+.scrapio-app .app-content a:not(.primary-link) { color: var(--app-control-primary); }
+.scrapio-app .app-content a:hover { text-decoration: underline; }
+@media (max-width: 760px) {
+ .scrapio-app .url-row { flex-wrap: wrap; }
+ .scrapio-app .url-row input { flex-basis: 100%; }
+ .scrapio-app .editor-actions > label { flex-basis: 100%; }
+ .scrapio-app .publication-panel textarea { min-width: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+ .scrapio-app :is(button, input, select, textarea) { transition: none; }
+}
+/* Active navigation and small source links keep their semantic presentation. */
+.scrapio-app .settings-tabs a[aria-current="page"],
+.scrapio-app .primary-link {
+ background: var(--app-control-primary);
+ border-color: var(--app-control-primary);
+ color: var(--el-color-white, #fff);
+}
+.scrapio-app .app-content .settings-tabs a[aria-current="page"] { color: var(--el-color-white, #fff); }
+.scrapio-app .json-editor textarea { min-height: 260px; }

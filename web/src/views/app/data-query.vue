@@ -33,7 +33,7 @@
 					:placeholder="fieldType(f.field) === 'boolean' ? 'true 或 false' : '输入值，数值按文本输入保留精度'"
 					:disabled="busy || blocked"
 			/></label>
-			<button :disabled="busy || blocked" @click="filters.splice(i, 1)">移除</button>
+			<button class="danger-action" :disabled="busy || blocked" @click="filters.splice(i, 1)">移除</button>
 		</div>
 		<button :disabled="busy || blocked || filters.length >= 8" @click="addFilter">添加条件（全部满足）</button>
 		<div class="editor-actions">
@@ -58,7 +58,7 @@
 			>
 		</details>
 		<div class="editor-actions">
-			<button :disabled="busy || blocked || !columns.length" @click="apply">应用条件</button
+			<button class="primary-action" :disabled="busy || blocked || !columns.length" @click="apply">应用条件</button
 			><button :disabled="busy || blocked" @click="reset">重置并查询</button
 			><span v-if="dirty" class="status-warn">条件未应用，当前表格与导出仍使用上次查询</span>
 		</div>
@@ -69,7 +69,7 @@
 		<div class="editor-actions">
 			<button :disabled="busy || blocked || !viewName.trim() || !columns.length || !!pending" @click="save(false)">保存为新视图</button
 			><button v-if="selectedView" :disabled="busy || blocked || !!pending" @click="save(true)">更新此视图</button
-			><button v-if="selectedView" :disabled="busy || blocked" @click="removeView">删除此视图</button
+			><button class="danger-action" v-if="selectedView" :disabled="busy || blocked" @click="removeView">删除此视图</button
 			><button v-if="pending" :disabled="busy || blocked" @click="recover">查询并重试原保存</button
 			><button v-if="pending" :disabled="busy || blocked" @click="discardPending">结束本地等待</button>
 		</div>

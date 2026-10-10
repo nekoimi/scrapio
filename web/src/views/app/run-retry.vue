@@ -12,7 +12,7 @@
 				attempt。
 			</p>
 			<label><input v-model="confirmed" type="checkbox" :disabled="busy || !!pending" />确认原版本、原范围/预算、重复网站动作及正式数据写入</label>
-			<button :disabled="busy || !confirmed || !!pending" @click="start">完整重跑 v{{ run.version_number }}</button>
+			<button class="primary-action" :disabled="busy || !confirmed || !!pending" @click="start">完整重跑 v{{ run.version_number }}</button>
 			<p class="muted">提交时及执行前仍校验能力、版本和目标 Schema，不兼容时明确阻断；修复规则需要另行发布。</p>
 		</template>
 		<p v-else class="muted">原运行结束后才能重新运行。当前不支持仅失败页面重试或自动恢复未知动作。</p>

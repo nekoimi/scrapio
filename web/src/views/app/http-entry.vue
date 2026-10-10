@@ -20,7 +20,7 @@
 			><label v-if="httpMethod === 'POST'">JSON 请求体<textarea v-model="bodyText" rows="4" /></label
 			><label>凭据引用（可选）<input v-model="credentialRef" placeholder="${secret:example_api}" /></label>
 			<CredentialPicker v-model="credentialRef" kind="http_header" :target="entryURL" :disabled="busy||blocked" /><p class="muted">认证头使用已管理凭据或部署 ${secret:name} 引用；参数/请求体中不得填写秘密。</p>
-			<button :disabled="!requestDirty || advanced" @click="saveRequest">保存入口请求</button>
+			<button class="primary-action" :disabled="!requestDirty || advanced" @click="saveRequest">保存入口请求</button>
 		</fieldset>
 		<button :disabled="busy || blocked" @click="reloadDraft">重新加载已保存草稿</button>
 		<p v-if="baseRevision !== draft.revision" class="status-warn">草稿版本已变化，请保留或放弃本地修改后重新加载。</p>
@@ -43,7 +43,7 @@
 			>离线内容（最多 1 MiB）<textarea v-model="offline" rows="8" :disabled="busy" placeholder="粘贴真实 JSON 或 HTML；已知秘密字段会脱敏" />
 		</label>
 		<div class="editor-actions">
-			<button :disabled="!canCapture" @click="createCapture">
+			<button class="primary-action" :disabled="!canCapture" @click="createCapture">
 				{{ busy ? '处理中…' : source === 'http' ? '确认访问并获取快照' : '保存离线快照' }}</button
 			><button v-if="unresolved" :disabled="busy || blocked" @click="resolveCapture">查询原请求（沿用请求键）</button
 			><button v-if="capture" :disabled="busy" @click="loadCapture(capture.capture_id)">重新读取快照状态</button
@@ -84,11 +84,11 @@
 						v-model="field.pointer"
 						placeholder="相对指针，如 /title"
 						aria-label="字段 JSON Pointer"
-					/><button @click="plan.fields.splice(index, 1)">删除</button><button :disabled="index === 0" @click="moveField(index, -1)">↑</button
+					/><button class="danger-action" @click="plan.fields.splice(index, 1)">删除</button><button :disabled="index === 0" @click="moveField(index, -1)">↑</button
 					><button :disabled="index === plan.fields.length - 1" @click="moveField(index, 1)">↓</button><FieldOptions :field="field" />
 				</div>
 				<button @click="plan.fields.push({ name: `field_${plan.fields.length + 1}`, pointer: '' })">添加字段</button
-				><button :disabled="!planDirty && !!stepID" @click="savePlan">保存 JSON 记录规则</button>
+				><button class="primary-action" :disabled="!planDirty && !!stepID" @click="savePlan">保存 JSON 记录规则</button>
 			</fieldset>
 			<p v-if="planDirty" class="status-warn">JSON 规则未保存。</p>
 			<button :disabled="busy || blocked || planDirty || !stepID || advanced" @click="checkJSON">检查已保存快照（不访问网站）</button></template

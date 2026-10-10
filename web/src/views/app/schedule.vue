@@ -64,14 +64,14 @@
 				<option value="queue">排队（最多等待一个）</option>
 			</select>
 			<label><input v-model="enabled" type="checkbox" :disabled="busy || !!pendingSave" />启用后续定时触发</label>
-			<button :disabled="busy || !versionID || !confirmed || !!pendingSave" @click="save">保存计划</button>
+			<button class="primary-action" :disabled="busy || !versionID || !confirmed || !!pendingSave" @click="save">保存计划</button>
 		</section>
 		<section class="app-card">
 			<h2>方案 API 凭据</h2>
 			<p>凭据只能触发此方案的固定版本；允许按次调低预算。每个方案最多 5 个有效凭据。</p>
 			<label for="api-key-name">凭据名称</label
 			><input id="api-key-name" v-model="keyName" maxlength="80" placeholder="每日自动采集" :disabled="busy" />
-			<button :disabled="busy || !versionID || !confirmed || !keyName.trim() || !!pendingKey" @click="createKey">创建凭据</button>
+			<button class="primary-action" :disabled="busy || !versionID || !confirmed || !keyName.trim() || !!pendingKey" @click="createKey">创建凭据</button>
 			<p v-if="pendingKey">创建结果未确认，凭据 ID：{{ pendingKey }}。<button :disabled="busy" @click="recoverKey">查询原凭据</button></p>
 			<div v-if="secret" class="conflict-box">
 				<strong>请立即保存凭据，仅本次显示</strong>
@@ -85,7 +85,7 @@
 					预算 {{ key.input.budget.seconds }} 秒 / {{ key.input.budget.pages }} 文档 / {{ key.input.budget.records }} 记录 /
 					{{ key.input.budget.details }} 详情 · {{ key.id }}
 				</p>
-				<button v-if="!key.revoked_at" :disabled="busy" @click="revoke(key)">撤销凭据</button>
+				<button class="danger-action" v-if="!key.revoked_at" :disabled="busy" @click="revoke(key)">撤销凭据</button>
 			</article>
 			<details>
 				<summary>API 使用说明</summary>

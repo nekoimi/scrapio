@@ -118,7 +118,7 @@
 			>
 				保存为样例
 			</button>
-			<button v-else :disabled="busy || blocked || !!pendingKey || !dirty" @click="save">保存样例修改</button>
+			<button class="primary-action" v-else :disabled="busy || blocked || !!pendingKey || !dirty" @click="save">保存样例修改</button>
 			<button v-if="selected" :disabled="busy || blocked || dirty || !!pendingKey" @click="check">验证并保存检查证据</button>
 			<button v-if="selected" :disabled="busy || dirty || !!pendingKey" @click="useInput">带入预览</button>
 			<button v-if="selected" :disabled="busy || dirty || !!pendingKey || selected.protected" @click="remove">删除样例及检查证据</button>

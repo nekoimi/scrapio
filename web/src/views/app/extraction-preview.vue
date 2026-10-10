@@ -26,7 +26,7 @@
 			当前页面已变化或会话不可用；该固定快照仍能做离线验证，不代表当前页面。
 		</p>
 		<div class="editor-actions">
-			<button :disabled="busy || blocked || !capture || capture.status !== 'succeeded' || !stepID" @click="runPreview">
+			<button class="primary-action" :disabled="busy || blocked || !capture || capture.status !== 'succeeded' || !stepID" @click="runPreview">
 				{{ busy ? '处理中…' : '预览已保存规则' }}</button
 			><button
 				v-if="draft.entry_type === 'web'"

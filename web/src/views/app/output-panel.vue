@@ -96,7 +96,7 @@
 								</option>
 							</select>
 						</td>
-						<td><button v-if="!tableId" :disabled="lockedSchema" @click="removeField(index)">删除</button></td>
+						<td><button class="danger-action" v-if="!tableId" :disabled="lockedSchema" @click="removeField(index)">删除</button></td>
 					</tr>
 				</tbody>
 			</table>
@@ -112,7 +112,7 @@
 				@click="runCheck"
 			>
 				{{ busy ? '处理中…' : '预演保存结果' }}</button
-			><button :disabled="busy || blocked || !check || stale || !check.ready || !!pendingKey || !!pendingConfirm" @click="confirm">
+			><button class="primary-action" :disabled="busy || blocked || !check || stale || !check.ready || !!pendingKey || !!pendingConfirm" @click="confirm">
 				确认保存输出配置{{ tableId ? '' : '并创建表' }}
 			</button>
 		</div>

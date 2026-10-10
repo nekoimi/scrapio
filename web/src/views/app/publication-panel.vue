@@ -50,7 +50,7 @@
 		<div class="editor-actions">
 			<button :disabled="busy || blocked || !trialId || !!pendingCheck || !!pendingPublish" @click="runCheck">
 				{{ busy ? '处理中…' : '检查当前草稿是否可发布' }}</button
-			><button :disabled="busy || blocked || !check?.ready || stale || !differenceReady || !!pendingCheck || !!pendingPublish" @click="publish">
+			><button class="primary-action" :disabled="busy || blocked || !check?.ready || stale || !differenceReady || !!pendingCheck || !!pendingPublish" @click="publish">
 				确认发布不可变版本
 			</button>
 		</div>

@@ -17,7 +17,7 @@
 					<p>{{ c.kind === 'browser_cookie' ? '浏览器 Cookie' : 'HTTP 认证头' }} · {{ c.status }} · revision {{ c.revision }}</p>
 					<p>{{ c.origin }} · 到期 {{ c.expires_at }}</p>
 					<code>{{ c.credential_ref }}</code
-					><button v-if="c.status !== 'revoked'" :disabled="busy || !!pending" @click="revoke(c)">撤销</button>
+					><button class="danger-action" v-if="c.status !== 'revoked'" :disabled="busy || !!pending" @click="revoke(c)">撤销</button>
 				</article>
 				<p v-if="!busy && !error && !items.length">尚无凭据。列表最多保留100项，旧业务凭据不进入此页面。</p>
 			</section>
@@ -70,7 +70,7 @@
 						浏览器授权会话自动遮挡输入框、文本域和 iframe 截图；所选 CSS
 						同时遮挡快照与截图。已有样例不会被追溯修改，保存前仍须人工检查敏感信息。
 					</p>
-					<button :disabled="!dirty || (form.storage === 'encrypted' && !encryptionReady)" @click="save">保存凭据</button>
+					<button class="primary-action" :disabled="!dirty || (form.storage === 'encrypted' && !encryptionReady)" @click="save">保存凭据</button>
 				</fieldset>
 				<p v-if="pending" class="status-warn">请求未确认。本地编辑保留；先读取服务器版本核对，勿重复创建或替换。</p>
 				<button v-if="pending" :disabled="busy" @click="recover">读取原凭据状态</button>

@@ -53,7 +53,7 @@
 						<p class="muted">浏览/录制执行真实动作；选择记录/字段只检查元素，不点击网站。</p>
 					</div>
 					<div class="editor-actions">
-						<button
+						<button class="primary-action"
 							v-if="!browserSession"
 							:disabled="!draft || draft.entry_type !== 'web' || dirty || saving || connecting"
 							@click="openBrowserSession"
@@ -165,7 +165,7 @@
 					><textarea id="collector-definition" v-model="definitionText" class="definition-editor" spellcheck="false" />
 				</details>
 				<div class="editor-actions">
-					<button :disabled="saving" @click="save(false)">{{ saving ? '保存中…' : '保存草稿' }}</button
+					<button class="primary-action" :disabled="saving" @click="save(false)">{{ saving ? '保存中…' : '保存草稿' }}</button
 					><button class="secondary-action" :disabled="!dirty || saving" @click="undoUnsaved">撤销未保存修改</button
 					><button class="secondary-action" :disabled="saving || checking || dirty || !draft || !!conflictLatest" @click="validate">
 						{{ checking ? '检查中…' : '检查草稿结构' }}</button

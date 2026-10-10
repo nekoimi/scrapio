@@ -45,7 +45,7 @@
 			<button v-if="sampleCursor" @click="loadSamples">加载更多样例输入</button>
 		</template>
 		<div class="editor-actions">
-			<button :disabled="busy || blocked || !draft.definition.output || !!pendingKey || (mode === 'live' && !confirmed)" @click="start">
+			<button class="primary-action" :disabled="busy || blocked || !draft.definition.output || !!pendingKey || (mode === 'live' && !confirmed)" @click="start">
 				创建试采</button
 			><button v-if="pendingKey" :disabled="busy" @click="recover">查询原创建请求</button
 			><button v-if="pendingKey" :disabled="busy" @click="clearPending">结束本地等待</button
@@ -60,7 +60,7 @@
 				<button @click="selectTrial(item)">
 					{{ label(item.status) }} · revision {{ item.collector_revision }} · {{ item.input.mode === 'live' ? '实时' : '离线' }} ·
 					{{ new Date(item.created_at).toLocaleString() }}</button
-				><button v-if="terminal(item.status)" :disabled="busy" @click="deleteTrial(item)">删除证据</button>
+				><button v-if="terminal(item.status)" :disabled="busy" class="danger-action" @click="deleteTrial(item)">删除证据</button>
 			</li>
 		</ul>
 		<section v-if="selected">

@@ -23,7 +23,7 @@
 			<label><input v-model="confirmed" type="checkbox" />我确认此版本、范围和预算，允许本次真实动作/HTTP 请求及正式数据写入</label>
 		</fieldset>
 		<div class="editor-actions">
-			<button :disabled="busy || !confirmed || !!pendingKey || !version.run_available" @click="start">运行已发布 v{{ version.number }}</button>
+			<button class="primary-action" :disabled="busy || !confirmed || !!pendingKey || !version.run_available" @click="start">运行已发布 v{{ version.number }}</button>
 			<button v-if="pendingKey" :disabled="busy" @click="recover">查询原运行请求</button>
 			<button v-if="pendingKey" :disabled="busy" @click="clearPending">结束本地等待</button>
 		</div>

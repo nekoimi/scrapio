@@ -62,3 +62,4 @@ onMounted(() => {
 });
 </script>
 <style src="./style.css"></style>
+<style src="./controls.css"></style>

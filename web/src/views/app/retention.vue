@@ -45,7 +45,7 @@
 					<input v-model.number="policy.asset_limit_mib" type="number" min="16" max="4096" :disabled="busy || uncertain"
 				/></label>
 				<div class="editor-actions">
-					<button :disabled="busy || uncertain || !dirty" @click="save">保存规则</button
+					<button class="primary-action" :disabled="busy || uncertain || !dirty" @click="save">保存规则</button
 					><button :disabled="busy || uncertain || dirty" @click="preview">预览清理</button>
 				</div>
 				<p v-if="dirty" class="muted">有未保存规则，请先保存或刷新恢复已保存规则，再预览清理。</p>
@@ -70,7 +70,7 @@
 					><input v-model="confirmed" type="checkbox" :disabled="busy || dirty" />确认清理本批列出的资产。</label
 				>
 				<div class="editor-actions">
-					<button v-if="!check.applied && check.items.length" :disabled="busy || dirty || !confirmed" @click="apply">
+					<button class="danger-action" v-if="!check.applied && check.items.length" :disabled="busy || dirty || !confirmed" @click="apply">
 						{{ uncertain ? '查询并重试同一次清理' : '确认清理' }}
 					</button>
 				</div>

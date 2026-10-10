@@ -22,7 +22,7 @@
 					<div class="step-controls">
 						<button :disabled="!canEdit || index === 0" @click="moveStep(index, -1)" aria-label="上移步骤">↑</button>
 						<button :disabled="!canEdit || index === steps.length - 1" @click="moveStep(index, 1)" aria-label="下移步骤">↓</button>
-						<button :disabled="!canEdit" @click="removeStep(index)">删除</button>
+						<button class="danger-action" :disabled="!canEdit" @click="removeStep(index)">删除</button>
 						<button :disabled="!canExecute || !executable(step)" @click="runStep(step)">单步执行</button>
 					</div>
 				</li>
@@ -128,7 +128,7 @@
 					</button>
 				</p>
 				<div class="editor-actions">
-					<button type="submit" :disabled="!canExecute || !supported.includes(actionType)">
+					<button class="primary-action" type="submit" :disabled="!canExecute || !supported.includes(actionType)">
 						{{ busy ? '等待动作回执…' : mode === 'record' ? '执行并录制' : '执行动作' }}
 					</button>
 					<button

@@ -19,7 +19,7 @@
 		</details>
 		<label><input v-model="confirmed" type="checkbox" :disabled="busy || !!pending || !snapshot" />确认导出以上快照，不纳入后续采集更新</label>
 		<div class="editor-actions">
-			<button :disabled="busy || blocked || !snapshot || !confirmed || !!pending" @click="create">创建导出任务</button
+			<button class="primary-action" :disabled="busy || blocked || !snapshot || !confirmed || !!pending" @click="create">创建导出任务</button
 			><button v-if="pending" :disabled="busy" @click="recover">查询原请求</button
 			><button v-if="pending" :disabled="busy" @click="discard">结束本地等待</button>
 		</div>
