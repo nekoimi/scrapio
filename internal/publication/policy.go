@@ -63,6 +63,30 @@ func CheckCapabilities(plan trial.Plan, c Capabilities) Result {
 			supported[action] = true
 		}
 		for _, step := range plan.Steps {
+			required := []string{}
+			if next := step.Plan.HTML.NextPage; next != nil {
+				action := "navigate"
+				if next.Kind != "link" {
+					action = "click"
+				}
+				required = append(required, action)
+				if next.WaitMS > 0 {
+					required = append(required, "wait")
+				}
+			}
+			if detail := step.Plan.HTML.Detail; detail != nil {
+				required = append(required, "navigate")
+				if detail.ReturnStrategy == "back" {
+					required = append(required, "back")
+				}
+			}
+			for _, action := range required {
+				if !supported[action] {
+					r.Block("ACTION_UNSUPPORTED", "分页或详情派生动作不受当前浏览器协议支持", step.ID, "path", "", "")
+				}
+			}
+		}
+		for _, step := range plan.Steps {
 			if step.Kind == "action" || step.Kind == "navigate" {
 				if !supported[step.Action.Type] {
 					r.Block("ACTION_UNSUPPORTED", "动作不受当前浏览器协议支持", step.ID, "action", "", "")

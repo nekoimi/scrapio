@@ -308,6 +308,32 @@ func Progress(ctx context.Context, id, token string, e trial.Event, doc *trial.D
 			return err
 		}
 	}
+	if e.Checkpoint != nil {
+		cp := e.Checkpoint
+		if doc != nil || cp.DocumentID == "" || cp.StepID != e.StepID || cp.ListPage < 1 || cp.ListPage > 100 {
+			return invalid("checkpoint boundary invalid")
+		}
+		if cp.State != "page_captured" && cp.State != "page_complete" && cp.State != "action_pending" && cp.State != "awaiting_page" && cp.State != "stopped" {
+			return invalid("checkpoint state invalid")
+		}
+		docs, err := s.QueryString("SELECT id FROM v22_run_documents WHERE id=? AND run_id=? AND attempt=? AND result->>'step_id'=? AND result->>'stage'='list' AND result->>'content_hash'=? AND result->>'list_page'=?", cp.DocumentID, id, r.Attempt, cp.StepID, cp.Hash, strconv.Itoa(cp.ListPage))
+		if err != nil {
+			return err
+		}
+		if len(docs) != 1 {
+			return invalid("checkpoint document mismatch")
+		}
+		raw, _ := json.Marshal(cp)
+		if len(raw) > 16384 {
+			return invalid("checkpoint exceeds budget")
+		}
+		progress := runmodel.Empty(trial.Summary{Status: "running", Pages: cp.Pages, ListPages: cp.ListPages, Candidates: cp.Candidates, Details: cp.Details, DuplicateRecords: cp.DuplicateRecords, NetworkAccessed: true, Warnings: []string{}, LastCheckpoint: cp})
+		progressRaw, _ := json.Marshal(progress)
+		r.Summary = string(progressRaw)
+		if _, err = s.Exec("INSERT INTO v22_run_checkpoints(id,run_id,attempt,sequence,document_id,state,payload) VALUES(?,?,?,?,?,?,?::jsonb)", uuid.NewString(), id, r.Attempt, r.EventSeq+1, cp.DocumentID, cp.State, string(raw)); err != nil {
+			return err
+		}
+	}
 	if err = event(s, r, e); err != nil {
 		return err
 	}
@@ -392,6 +418,22 @@ func Recover(ctx context.Context) ([]table.V22Run, error) {
 			reason = "CANCEL_REQUESTED"
 		}
 		summary := runmodel.Empty(trial.Summary{Status: r.Status, Reason: reason, FailedStep: r.CurrentStep, FailedStage: r.CurrentStage, NetworkAccessed: true, Warnings: []string{"INTERRUPTED_OPERATIONS_NOT_REPLAYED"}})
+		checkpoints, err := s.QueryString("SELECT payload::text FROM v22_run_checkpoints WHERE run_id=? AND attempt=? ORDER BY sequence DESC LIMIT 1", r.Id, r.Attempt)
+		if err != nil {
+			return nil, err
+		}
+		if len(checkpoints) > 0 {
+			var cp trial.Checkpoint
+			if runmodel.Decode(checkpoints[0]["payload"], &cp) != nil {
+				return nil, invalid("checkpoint corrupt")
+			}
+			summary.LastCheckpoint = &cp
+			summary.Pages = cp.Pages
+			summary.ListPages = cp.ListPages
+			summary.Candidates = cp.Candidates
+			summary.Details = cp.Details
+			summary.DuplicateRecords = cp.DuplicateRecords
+		}
 		if err = finishState(s, r, summary); err != nil {
 			return nil, err
 		}

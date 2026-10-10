@@ -18,7 +18,7 @@
 						<option value="single">整页一条记录</option>
 						<option value="repeated">重复容器，每项一条</option>
 					</select></label
-				><label>最多预览记录<input v-model.number="plan.max_records" type="number" min="1" max="20" /></label>
+				><label>本页 / 累积列表记录上限<input v-model.number="plan.max_records" type="number" min="1" max="200" /></label>
 			</div>
 			<div v-if="plan.mode === 'repeated' && plan.locator" class="command-form-grid">
 				<label
@@ -56,7 +56,8 @@
 						{{ field.locator ? '改用容器自身' : '指定子元素' }}</button
 					><button @click="group.fields.splice(index, 1)">删除</button
 					><button :disabled="index === 0" @click="moveField(group.fields, index, -1)">↑</button
-					><button :disabled="index === group.fields.length - 1" @click="moveField(group.fields, index, 1)">↓</button><FieldOptions :field="field" :role="group.role" />
+					><button :disabled="index === group.fields.length - 1" @click="moveField(group.fields, index, 1)">↓</button
+					><FieldOptions :field="field" :role="group.role" />
 				</div>
 			</template>
 			<div class="editor-actions">
@@ -90,7 +91,10 @@
 				</div>
 			</div>
 			<div class="editor-actions">
-				<button v-if="!plan.next_page" @click="plan.next_page = { locator: { strategy: 'css', expression: '' }, kind: 'link', max_pages: 2 }">
+				<button
+					v-if="!plan.next_page"
+					@click="plan.next_page = { locator: { strategy: 'css', expression: '' }, kind: 'link', max_pages: 10, wait_ms: 500 }"
+				>
 					添加下一页入口</button
 				><button v-else @click="plan.next_page = undefined">移除下一页入口</button>
 			</div>
@@ -98,16 +102,21 @@
 				<label
 					>下一页类型<select v-model="plan.next_page.kind">
 						<option value="link">链接导航</option>
-						<option value="click">按钮 / 加载更多</option>
+						<option value="click">翻页按钮</option>
+						<option value="load_more">加载更多（累积列表）</option>
 					</select></label
 				><label
 					>定位方式<select v-model="plan.next_page.locator.strategy">
 						<option value="css">CSS</option>
 						<option value="xpath">XPath</option>
 					</select></label
-				><label>规则<input v-model="plan.next_page.locator.expression" maxlength="2048" /></label>
+				><label>规则<input v-model="plan.next_page.locator.expression" maxlength="2048" /></label
+				><label>最多列表轮次<input v-model.number="plan.next_page.max_pages" type="number" min="1" max="100" /></label
+				><label>动作后等待（毫秒）<input v-model.number="plan.next_page.wait_ms" type="number" min="0" max="10000" /></label>
 			</div>
-			<p class="muted">字段定位相对于各自记录容器；详情字段相对于整页。基础检查显示首个值和匹配诊断，转换/必填/多值处理在 B01 接入。</p>
+			<p class="muted">
+				字段定位相对于各自记录容器；详情字段相对于整页。当前页面检查不连续运行。正式运行遵循已发布轮次上限与运行预算；加载更多的记录上限须能覆盖累积列表，超出会标记受限。重复/空页自动停止；动作后等待用于异步列表加载。
+			</p>
 			<button :disabled="!localDirty || unsupported" @click="save">{{ working ? '处理中…' : '保存记录步骤' }}</button>
 		</fieldset>
 		<p v-if="localDirty" class="status-warn">记录配置尚未保存；保存前不会用旧规则生成新预览。</p>
@@ -275,7 +284,7 @@ const unsupported = computed(
 			)
 		) ||
 		(!!plan.value.detail && Object.keys(plan.value.detail).some((key) => !['locator', 'return_strategy', 'max_details'].includes(key))) ||
-		(!!plan.value.next_page && Object.keys(plan.value.next_page).some((key) => !['locator', 'kind', 'max_pages'].includes(key)))
+		(!!plan.value.next_page && Object.keys(plan.value.next_page).some((key) => !['locator', 'kind', 'max_pages', 'wait_ms'].includes(key)))
 );
 const recordScope = computed(() => (plan.value.mode === 'repeated' ? plan.value.locator : undefined));
 const detailPage = computed(() => !!context.value);
@@ -387,7 +396,7 @@ function applySelection(rule: SelectionRule) {
 		}
 		enableDetail();
 		plan.value.detail!.locator = { ...rule.locator };
-	} else plan.value.next_page = { locator: { ...rule.locator }, kind: 'link', max_pages: 2 };
+	} else plan.value.next_page = { locator: { ...rule.locator }, kind: 'link', max_pages: 10, wait_ms: 500 };
 	message.value = '已填入点选规则，检查后保存记录步骤。';
 }
 function validate() {
@@ -614,7 +623,7 @@ function moveField(fields: FieldRule[], index: number, offset: number) {
 	if (next < 0 || next >= fields.length) return;
 	[fields[index], fields[next]] = [fields[next], fields[index]];
 }
-async function focusField(id: string, key: string, role:string) {
+async function focusField(id: string, key: string, role: string) {
 	if (id !== stepID.value) {
 		chooseStep(id);
 		await nextTick();

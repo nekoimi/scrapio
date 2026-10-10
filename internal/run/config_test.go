@@ -81,3 +81,25 @@ func TestFormalOutputKeepsObservationsDistinctFromMergedValues(t *testing.T) {
 		t.Fatal("missing output written")
 	}
 }
+
+func TestContinuousFormalBudgetAndSelectedProvenance(t *testing.T) {
+	input := Input{VersionID: "be0aa19c-8bb3-4da4-9a91-b8690c0b6dde", Confirmed: true, Origins: []string{"https://example.com"}, Budget: trial.Budget{Seconds: 900, Pages: 100, Records: 1000, Details: 100}}
+	if err := input.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	if input.Trial(1).Validate() == nil {
+		t.Fatal("large formal budget leaked into trial validation")
+	}
+	input.Budget.Records = 1001
+	if input.Validate() == nil {
+		t.Fatal("formal record cap lost")
+	}
+	result := extraction.Result{Records: []extraction.Record{{Index: 0, Values: map[string]any{"id": json.Number("9007199254740993")}}, {Index: 1, Values: map[string]any{"id": json.Number("9007199254740994")}}}}
+	keep := []int{1}
+	none := []int{}
+	docs := []trial.Document{{ID: "one", StepID: "items", Stage: "list", Result: result, OutputIndices: &keep}, {ID: "repeat", StepID: "items", Stage: "list", Result: result, OutputIndices: &none}}
+	selected, origins := Select(docs, output.Config{StepID: "items", Stage: "list"})
+	if len(selected.Records) != 1 || origins[0].DocumentID != "one" || origins[0].RecordIndex != 1 || selected.Records[0].Values["id"] != json.Number("9007199254740994") {
+		t.Fatal(selected, origins)
+	}
+}

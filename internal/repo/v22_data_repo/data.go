@@ -301,3 +301,32 @@ func Statistics(ctx context.Context, owner int64, ids []int64) (map[string]Row, 
 	}
 	return result, err
 }
+
+func Checkpoints(ctx context.Context, owner int64, runID, cursor string, limit int) (Page, error) {
+	if !validID(runID) || limit < 1 || limit > 50 {
+		return Page{}, ErrInvalid
+	}
+	if _, err := one(ctx, "SELECT id FROM v22_runs WHERE id=? AND owner_id=?", runID, owner); err != nil {
+		return Page{}, err
+	}
+	args := []any{runID, owner}
+	clause := ""
+	if cursor != "" {
+		if !validID(cursor) {
+			return Page{}, ErrInvalid
+		}
+		a, err := one(ctx, "SELECT sequence FROM v22_run_checkpoints WHERE run_id=? AND id=?", runID, cursor)
+		if err != nil {
+			return Page{}, err
+		}
+		seq, err := strconv.ParseInt(a["sequence"], 10, 64)
+		if err != nil {
+			return Page{}, err
+		}
+		clause = " AND c.sequence<?"
+		args = append(args, seq)
+	}
+	args = append(args, limit+1)
+	rows, err := query(ctx, `SELECT c.id AS checkpoint_id,c.run_id,c.attempt::text,c.sequence::text,c.document_id,c.state,c.payload::text AS checkpoint_json,c.created_at::text FROM v22_run_checkpoints c JOIN v22_runs r ON r.id=c.run_id WHERE c.run_id=? AND r.owner_id=?`+clause+" ORDER BY c.sequence DESC LIMIT ?", args...)
+	return paged(rows, limit, "checkpoint_id"), err
+}

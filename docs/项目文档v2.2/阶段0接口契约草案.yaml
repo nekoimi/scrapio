@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
   title: scrapio v2.2 editor contract spike
-  version: 0.13.0-b07
-  description: A02～B07 开发契约：新草稿、试采、发布、正式运行及新数据浏览/记录修订/来源版本运行页面追溯、分页原始文档。真实环境验收另行记录，连续分页接 C01。
+  version: 0.14.0-c01
+  description: A02～C01 开发契约：新产品完整采集链路、正式连续分页、跨轮去重与持久诊断检查点。有限试采与正式预算独立，动作不确定或中断不自动重放；真实环境验收另行记录。
 servers:
   - url: /api/v3
 security:
@@ -2924,6 +2924,49 @@ paths:
         '500':
           $ref: '#/components/responses/Error'
       x-implementation-status: implemented
+  /runs/{run_id}/checkpoints:
+    get:
+      summary: 当前 owner 的真实运行检查点，按事件序号降序分页；游标限定同运行
+      parameters:
+        - name: run_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 25
+      responses:
+        '200':
+          description: 检查点；旧运行为空，不补造
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/RunCheckpointPage'
+                  request_id:
+                    type: string
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '408':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      x-implementation-status: implemented
 components:
   securitySchemes:
     bearerAuth:
@@ -3001,21 +3044,21 @@ components:
             seconds:
               type: integer
               minimum: 5
-              maximum: 120
+              maximum: 900
             pages:
               type: integer
               minimum: 1
-              maximum: 10
+              maximum: 100
               description: 提取文档数量，包括列表与详情；返回检查不计提取文档
             records:
               type: integer
               minimum: 1
-              maximum: 20
-              description: 输出角色累计候选数
+              maximum: 1000
+              description: 跨轮去重后的输出候选，保留同键不同值冲突
             details:
               type: integer
               minimum: 0
-              maximum: 5
+              maximum: 100
       required:
         - version_id
         - confirmed
@@ -3099,6 +3142,16 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/RunWrite'
+        list_pages:
+          type: integer
+        details:
+          type: integer
+        duplicate_records:
+          type: integer
+        duplicate_details:
+          type: integer
+        last_checkpoint:
+          $ref: '#/components/schemas/RunCheckpoint'
     RunOutput:
       type: object
       properties:
@@ -3326,6 +3379,14 @@ components:
           type: string
         extraction:
           $ref: '#/components/schemas/RunExtraction'
+        output_indices:
+          type: array
+          items:
+            type: integer
+          description: 正式运行的实际输出索引；缺省沿用全部候选，空数组表示全被跨轮去重或终止。
+        loop_stop:
+          type: string
+          description: 真实重复页或空页停止标记
     RunResults:
       type: object
       properties:
@@ -3813,6 +3874,14 @@ components:
             type: string
         output:
           $ref: '#/components/schemas/OutputResult'
+        list_pages:
+          type: integer
+        details:
+          type: integer
+        duplicate_records:
+          type: integer
+        duplicate_details:
+          type: integer
     Trial:
       type: object
       properties:
@@ -3897,6 +3966,14 @@ components:
           type: string
         extraction:
           $ref: '#/components/schemas/ExtractionResult'
+        output_indices:
+          type: array
+          items:
+            type: integer
+          description: 正式运行的实际输出索引；缺省沿用全部候选，空数组表示全被跨轮去重或终止。
+        loop_stop:
+          type: string
+          description: 真实重复页或空页停止标记
     TrialList:
       type: object
       properties:
@@ -4876,13 +4953,15 @@ components:
       properties:
         run_contract:
           type: string
-          enum: [run.v1]
+          enum:
+            - run.v1
         supports_publication:
           type: boolean
           description: 发布检查/不可变版本能力；不代表实际浏览器就绪。
         supports_version_runs:
           type: boolean
-          enum: [true]
+          enum:
+            - true
           description: run.v1 正式运行可用，实际能力在创建/执行时校验。
         editor_protocol:
           type: string
@@ -4929,6 +5008,10 @@ components:
         editor_service_connected:
           type: boolean
           description: editor.v1 无副作用探测成功；不保证远程 Chromium 能启动。
+        supports_continuous_runs:
+          type: boolean
+        supports_run_checkpoints:
+          type: boolean
     DraftResponse:
       type: object
       required:
@@ -5570,7 +5653,7 @@ components:
         max_records:
           type: integer
           minimum: 1
-          maximum: 20
+          maximum: 200
         fields:
           type: array
           maxItems: 30
@@ -5615,11 +5698,18 @@ components:
               enum:
                 - link
                 - click
+                - load_more
             max_pages:
               type: integer
-              enum:
-                - 2
-              description: 编辑验证只访问一次下一页；连续翻页执行属于 C01。
+              minimum: 1
+              maximum: 100
+              description: 正式运行遵守冻结轮次；试采最多验证两轮，旧 max_pages=2 保留。
+            wait_ms:
+              type: integer
+              minimum: 0
+              maximum: 10000
+              default: 0
+              description: 翻页动作之后等待；异步加载更多可配置，未确认的新内容不能伪装完整覆盖。
     RecordStep:
       type: object
       required:
@@ -5750,6 +5840,7 @@ components:
                 enum:
                   - link
                   - click
+                  - load_more
               url:
                 type: string
               error:
@@ -6040,6 +6131,72 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/StoredPage'
+        next_cursor:
+          type: string
+        has_more:
+          type: boolean
+    RunCheckpoint:
+      type: object
+      properties:
+        step_id:
+          type: string
+        document_id:
+          type: string
+        source_url:
+          type: string
+        content_hash:
+          type: string
+        next_target:
+          type: string
+        stop_reason:
+          type: string
+        list_page:
+          type: integer
+        list_pages:
+          type: integer
+        pages:
+          type: integer
+        candidates:
+          type: integer
+        details:
+          type: integer
+        duplicate_records:
+          type: integer
+        state:
+          type: string
+          enum:
+            - page_captured
+            - page_complete
+            - action_pending
+            - awaiting_page
+            - stopped
+      description: 持久诊断检查点，不能当成正式记录已提交或自动重放授权。action_pending 无法确定动作是否发生，awaiting_page 表示回执成功但下一文档未保存。
+    RunCheckpointRow:
+      type: object
+      properties:
+        checkpoint_id:
+          type: string
+        run_id:
+          type: string
+        attempt:
+          type: string
+        sequence:
+          type: string
+        document_id:
+          type: string
+        state:
+          type: string
+        checkpoint_json:
+          type: string
+        created_at:
+          type: string
+    RunCheckpointPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/RunCheckpointRow'
         next_cursor:
           type: string
         has_more:

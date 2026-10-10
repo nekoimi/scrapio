@@ -148,3 +148,13 @@ func DocumentAsset(w http.ResponseWriter, r *http.Request) {
 		return v22_data_repo.Document(ctx, owner, mux.Vars(r)["document_id"], offset, limit)
 	})
 }
+
+func RunCheckpoints(w http.ResponseWriter, r *http.Request) {
+	dataRead(w, r, func(ctx context.Context, owner int64) (any, error) {
+		limit, err := readLimit(r)
+		if err != nil {
+			return nil, err
+		}
+		return v22_data_repo.Checkpoints(ctx, owner, mux.Vars(r)["run_id"], r.URL.Query().Get("cursor"), limit)
+	})
+}

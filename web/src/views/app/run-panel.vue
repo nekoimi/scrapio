@@ -6,18 +6,20 @@
 		</div>
 		<p class="muted">使用此发布版本的固定规则和数据表，当前草稿修改不会影响运行。确认后会访问网站并写入正式记录及来源观察。</p>
 		<p class="status-warn">
-			当前支持有界运行：最多两页列表，连续分页在 C01
-			扩展。有限覆盖会明确标记；失败路径或无效/冲突候选不提交本批数据。浏览器使用独立会话，不继承编辑登录状态。
+			连续运行遵循已发布分页规则，支持链接、翻页按钮和加载更多。重复/空页或预算边界会停止并保留检查点；旧版本的两轮上限仍保留，扩展轮数需要修改草稿并重新发布。浏览器使用独立会话，不继承编辑登录状态。
 		</p>
 		<fieldset :disabled="busy || !!pendingKey" class="run-budget">
+			<button type="button" @click="continuousBudget">使用连续采集预算（10 分钟 / 100 文档 / 1000 候选 / 100 详情）</button>
 			<div class="command-form-grid">
-				<label>时间（秒）<input v-model.number="seconds" type="number" min="5" max="120" /></label>
-				<label>文档页<input v-model.number="pages" type="number" min="1" max="10" /></label>
-				<label>输出候选<input v-model.number="records" type="number" min="1" max="20" /></label>
-				<label>详情访问<input v-model.number="details" type="number" min="0" max="5" /></label>
+				<label>时间（秒）<input v-model.number="seconds" type="number" min="5" max="900" /></label>
+				<label>文档页<input v-model.number="pages" type="number" min="1" max="100" /></label>
+				<label>输出候选<input v-model.number="records" type="number" min="1" max="1000" /></label>
+				<label>详情访问<input v-model.number="details" type="number" min="0" max="100" /></label>
 			</div>
 			<label>允许页面来源（每行完整 origin）<textarea v-model="origins" class="full-input" rows="2" /></label>
-			<p class="muted">预算默认取发布时配置；调整后须重新确认。来源检查约束导航目标及动作后页面，不能保证资源级网络隔离或撤销已发生的点击/POST。</p>
+			<p class="muted">
+				预算默认取发布时试采配置，可显式扩展；调整后须重新确认。候选预算在跨轮去重后计算，文档/结果大小仍有上限。来源检查约束导航目标及动作后页面，不能保证资源级网络隔离或撤销已发生的点击/POST。
+			</p>
 			<label><input v-model="confirmed" type="checkbox" />我确认此版本、范围和预算，允许本次真实动作/HTTP 请求及正式数据写入</label>
 		</fieldset>
 		<div class="editor-actions">
@@ -37,6 +39,7 @@
 		<button v-if="historyCursor" :disabled="busy" @click="loadHistory(true)">加载更多运行</button>
 		<section v-if="selected">
 			<RunCompletion :run="selected" />
+			<RunCheckpoints :run-id="selected.run_id" :event-seq="selected.event_seq" />
 			<router-link :to="`/app/runs/${selected.run_id}`">打开运行详情与页面证据</router-link>
 			<h3>{{ label(selected.status) }} · v{{ selected.version_number }}</h3>
 			<p>
@@ -78,8 +81,14 @@
 								<td>
 									{{ write.decision }}<small>{{ write.changed_fields.join('、') }}</small>
 								</td>
-								<td><router-link :to="`/app/records/${write.record_id}`">{{ write.record_id }}</router-link> / {{ write.record_revision }}</td>
-								<td><router-link :to="`/app/pages/${write.document_id}`">{{ write.source_url }}</router-link> · {{ write.stage }} #{{ write.record_index + 1 }}</td>
+								<td>
+									<router-link :to="`/app/records/${write.record_id}`">{{ write.record_id }}</router-link> / {{ write.record_revision }}
+								</td>
+								<td>
+									<router-link :to="`/app/pages/${write.document_id}`">{{ write.source_url }}</router-link> · {{ write.stage }} #{{
+										write.record_index + 1
+									}}
+								</td>
 								<td>
 									<pre>{{ write.values_json }}</pre>
 								</td>
@@ -120,6 +129,7 @@
 <script setup lang="ts">
 import { onMounted, onBeforeUnmount, ref, watch } from 'vue';
 import RunCompletion from './run-completion.vue';
+import RunCheckpoints from './run-checkpoints.vue';
 import { appApi, type PublishedVersion, type FormalRun, type TrialDocument, type TrialEvent, type RunInput } from './api';
 const props = defineProps<{ version: PublishedVersion }>();
 const seconds = ref(60),
@@ -144,6 +154,13 @@ let disposed = false,
 	controller: AbortController | undefined,
 	pollTimer: ReturnType<typeof setInterval> | undefined;
 const keyStorage = () => `scrapio:v22:run-pending:${props.version.collector_id}`;
+function continuousBudget() {
+	seconds.value = 600;
+	pages.value = 100;
+	records.value = 1000;
+	details.value = 100;
+	confirmed.value = false;
+}
 function error(cause: any) {
 	return cause?.error?.message || cause?.message || '运行响应未确认，请查询原请求';
 }

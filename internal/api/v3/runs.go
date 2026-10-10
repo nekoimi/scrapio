@@ -25,7 +25,7 @@ func runListDTO(row *table.V22Run) map[string]any {
 	value := runDTO(row)
 	var summary runmodel.Summary
 	if runmodel.Decode(row.Summary, &summary) == nil {
-		value["summary"] = map[string]any{"status": summary.Status, "stop_reason": summary.Reason, "pages": summary.Pages, "candidates": summary.Candidates, "failed_step_id": summary.FailedStep, "failed_stage": summary.FailedStage, "committed": summary.Committed, "counts": summary.Counts, "warnings": summary.Warnings}
+		value["summary"] = map[string]any{"status": summary.Status, "stop_reason": summary.Reason, "pages": summary.Pages, "candidates": summary.Candidates, "failed_step_id": summary.FailedStep, "failed_stage": summary.FailedStage, "committed": summary.Committed, "counts": summary.Counts, "warnings": summary.Warnings, "list_pages": summary.ListPages, "details": summary.Details, "duplicate_records": summary.DuplicateRecords, "duplicate_details": summary.DuplicateDetails, "last_checkpoint": summary.LastCheckpoint}
 	}
 	return value
 }

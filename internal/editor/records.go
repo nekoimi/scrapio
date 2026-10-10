@@ -25,6 +25,7 @@ type NextPageRule struct {
 	Locator  *Locator `json:"locator"`
 	Kind     string   `json:"kind"`
 	MaxPages int      `json:"max_pages"`
+	WaitMS   int      `json:"wait_ms,omitempty"`
 }
 type RecordPlan struct {
 	Mode         string        `json:"mode"`
@@ -41,8 +42,8 @@ func validLocator(locator *Locator, relative bool) bool {
 }
 
 func (p RecordPlan) Validate() error {
-	if p.Mode != "single" && p.Mode != "repeated" || p.MaxRecords < 1 || p.MaxRecords > 20 {
-		return errors.New("record mode and max_records (1..20) required")
+	if p.Mode != "single" && p.Mode != "repeated" || p.MaxRecords < 1 || p.MaxRecords > 200 {
+		return errors.New("record mode and max_records (1..200) required")
 	}
 	if p.Mode == "repeated" && !validLocator(p.Locator, false) || p.Mode == "single" && p.Locator != nil {
 		return errors.New("repeated records require a locator; single page uses document scope")
@@ -93,8 +94,8 @@ func (p RecordPlan) Validate() error {
 	if p.Detail == nil && len(p.DetailFields) > 0 {
 		return errors.New("detail fields require a detail path")
 	}
-	if p.NextPage != nil && (!validLocator(p.NextPage.Locator, false) || p.NextPage.Kind != "link" && p.NextPage.Kind != "click" || p.NextPage.MaxPages != 2) {
-		return errors.New("next page requires a locator, link/click kind and max_pages=2")
+	if p.NextPage != nil && (!validLocator(p.NextPage.Locator, false) || p.NextPage.Kind != "link" && p.NextPage.Kind != "click" && p.NextPage.Kind != "load_more" || p.NextPage.MaxPages < 1 || p.NextPage.MaxPages > 100 || p.NextPage.WaitMS < 0 || p.NextPage.WaitMS > 10000) {
+		return errors.New("next page requires locator, link/click/load_more, max_pages 1..100 and wait_ms 0..10000")
 	}
 	return nil
 }

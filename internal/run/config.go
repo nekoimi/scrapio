@@ -28,7 +28,18 @@ func (i Input) Validate() error {
 	if _, err := uuid.Parse(i.VersionID); err != nil {
 		return errors.New("published version_id required")
 	}
-	return i.Trial(1).Validate()
+	// Validate confirmation/origins using the shared trial contract, with its
+	// small preview budget. Formal limits are independently bounded below.
+	check := i.Trial(1)
+	check.Budget = trial.Budget{Seconds: 5, Pages: 1, Records: 1}
+	if err := check.Validate(); err != nil {
+		return err
+	}
+	b := i.Budget
+	if b.Seconds < 5 || b.Seconds > 900 || b.Pages < 1 || b.Pages > 100 || b.Records < 1 || b.Records > 1000 || b.Details < 0 || b.Details > 100 {
+		return errors.New("formal budget requires seconds 5..900, pages 1..100, records 1..1000, details 0..100")
+	}
+	return nil
 }
 func Terminal(status string) bool { return status != "queued" && status != "running" }
 
@@ -49,6 +60,18 @@ func Select(docs []trial.Document, config output.Config) (extraction.Result, []O
 		}
 		r.Truncated = r.Truncated || doc.Result.Truncated
 		for _, record := range doc.Result.Records {
+			if doc.OutputIndices != nil {
+				keep := false
+				for _, index := range *doc.OutputIndices {
+					if index == record.Index {
+						keep = true
+						break
+					}
+				}
+				if !keep {
+					continue
+				}
+			}
 			origins = append(origins, Origin{doc.ID, record.Index, doc.URL, doc.Stage})
 			record.Index = len(r.Records)
 			r.Records = append(r.Records, record)

@@ -25,6 +25,7 @@
 				<p class="muted">停止不能撤销已发生的网站动作。执行中可手动刷新，完成后结果持久保留。</p>
 			</section>
 			<RunCompletion :run="run" />
+			<RunCheckpoints :run-id="run.run_id" :event-seq="run.event_seq" />
 			<details :open="route.query.version === '1'">
 				<summary>固定发布版本与规则</summary>
 				<template v-if="version"
@@ -64,6 +65,7 @@ import { ref, watch, onBeforeUnmount } from 'vue';
 import { useRoute } from 'vue-router';
 import { appApi, type FormalRun, type PublishedVersion, type DataRow } from './api';
 import RunCompletion from './run-completion.vue';
+import RunCheckpoints from './run-checkpoints.vue';
 import { readError, runStatus, parseJSON } from './data-read';
 const route = useRoute(),
 	run = ref<FormalRun>(),

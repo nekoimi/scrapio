@@ -135,7 +135,7 @@ func write(s *xorm.Session, r *table.V22Run, summary *runmodel.Summary) error {
 			return ErrConflict
 		}
 		docs = append(docs, doc)
-		invalid = invalid || doc.Result.InvalidCount > 0 || len(doc.Result.Records) == 0
+		invalid = invalid || doc.Result.InvalidCount > 0 || len(doc.Result.Records) == 0 && doc.LoopStop != "EMPTY_PAGE"
 	}
 	selected, origins := runmodel.Select(docs, plan.Output)
 	existing := map[string]output.Existing{}

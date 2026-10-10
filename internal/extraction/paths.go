@@ -81,7 +81,7 @@ func NextPath(ctx context.Context, input Input, plan Plan) (string, error) {
 	if _, disabled := attribute(nodes[0], "disabled"); disabled || attr(nodes[0], "aria-disabled") == "true" {
 		return "", nil
 	}
-	if plan.HTML.NextPage.Kind == "click" {
+	if plan.HTML.NextPage.Kind == "click" || plan.HTML.NextPage.Kind == "load_more" {
 		return "click", nil
 	}
 	base := input.BaseURL

@@ -61,7 +61,7 @@ func (s *source) Start(ctx context.Context) error {
 	if s.browser == nil {
 		return errors.New("BROWSER_UNAVAILABLE")
 	}
-	state, err := s.browser.CreateEditorSession(ctx, drission_rod.EditorSessionInput{SessionID: s.id, URL: s.plan.URL, TTL: 3 * time.Minute, Width: 1280, Height: 800})
+	state, err := s.browser.CreateEditorSession(ctx, drission_rod.EditorSessionInput{SessionID: s.id, URL: s.plan.URL, TTL: sessionTTL(s.input.Budget.Seconds), Width: 1280, Height: 800})
 	if err != nil {
 		return browserFailure(err)
 	}
@@ -81,7 +81,7 @@ func (s *source) Snapshot(ctx context.Context) (trial.FixedDocument, error) {
 	if s.plan.EntryType == "json" {
 		return s.document, ctx.Err()
 	}
-	if err := s.checkState(); err != nil {
+	if err := s.keepAlive(ctx); err != nil {
 		return trial.FixedDocument{}, err
 	}
 	raw, err := s.browser.InspectEditorPage(ctx, s.id, uuid.NewString(), "snapshot", editor.Inspection{PageStateID: s.state.PageStateID})
@@ -112,7 +112,7 @@ func (s *source) Action(ctx context.Context, cmd editor.Command) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if err := s.checkState(); err != nil {
+	if err := s.keepAlive(ctx); err != nil {
 		return err
 	}
 	if cmd.Type == "navigate" && !trial.Allowed(cmd.Value, s.input.Origins) {
@@ -157,4 +157,33 @@ func browserFailure(err error) error {
 		return err
 	}
 	return errors.New("BROWSER_RPC_FAILED")
+}
+
+func sessionTTL(seconds int) time.Duration {
+	if seconds < 120 {
+		seconds = 120
+	}
+	seconds += 60
+	if seconds > 600 {
+		seconds = 600
+	}
+	return time.Duration(seconds) * time.Second
+}
+
+// Refresh only expiry, never adopt a changed page state or replay an action.
+func (s *source) keepAlive(ctx context.Context) error {
+	if err := s.checkState(); err != nil {
+		return err
+	}
+	if !s.state.ExpiresAt.IsZero() && time.Until(s.state.ExpiresAt) < 30*time.Second {
+		state, err := s.browser.HeartbeatEditorSession(ctx, s.id, sessionTTL(s.input.Budget.Seconds))
+		if err != nil {
+			return browserFailure(err)
+		}
+		if state.Status != "ready" || state.PageStateID != s.state.PageStateID || state.CurrentURL != s.state.CurrentURL {
+			return errors.New("RUN_PAGE_STATE_CHANGED")
+		}
+		s.state.ExpiresAt = state.ExpiresAt
+	}
+	return nil
 }

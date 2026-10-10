@@ -133,3 +133,15 @@ func TestPublishSemanticHashPreservesLargeNumbers(t *testing.T) {
 		t.Fatal("raw manifest hash differs")
 	}
 }
+
+func TestContinuousDerivedActionCapabilities(t *testing.T) {
+	p := trial.Plan{EntryType: "web", Steps: []trial.Step{{ID: "items", Kind: "record_set", Plan: extraction.Plan{HTML: editor.RecordPlan{NextPage: &editor.NextPageRule{Kind: "load_more", WaitMS: 500}}}}}}
+	c := Capabilities{Contract: ContractVersion, Interpreter: extraction.InterpreterVersion, BrowserProtocol: "editor.v1", Session: true, Commands: true, Snapshot: true, Actions: []string{"navigate"}}
+	if CheckCapabilities(p, c).Ready {
+		t.Fatal("missing click/wait capability accepted")
+	}
+	c.Actions = editor.Actions
+	if !CheckCapabilities(p, c).Ready {
+		t.Fatal("supported derived path rejected")
+	}
+}

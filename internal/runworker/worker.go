@@ -83,7 +83,7 @@ func (w *Worker) Stop(ctx context.Context) error {
 	}
 }
 func persist(row *table.V22Run, summary trial.Summary) {
-	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	if err := v22_run_repo.Finish(ctx, row.Id, row.LeaseToken, summary); err != nil {
 		log.WithError(err).WithField("run_id", row.Id).Error("persist v22 formal run failed")
@@ -105,7 +105,7 @@ func (w *Worker) execute(parent context.Context, row *table.V22Run, browser *dri
 		persist(row, trial.Summary{Status: "failed", Reason: "FROZEN_CONFIGURATION_INVALID", Warnings: []string{}})
 		return
 	}
-	if time.Since(row.CreatedAt) > 10*time.Minute {
+	if time.Since(row.CreatedAt) > 45*time.Minute {
 		persist(row, trial.Summary{Status: "failed", Reason: "QUEUE_EXPIRED", Warnings: []string{}})
 		return
 	}
@@ -170,7 +170,7 @@ func (w *Worker) execute(parent context.Context, row *table.V22Run, browser *dri
 			}
 		}
 	}()
-	runner := trial.Runner{Plan: plan, Input: input.Trial(row.CollectorRevision), Source: src, Schema: schema,
+	runner := trial.Runner{Continuous: true, Plan: plan, Input: input.Trial(row.CollectorRevision), Source: src, Schema: schema,
 		Existing: func(ctx context.Context, result extraction.Result) (map[string]output.Existing, error) {
 			return v22_trial_repo.Existing(ctx, &table.V22Trial{OwnerId: row.OwnerId}, plan.Output, schema, result)
 		},
