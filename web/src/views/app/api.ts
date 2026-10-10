@@ -10,6 +10,8 @@ export interface Capabilities {
  supports_data_views?:boolean;
  supports_data_exports?:boolean;
  supports_run_center?:boolean;
+ supports_home_overview?:boolean;
+ supports_collector_health?:boolean;
  supports_run_retries?:boolean;
  run_retry_scopes?:string[];
  supports_version_runs?:boolean;
@@ -31,7 +33,9 @@ export interface Capabilities {
   definition_versions: number[];
   reason?: string;
 }
-export interface HomeState { status: 'pending' | 'ready'; reason?: string }
+export interface OverviewRun {run_id:string;collector_id:string;version_number:number;status:string;stop_reason:string;committed:boolean;counts:Record<string,number>;table_id:string;created_at:string;finished_at:string|null}
+export interface CollectorHealth {as_of:string;collector_id:string;name:string;entry_type:string;archived:boolean;published_version_id:string|null;pending_draft:boolean;table_id:string;table_name:string;updated_at:string;active_runs:number;latest_run:OverviewRun|null;latest_terminal:OverviewRun|null;latest_effective:OverviewRun|null;schedule:{enabled:boolean;next_at:string|null;timezone:string;version_id:string;version_number:number;last_decision:string;decision_at:string|null}|null;outcome:string;issues:{kind:string;severity:string;code:string;run_id:string}[];baseline_status:string}
+export interface HomeState {status:'empty'|'ready';as_of:string;window_start:string;baseline_status:string;counts:Record<string,string>;activity:Record<string,string>;attention:CollectorHealth[];recent_collectors:CollectorHealth[];pending_drafts:CollectorHealth[];next_schedules:CollectorHealth[];recent_tables:{table_id:string;name:string;record_count:string;last_observed_at:string|null;last_changed_at:string|null;latest_run_id:string}[];recent_runs:OverviewRun[];section_limit:number}
 export interface Collector { published_version_id?:string; id: string; name: string; entry_url: string; entry_type: 'web' | 'json'; status: string; definition: Record<string, any>; revision: number; validation_status?: 'not_validated' | 'valid' | 'invalid' | 'stale'; validation_errors?: string[]; save_summary?: { revision: number; changed_fields: string[]; saved_at: string }; updated_at: string }
 export interface BrowserSession { session_id: string; collector_id: string; draft_revision: number; status: string; expires_at: string; page_state_id: string; current_url: string; viewport: { width: number; height: number }; frame_url: string; heartbeat_interval_seconds: number; available: boolean; needs_reopen: boolean }
 
@@ -213,7 +217,7 @@ export const appApi = {
   retryRun:(id:string,key:string)=>request({url:`/api/v3/runs/${id}/retries`,method:'post',data:{scope:'full_run',confirmed:true},headers:{'Idempotency-Key':key}}).then((r:any)=>r.data as FormalRun),
   streamRun,
   createRun:(id:string,input:RunInput,key:string)=>request({url:`/api/v3/collectors/${id}/runs`,method:'post',data:input,headers:{'Idempotency-Key':key}}).then((response:any)=>response.data as FormalRun),
-  runs:(collectorID='',cursor='',status='',source='')=>get<{items:FormalRun[];has_more:boolean;next_cursor:string}>(`/api/v3/runs?collector_id=${encodeURIComponent(collectorID)}&limit=25&status=${encodeURIComponent(status)}&source=${encodeURIComponent(source)}${cursor?`&cursor=${encodeURIComponent(cursor)}`:''}`),
+  runs:(collectorID='',cursor='',status='',source='',window?:{committed:boolean;since:string;until:string})=>get<{items:FormalRun[];has_more:boolean;next_cursor:string}>(`/api/v3/runs?collector_id=${encodeURIComponent(collectorID)}&limit=25&status=${encodeURIComponent(status)}&source=${encodeURIComponent(source)}${window?`&committed=${window.committed}&since=${encodeURIComponent(window.since)}&until=${encodeURIComponent(window.until)}`:''}${cursor?`&cursor=${encodeURIComponent(cursor)}`:''}`),
   run:(id:string)=>get<FormalRun>(`/api/v3/runs/${id}`),
   runByKey:(key:string)=>request({url:'/api/v3/runs/by-key',method:'get',headers:{'Idempotency-Key':key}}).then((response:any)=>response.data as FormalRun),
   cancelRun:(id:string)=>request({url:`/api/v3/runs/${id}/cancel`,method:'post'}).then((response:any)=>response.data as FormalRun),
@@ -252,7 +256,9 @@ export const appApi = {
   previewSample:(id:string,sampleID:string,revision:number)=>request({url:`/api/v3/collectors/${id}/previews`,method:'post',data:{sample_id:sampleID,expected_revision:revision}}).then((response:any)=>response.data as ExtractionPreview),
   me: () => get<Identity>('/api/v3/me'),
   capabilities: () => get<Capabilities>('/api/v3/capabilities'),
-  home: () => get<HomeState>('/api/v3/home'),
+  home: () => request({url:'/api/v3/home',method:'get',timeout:8000}).then((r:any)=>r.data as HomeState),
+  collectorHealth:(id:string)=>request({url:`/api/v3/collectors/${encodeURIComponent(id)}/health`,method:'get',timeout:8000}).then((r:any)=>r.data as CollectorHealth),
+  healthList:(attention=false,cursor='')=>request({url:`/api/v3/collectors/health?attention=${attention}&limit=25&cursor=${encodeURIComponent(cursor)}`,method:'get',timeout:8000}).then((r:any)=>r.data as {items:CollectorHealth[];has_more:boolean;next_cursor:string}),
   collectors: (cursor = '') => get<{ items: Collector[]; has_more: boolean; next_cursor?: string }>(`/api/v3/collectors?limit=25${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`),
   collector: (id: string) => get<Collector>(`/api/v3/collectors/${id}/draft`),
   copyCollector: (id: string) => request({ url: `/api/v3/collectors/${id}/copies`, method: 'post', headers: { 'Idempotency-Key': crypto.randomUUID() } }).then((response: any) => response.data as Collector),

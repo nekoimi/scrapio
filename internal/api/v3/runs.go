@@ -110,13 +110,16 @@ func ListRuns(w http.ResponseWriter, r *http.Request) {
 			err = errors.New("invalid collector")
 		}
 	}
+	if raw := r.URL.Query().Get("committed"); raw != "" && raw != "true" && raw != "false" {
+		err = errors.New("invalid commit filter")
+	}
 	if err != nil {
 		fail(w, r, 400, "INVALID_ARGUMENT", "分页参数无效", false, "run", "")
 		return
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
-	rows, more, err := v22_run_repo.FilteredList(ctx, admin.Id, collector, r.URL.Query().Get("cursor"), limit, v22_run_repo.Filter{Status: r.URL.Query().Get("status"), Source: r.URL.Query().Get("source")})
+	rows, more, err := v22_run_repo.FilteredList(ctx, admin.Id, collector, r.URL.Query().Get("cursor"), limit, v22_run_repo.Filter{Status: r.URL.Query().Get("status"), Source: r.URL.Query().Get("source"), Committed: r.URL.Query().Get("committed") == "true", Since: r.URL.Query().Get("since"), Until: r.URL.Query().Get("until")})
 	if err != nil {
 		runError(w, r, err)
 		return

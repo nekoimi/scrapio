@@ -3,6 +3,11 @@
 		<div class="eyebrow">SCRAPIO / RUNS</div>
 		<h1>运行中心</h1>
 		<p class="lead">查看正式采集的状态、结果和结束原因。</p>
+		<section v-if="completionWindow" class="app-card">
+			<strong>仅查看指定时间的已提交运行</strong>
+			<p>{{ completionWindow.since }} 至 {{ completionWindow.until }}；按完成时间筛选，与首页提交统计同范围。</p>
+			<button :disabled="loading" @click="clearWindow">清除时间及提交筛选</button>
+		</section>
 		<section class="app-card">
 			<p v-if="stats">
 				保留历史 {{ stats.total }} · 排队 {{ stats.queued }} · 执行中 {{ stats.running }} · 完成 {{ stats.succeeded }} · 有限覆盖
@@ -73,7 +78,8 @@
 	</div>
 </template>
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount } from 'vue';
+import { ref, watch, onBeforeUnmount } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { appApi, type FormalRun } from './api';
 import { readError, runStatus } from './data-read';
 const items = ref<FormalRun[]>([]),
@@ -86,6 +92,9 @@ const items = ref<FormalRun[]>([]),
 	stats = ref<Record<string, number>>();
 const statuses = ['queued', 'running', 'succeeded', 'limited', 'partial', 'failed', 'cancelled'];
 let applied = { collector: '', status: '', source: '' };
+const route = useRoute(),
+	router = useRouter();
+const completionWindow = ref<{ committed: boolean; since: string; until: string }>();
 let epoch = 0;
 async function load(more = false) {
 	if (loading.value) return;
@@ -94,7 +103,7 @@ async function load(more = false) {
 	message.value = '';
 	try {
 		const [r, counts] = await Promise.all([
-			appApi.runs(applied.collector, more ? cursor.value : '', applied.status, applied.source),
+			appApi.runs(applied.collector, more ? cursor.value : '', applied.status, applied.source, completionWindow.value),
 			appApi.runStatistics(applied.collector),
 		]);
 		if (token === epoch) stats.value = counts.counts;
@@ -109,18 +118,32 @@ async function load(more = false) {
 	}
 }
 function reload() {
+	epoch++;
+	loading.value = false;
+	items.value = [];
+	cursor.value = '';
+	stats.value = undefined;
 	if (collectorFilter.value && !/^[1-9][0-9]*$/.test(collectorFilter.value)) {
 		message.value = '方案 ID 需为正整数';
 		return;
 	}
 	applied = { collector: collectorFilter.value, status: statusFilter.value, source: sourceFilter.value };
-	items.value = [];
-	cursor.value = '';
-	stats.value = undefined;
-	epoch++;
-	loading.value = false;
 	void load();
 }
-onMounted(reload);
+function clearWindow() {
+	void router.replace({ query: { collector_id: collectorFilter.value, status: statusFilter.value, source: sourceFilter.value } });
+}
+watch(
+	() => route.query,
+	() => {
+		collectorFilter.value = typeof route.query.collector_id === 'string' ? route.query.collector_id : '';
+		statusFilter.value = typeof route.query.status === 'string' ? route.query.status : '';
+		sourceFilter.value = typeof route.query.source === 'string' ? route.query.source : '';
+		completionWindow.value =
+			route.query.committed === '1' ? { committed: true, since: String(route.query.since || ''), until: String(route.query.until || '') } : undefined;
+		reload();
+	},
+	{ immediate: true }
+);
 onBeforeUnmount(() => epoch++);
 </script>

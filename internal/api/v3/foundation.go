@@ -77,17 +77,8 @@ func CapabilitiesWithBrowser(browser *drission_rod.DrissionRod) http.HandlerFunc
 			"supports_samples": true, "supports_sample_checks": true,
 			"supports_output_checks": true, "supports_logical_tables": true,
 			"supports_trials": true, "supports_trial_events": true,
-			"supports_publication": true, "supports_version_runs": true, "supports_continuous_runs": true, "supports_run_checkpoints": true, "supports_schedules": true, "supports_api_triggers": true, "supports_data_queries": true, "supports_data_views": true, "supports_data_exports": true, "supports_run_center": true, "supports_run_retries": true, "run_retry_scopes": []string{"full_run"}, "run_contract": "run.v1",
+			"supports_publication": true, "supports_version_runs": true, "supports_continuous_runs": true, "supports_run_checkpoints": true, "supports_schedules": true, "supports_api_triggers": true, "supports_data_queries": true, "supports_data_views": true, "supports_data_exports": true, "supports_run_center": true, "supports_home_overview": true, "supports_collector_health": true, "supports_run_retries": true, "run_retry_scopes": []string{"full_run"}, "run_contract": "run.v1",
 			"definition_versions": []int{1}, "reason": reason,
 		})
 	}
-}
-
-// Home exposes an explicit pending state until the v2.2 data domain exists.
-// Returning zero counts here would misleadingly imply an empty new database.
-func Home(w http.ResponseWriter, r *http.Request) {
-	ok(w, r, map[string]any{
-		"status": "pending",
-		"reason": "新采集方案和数据域尚未接入",
-	})
 }

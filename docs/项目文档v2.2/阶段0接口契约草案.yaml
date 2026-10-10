@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
   title: scrapio v2.2 editor contract spike
-  version: 0.17.0-c04
-  description: A02～C03 开发契约：固定版本采集、定时/API 触发、冻结数据查询与保存视图、幂等异步 CSV/JSON 导出。真实迁移、并发和页面验收另行记录。
+  version: 0.18.0-c05
+  description: A02～C05 开发契约：固定版本采集、定时/API、冻结查询和导出、完整运行中心、日常首页与方案健康。真实迁移、并发和页面验收另行记录。
 servers:
   - url: /api/v3
 security:
@@ -36,10 +36,13 @@ paths:
       x-implementation-status: implemented
   /home:
     get:
-      summary: 新产品首页状态；数据域未建立时返回 pending
+      summary: 当前用户的新产品日常首页
+      description: 仅 owner 的 v22 数据，不混入旧记录/试采。不调用浏览器；仓储读取限5秒，错误不返回伪空状态。
+      x-implementation-status: implemented
+      parameters: []
       responses:
         '200':
-          description: 首页状态
+          description: HomeOverview
           content:
             application/json:
               schema:
@@ -49,20 +52,100 @@ paths:
                   - request_id
                 properties:
                   data:
-                    type: object
-                    properties:
-                      status:
-                        type: string
-                        enum:
-                          - pending
-                          - ready
-                      reason:
-                        type: string
+                    $ref: '#/components/schemas/HomeOverview'
                   request_id:
                     type: string
+        '400':
+          $ref: '#/components/responses/Error'
         '401':
           $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '408':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+  /collectors/health:
+    get:
+      summary: 未归档方案的运行健康分页
+      description: ID倒序分页，锚点必须仍属于当前用户/未归档/匹配attention，否则404后重新读取。最近失败、有限覆盖和调度阻断为需核对；不以零新增报警。
       x-implementation-status: implemented
+      parameters:
+        - name: attention
+          in: query
+          schema:
+            type: boolean
+            default: false
+        - name: cursor
+          in: query
+          schema:
+            type: string
+            pattern: ^[1-9][0-9]*$
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 25
+      responses:
+        '200':
+          description: HealthPage
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - request_id
+                properties:
+                  data:
+                    $ref: '#/components/schemas/HealthPage'
+                  request_id:
+                    type: string
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '408':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+  /collectors/{collector_id}/health:
+    get:
+      summary: 方案健康、最近有效采集和调度证据
+      description: 按owner授权；归档方案可直接读取，但不进入首页活动/待办列表。
+      x-implementation-status: implemented
+      parameters: []
+      responses:
+        '200':
+          description: CollectorHealth
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - request_id
+                properties:
+                  data:
+                    $ref: '#/components/schemas/CollectorHealth'
+                  request_id:
+                    type: string
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '408':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+    parameters:
+      - $ref: '#/components/parameters/CollectorId'
   /capabilities:
     get:
       summary: 可用编辑与运行能力
@@ -2363,7 +2446,25 @@ paths:
               - schedule
               - api
               - retry
-      description: 按 owner/方案/状态/来源筛选；retry 为 retry_of 非空的手动重跑。游标锚点仍需符合当前筛选，锚点状态变化时重新读取第一页。
+        - name: committed
+          in: query
+          schema:
+            type: boolean
+            default: false
+          description: true仅查看已提交运行；false/省略不限制提交状态。
+        - name: since
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: 完成时间起点，含边界，需与until同时提供，RFC3339；跨度大于0且最多31天。
+        - name: until
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: 完成时间截止，含边界；首页传window_start/as_of，固定24小时窗口。
+      description: 按 owner/方案/状态/来源筛选；retry 为 retry_of 非空的手动重跑。游标锚点仍需符合当前筛选，锚点状态变化时重新读取第一页。 可按提交状态与成对完成时间筛选；/runs/statistics仍是当前方案范围全部保留历史，不是该时间窗口计数。
   /runs/by-key:
     parameters:
       - $ref: '#/components/parameters/IdempotencyKey'
@@ -5724,6 +5825,360 @@ components:
                     raw_value:
                       type: string
                       description: JSON 编码的原值，保留大整数；超过 2048 字节为截断片段。
+    OverviewRun:
+      type: object
+      required:
+        - run_id
+        - collector_id
+        - version_number
+        - status
+        - stop_reason
+        - committed
+        - counts
+        - table_id
+        - created_at
+        - finished_at
+      properties:
+        run_id:
+          type: string
+        collector_id:
+          type: string
+        version_number:
+          type: integer
+          format: int64
+          minimum: 0
+        status:
+          type: string
+          enum:
+            - queued
+            - running
+            - succeeded
+            - limited
+            - partial
+            - failed
+            - cancelled
+        stop_reason:
+          type: string
+        committed:
+          type: boolean
+        counts:
+          type: object
+          additionalProperties:
+            type: integer
+            format: int64
+            minimum: 0
+        table_id:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        finished_at:
+          type: string
+          format: date-time
+          nullable: true
+    HealthSchedule:
+      type: object
+      required:
+        - enabled
+        - next_at
+        - timezone
+        - version_id
+        - version_number
+        - last_decision
+        - decision_at
+      properties:
+        enabled:
+          type: boolean
+        next_at:
+          type: string
+          format: date-time
+          nullable: true
+        timezone:
+          type: string
+        version_id:
+          type: string
+        version_number:
+          type: integer
+          format: int64
+          minimum: 0
+        last_decision:
+          type: string
+        decision_at:
+          type: string
+          format: date-time
+          nullable: true
+    HealthIssue:
+      type: object
+      required:
+        - kind
+        - severity
+        - code
+        - run_id
+      properties:
+        kind:
+          type: string
+          enum:
+            - run_failed
+            - limited_coverage
+            - schedule_blocked
+        severity:
+          type: string
+          enum:
+            - error
+            - warning
+        code:
+          type: string
+        run_id:
+          type: string
+    CollectorHealth:
+      type: object
+      required:
+        - as_of
+        - collector_id
+        - name
+        - entry_type
+        - archived
+        - published_version_id
+        - pending_draft
+        - table_id
+        - table_name
+        - updated_at
+        - active_runs
+        - latest_run
+        - latest_terminal
+        - latest_effective
+        - schedule
+        - outcome
+        - issues
+        - baseline_status
+      properties:
+        as_of:
+          type: string
+          format: date-time
+        collector_id:
+          type: string
+        name:
+          type: string
+        entry_type:
+          type: string
+          enum:
+            - web
+            - json
+        archived:
+          type: boolean
+        published_version_id:
+          type: string
+          nullable: true
+        pending_draft:
+          type: boolean
+        table_id:
+          type: string
+        table_name:
+          type: string
+        updated_at:
+          type: string
+          format: date-time
+        active_runs:
+          type: integer
+          format: int64
+          minimum: 0
+        latest_run:
+          allOf:
+            - $ref: '#/components/schemas/OverviewRun'
+          nullable: true
+        latest_terminal:
+          allOf:
+            - $ref: '#/components/schemas/OverviewRun'
+          nullable: true
+        latest_effective:
+          allOf:
+            - $ref: '#/components/schemas/OverviewRun'
+          nullable: true
+        schedule:
+          allOf:
+            - $ref: '#/components/schemas/HealthSchedule'
+          nullable: true
+        outcome:
+          type: string
+          enum:
+            - never_run
+            - needs_attention
+            - limited
+            - healthy
+            - cancelled
+            - archived
+            - unknown
+        issues:
+          type: array
+          items:
+            $ref: '#/components/schemas/HealthIssue'
+        baseline_status:
+          type: string
+          enum:
+            - not_configured
+      description: 只根据最近完成与最近调度决定评估。最新活动运行独立保留，不遮盖上次失败；零新增/全部未变不判为异常；不推测质量基线或持久恢复状态。
+    HomeTable:
+      type: object
+      required:
+        - table_id
+        - name
+        - record_count
+        - last_observed_at
+        - last_changed_at
+        - latest_run_id
+      properties:
+        table_id:
+          type: string
+        name:
+          type: string
+        record_count:
+          type: string
+          pattern: ^[0-9]+$
+          description: 十进制整数文本，避免前端丢失计数精度。
+        last_observed_at:
+          type: string
+          format: date-time
+          nullable: true
+        last_changed_at:
+          type: string
+          format: date-time
+          nullable: true
+        latest_run_id:
+          type: string
+    HealthPage:
+      type: object
+      required:
+        - items
+        - next_cursor
+        - has_more
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/CollectorHealth'
+        next_cursor:
+          type: string
+        has_more:
+          type: boolean
+    HomeOverview:
+      type: object
+      required:
+        - status
+        - as_of
+        - window_start
+        - baseline_status
+        - counts
+        - activity
+        - attention
+        - recent_collectors
+        - pending_drafts
+        - next_schedules
+        - recent_tables
+        - recent_runs
+        - section_limit
+      properties:
+        status:
+          type: string
+          enum:
+            - empty
+            - ready
+        as_of:
+          type: string
+          format: date-time
+        window_start:
+          type: string
+          format: date-time
+        baseline_status:
+          type: string
+          enum:
+            - not_configured
+        counts:
+          type: object
+          required:
+            - collectors
+            - pending_drafts
+            - tables
+            - records
+            - active_runs
+            - attention
+          properties:
+            collectors:
+              type: string
+              pattern: ^[0-9]+$
+              description: 十进制整数文本，避免前端丢失计数精度。
+            pending_drafts:
+              type: string
+              pattern: ^[0-9]+$
+              description: 十进制整数文本，避免前端丢失计数精度。
+            tables:
+              type: string
+              pattern: ^[0-9]+$
+              description: 十进制整数文本，避免前端丢失计数精度。
+            records:
+              type: string
+              pattern: ^[0-9]+$
+              description: 十进制整数文本，避免前端丢失计数精度。
+            active_runs:
+              type: string
+              pattern: ^[0-9]+$
+              description: 十进制整数文本，避免前端丢失计数精度。
+            attention:
+              type: string
+              pattern: ^[0-9]+$
+              description: 十进制整数文本，避免前端丢失计数精度。
+        activity:
+          type: object
+          required:
+            - created
+            - updated
+            - unchanged
+            - effective_runs
+          properties:
+            created:
+              type: string
+              pattern: ^[0-9]+$
+              description: 十进制整数文本，避免前端丢失计数精度。
+            updated:
+              type: string
+              pattern: ^[0-9]+$
+              description: 十进制整数文本，避免前端丢失计数精度。
+            unchanged:
+              type: string
+              pattern: ^[0-9]+$
+              description: 十进制整数文本，避免前端丢失计数精度。
+            effective_runs:
+              type: string
+              pattern: ^[0-9]+$
+              description: 十进制整数文本，避免前端丢失计数精度。
+        attention:
+          type: array
+          items:
+            $ref: '#/components/schemas/CollectorHealth'
+        recent_collectors:
+          type: array
+          items:
+            $ref: '#/components/schemas/CollectorHealth'
+        pending_drafts:
+          type: array
+          items:
+            $ref: '#/components/schemas/CollectorHealth'
+        next_schedules:
+          type: array
+          items:
+            $ref: '#/components/schemas/CollectorHealth'
+        recent_tables:
+          type: array
+          items:
+            $ref: '#/components/schemas/HomeTable'
+        recent_runs:
+          type: array
+          items:
+            $ref: '#/components/schemas/OverviewRun'
+        section_limit:
+          type: integer
+          enum:
+            - 6
+      description: 同一 PostgreSQL REPEATABLE READ 只读快照；window_start=as_of-24h。活动为此完成时间窗口内 succeeded/limited 且 committed 的写入决策累计，非唯一记录净增/趋势。分区最多6项，总数独立统计。
     CapabilitiesResponse:
       type: object
       properties:
@@ -5808,6 +6263,10 @@ components:
             type: string
             enum:
               - full_run
+        supports_home_overview:
+          type: boolean
+        supports_collector_health:
+          type: boolean
     DraftResponse:
       type: object
       required:

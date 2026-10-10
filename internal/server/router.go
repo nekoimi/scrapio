@@ -69,6 +69,8 @@ func newRouter(ctx context.Context, cfg *config.Config) *mux.Router {
 		v3Api.HandleFunc("/me", v3.Me).Methods("GET")
 		v3Api.HandleFunc("/capabilities", v3.CapabilitiesWithBrowser(browserService)).Methods("GET")
 		v3Api.HandleFunc("/home", v3.Home).Methods("GET")
+		v3Api.HandleFunc("/collectors/health", v3.CollectorHealthList).Methods("GET")
+		v3Api.HandleFunc("/collectors/{collector_id}/health", v3.CollectorHealth).Methods("GET")
 		v3Api.HandleFunc("/captures", v3.CreateCapture(cfg)).Methods("POST")
 		v3Api.HandleFunc("/captures/by-key", v3.GetCaptureByKey).Methods("GET")
 		v3Api.HandleFunc("/captures/{capture_id}", v3.GetCapture).Methods("GET")

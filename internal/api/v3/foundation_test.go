@@ -18,11 +18,6 @@ func TestFoundationDoesNotExposeLegacyCountsOrUnsupportedEditor(t *testing.T) {
 				t.Fatal("interactive browser advertised before protocol delivery")
 			}
 		}},
-		{"home", Home, func(t *testing.T, data map[string]any) {
-			if data["status"] != "pending" || data["records"] != nil {
-				t.Fatal("home must not present legacy records as v2.2 data")
-			}
-		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			w := httptest.NewRecorder()
@@ -38,5 +33,15 @@ func TestFoundationDoesNotExposeLegacyCountsOrUnsupportedEditor(t *testing.T) {
 			}
 			tc.check(t, response.Data)
 		})
+	}
+}
+
+func TestC05HomeRequiresOwnerBeforeAnyDatabaseRead(t *testing.T) {
+	for _, handler := range []func(http.ResponseWriter, *http.Request){Home, CollectorHealthList} {
+		w := httptest.NewRecorder()
+		handler(w, httptest.NewRequest("GET", "/", nil))
+		if w.Code != 401 {
+			t.Fatalf("unauthenticated overview exposed: %d", w.Code)
+		}
 	}
 }

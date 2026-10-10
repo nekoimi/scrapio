@@ -3,6 +3,7 @@ package v22_run_repo
 import (
 	"context"
 	"strconv"
+	"time"
 
 	"github.com/nekoimi/scrapio/internal/db"
 	"github.com/nekoimi/scrapio/internal/db/table"
@@ -43,8 +44,11 @@ func Retry(ctx context.Context, owner int64, parentID, key string, request runmo
 }
 
 type Filter struct {
-	Status string
-	Source string
+	Status    string
+	Source    string
+	Committed bool
+	Since     string
+	Until     string
 }
 
 func (f Filter) Validate() error {
@@ -53,6 +57,13 @@ func (f Filter) Validate() error {
 	}
 	if f.Source != "" && f.Source != "manual" && f.Source != "schedule" && f.Source != "api" && f.Source != "retry" {
 		return invalid("invalid trigger source")
+	}
+	if f.Since != "" || f.Until != "" {
+		start, e1 := time.Parse(time.RFC3339Nano, f.Since)
+		end, e2 := time.Parse(time.RFC3339Nano, f.Until)
+		if e1 != nil || e2 != nil || !end.After(start) || end.Sub(start) > 31*24*time.Hour {
+			return invalid("paired RFC3339 completion window must be positive and at most 31 days")
+		}
 	}
 	return nil
 }
@@ -76,6 +87,14 @@ func FilteredList(ctx context.Context, owner, collector int64, cursor string, li
 	} else if filter.Source != "" {
 		s.And("trigger_source=? AND retry_of IS NULL", filter.Source)
 	}
+	if filter.Committed {
+		s.And("summary->>'committed'='true'")
+	}
+	if filter.Since != "" {
+		start, _ := time.Parse(time.RFC3339Nano, filter.Since)
+		end, _ := time.Parse(time.RFC3339Nano, filter.Until)
+		s.And("finished_at>=? AND finished_at<=?", start, end)
+	}
 	if cursor != "" {
 		a, err := Get(ctx, owner, cursor, "")
 		if err != nil {
@@ -83,6 +102,21 @@ func FilteredList(ctx context.Context, owner, collector int64, cursor string, li
 		}
 		if collector > 0 && a.CollectorId != collector || filter.Status != "" && a.Status != filter.Status || filter.Source == "retry" && a.RetryOf == nil || filter.Source != "" && filter.Source != "retry" && (a.TriggerSource != filter.Source || a.RetryOf != nil) {
 			return nil, false, ErrNotFound
+		}
+		if filter.Committed {
+			var summary struct {
+				Committed bool `json:"committed"`
+			}
+			if runmodel.Decode(a.Summary, &summary) != nil || !summary.Committed {
+				return nil, false, ErrNotFound
+			}
+		}
+		if filter.Since != "" {
+			start, _ := time.Parse(time.RFC3339Nano, filter.Since)
+			end, _ := time.Parse(time.RFC3339Nano, filter.Until)
+			if a.FinishedAt == nil || a.FinishedAt.Before(start) || a.FinishedAt.After(end) {
+				return nil, false, ErrNotFound
+			}
 		}
 		s.And("(created_at,id)<(?,?)", a.CreatedAt, a.Id)
 	}
