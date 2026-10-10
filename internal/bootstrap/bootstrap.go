@@ -13,6 +13,7 @@ import (
 	"github.com/nekoimi/scrapio/internal/plugin"
 	"github.com/nekoimi/scrapio/internal/plugin/delivery"
 	"github.com/nekoimi/scrapio/internal/server"
+	"github.com/nekoimi/scrapio/internal/trialworker"
 	workflowexec "github.com/nekoimi/scrapio/internal/workflow"
 )
 
@@ -29,6 +30,7 @@ func BeanLifecycle() *bean.LifecycleManager {
 	bean.MustRegister[bean.Lifecycle](ctx, job.NewDocumentRetentionWorker())
 	// drission_rod
 	bean.MustRegisterPtr[drission_rod.DrissionRod](ctx, drission_rod.NewDrissionRod())
+	bean.MustRegister[bean.Lifecycle](ctx, trialworker.New())
 	pluginRegistry := plugin.NewRegistry()
 	delivery.RegisterBuiltins(pluginRegistry, bean.PtrFromContext[config.Config](ctx))
 	bean.MustRegisterPtr[plugin.Registry](ctx, pluginRegistry)

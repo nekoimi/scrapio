@@ -162,3 +162,8 @@
 .output-panel{margin-top:24px;padding-top:20px;border-top:1px solid var(--app-border,#dbe2ea)}
 .output-panel table input:not([type=checkbox]),.output-panel table select{min-width:120px;max-width:180px}
 .output-panel pre{white-space:pre-wrap;overflow-wrap:anywhere;max-width:440px}
+.trial-panel pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:360px;overflow:auto}
+.trial-panel table pre{max-width:360px}
+.trial-input-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:12px 0}
+.trial-input-row label{display:flex;flex-direction:column;gap:4px;min-width:220px}
+.trial-document{margin-top:20px;padding-top:12px;border-top:1px solid var(--app-border,#dbe2ea)}

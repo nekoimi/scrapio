@@ -91,6 +91,18 @@ async function get<T>(url: string): Promise<T> {
   return response.data as T;
 }
 
+export interface TrialInput {expected_revision:number;mode:'live'|'offline';confirmed:boolean;allowed_origins:string[];budget:{seconds:number;pages:number;records:number;details:number};inputs:{step_id:string;stage:'list'|'detail';capture_id:string}[]}
+export interface Trial {trial_id:string;collector_id:string;collector_revision:number;definition_hash:string;status:string;cancel_requested:boolean;current_step_id:string;current_stage:string;event_seq:number;input:TrialInput;summary:{status?:string;stop_reason?:string;failed_step_id?:string;failed_stage?:string;pages?:number;candidates?:number;network_accessed?:boolean;dry_run?:boolean;warnings?:string[];output?:OutputCheck['result']};created_at:string;started_at?:string;finished_at?:string;dry_run:boolean;formal_records_written:boolean}
+export interface TrialDocument {document_id:string;step_id:string;stage:'list'|'detail';parent_record_index:number;list_page:number;capture_id?:string;source_url:string;content_hash:string;extraction:ExtractionPreview['result']}
+export interface TrialEvent {sequence:number;payload:{step_id?:string;stage?:string;status:string;code?:string}}
+async function streamTrial(id:string,after:number,signal:AbortSignal,onEvent:(event:TrialEvent)=>void):Promise<void>{
+ const base=(import.meta.env.VITE_API_URL||'').replace(/\/+$/,'');
+ const response=await fetch(`${base}/api/v3/trials/${id}/events?after=${after}`,{headers:{Authorization:Session.get('token')||'',Accept:'text/event-stream'},credentials:'same-origin',signal});
+ if(!response.ok||!response.body||!response.headers.get('Content-Type')?.includes('text/event-stream'))throw Object.assign(new Error('试采事件流不可用'),{terminal:[401,403,404].includes(response.status)});
+ const reader=response.body.getReader(),decoder=new TextDecoder();let buffer='';
+ try{while(!signal.aborted){const {value,done}=await reader.read();if(done)return;buffer+=decoder.decode(value,{stream:true}).replace(/\r\n/g,'\n');let boundary=buffer.indexOf('\n\n');while(boundary>=0){const lines=buffer.slice(0,boundary).split('\n');buffer=buffer.slice(boundary+2);const idLine=lines.find(line=>line.startsWith('id:'));const data=lines.filter(line=>line.startsWith('data:')).map(line=>line.slice(5).trim()).join('\n');if(idLine&&data)onEvent({sequence:Number(idLine.slice(3)),payload:JSON.parse(data)});boundary=buffer.indexOf('\n\n')}}}finally{await reader.cancel().catch(()=>undefined);reader.releaseLock()}
+}
+
 async function streamBrowserSession(id: string, signal: AbortSignal, onSession: (session: BrowserSession) => void): Promise<void> {
   const baseURL = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
   const response = await fetch(`${baseURL}/api/v3/browser-sessions/${id}/events`, {
@@ -130,6 +142,14 @@ async function streamBrowserSession(id: string, signal: AbortSignal, onSession: 
 }
 
 export const appApi = {
+  streamTrial,
+  trials:(id:string)=>get<{items:Trial[];limit:number}>(`/api/v3/collectors/${id}/trials`),
+  trial:(id:string)=>get<Trial>(`/api/v3/trials/${id}`),
+  trialResults:(id:string,cursor='')=>get<{items:TrialDocument[];next_cursor:string;has_more:boolean}>(`/api/v3/trials/${id}/results?limit=5${cursor?`&cursor=${encodeURIComponent(cursor)}`:''}`),
+  trialByKey:(key:string)=>request({url:'/api/v3/trials/by-key',method:'get',headers:{'Idempotency-Key':key}}).then((response:any)=>response.data as Trial),
+  createTrial:(id:string,input:TrialInput,key:string)=>request({url:`/api/v3/collectors/${id}/trials`,method:'post',data:input,headers:{'Idempotency-Key':key}}).then((response:any)=>response.data as Trial),
+  cancelTrial:(id:string)=>request({url:`/api/v3/trials/${id}/cancel`,method:'post'}).then((response:any)=>response.data as Trial),
+  deleteTrial:(id:string)=>request({url:`/api/v3/trials/${id}`,method:'delete'}),
   tables:(cursor='')=>get<{items:LogicalTable[];next_cursor:string;has_more:boolean}>(`/api/v3/tables?limit=25${cursor?`&cursor=${encodeURIComponent(cursor)}`:''}`),
   table:(id:string)=>get<LogicalTable>(`/api/v3/tables/${id}`),
   outputCheck:(id:string,checkID:string)=>get<OutputCheck>(`/api/v3/collectors/${id}/output-checks/${checkID}`),

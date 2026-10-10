@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
   title: scrapio v2.2 editor contract spike
-  version: 0.9.0-b03
-  description: A02～B03 开发契约：草稿、会话、动作、点选、快照、提取、样例、逻辑表与输出确认。发版实环境验收另行记录；完整 trials 与正式数据写入尚未实现。
+  version: 0.10.0-b04
+  description: A02～B04 开发契约：草稿、会话、动作、点选、快照、提取、样例、逻辑表、输出确认与有界全链路试采。发版实环境验收另行记录；发布版本和正式数据写入接 B05/B06。
 servers:
   - url: /api/v3
 security:
@@ -1697,6 +1697,262 @@ paths:
         '500':
           $ref: '#/components/responses/Error'
       x-implementation-status: implemented
+  /collectors/{collector_id}/trials:
+    parameters:
+      - name: collector_id
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      summary: 冻结已保存草稿/输入/Schema，异步有界试采；不写正式记录或插件
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+            maxLength: 128
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TrialInput'
+      responses:
+        '202':
+          description: Trial
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Trial'
+                  request_id:
+                    type: string
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+    get:
+      summary: 最近 20 次 owned 试采
+      responses:
+        '200':
+          description: TrialList
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/TrialList'
+                  request_id:
+                    type: string
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+  /trials/by-key:
+    get:
+      summary: 创建响应丢失后恢复原试采，不重新执行
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+            maxLength: 128
+      responses:
+        '200':
+          description: Trial
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Trial'
+                  request_id:
+                    type: string
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+  /trials/{trial_id}:
+    parameters:
+      - name: trial_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      summary: 冻结元数据、进度和终态摘要
+      responses:
+        '200':
+          description: Trial
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Trial'
+                  request_id:
+                    type: string
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+    delete:
+      summary: 删除终态试采证据；B05 建立引用时须加保护
+      responses:
+        '204':
+          description: 已删除
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+  /trials/{trial_id}/cancel:
+    parameters:
+      - name: trial_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      summary: 幂等请求取消；停止派生，关闭独立会话，在途网站动作不能撤销
+      responses:
+        '200':
+          description: Trial
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Trial'
+                  request_id:
+                    type: string
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+  /trials/{trial_id}/results:
+    parameters:
+      - name: trial_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      summary: 按文档事件序号分页，含路径来源、逐字段原值与诊断
+      parameters:
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 10
+            default: 5
+      responses:
+        '200':
+          description: TrialResults
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/TrialResults'
+                  request_id:
+                    type: string
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+  /trials/{trial_id}/events:
+    parameters:
+      - name: trial_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      summary: 有序持久化 SSE；45 秒连接窗口，重连带 Last-Event-ID/after，失败可轮询状态
+      parameters:
+        - name: Last-Event-ID
+          in: header
+          schema:
+            type: string
+        - name: after
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+      responses:
+        '200':
+          description: id 为 sequence，data 为事件 payload；terminal 后流关闭
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
 components:
   securitySchemes:
     bearerAuth:
@@ -1746,6 +2002,216 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
   schemas:
+    TrialInput:
+      type: object
+      additionalProperties: false
+      required:
+        - expected_revision
+        - mode
+        - budget
+      properties:
+        expected_revision:
+          type: integer
+          minimum: 1
+        mode:
+          type: string
+          enum:
+            - live
+            - offline
+        confirmed:
+          type: boolean
+          description: live 必须显式确认
+        allowed_origins:
+          type: array
+          maxItems: 5
+          items:
+            type: string
+          description: live 1..5 精确 origin；offline 必须为空
+        budget:
+          type: object
+          required:
+            - seconds
+            - pages
+            - records
+            - details
+          properties:
+            seconds:
+              type: integer
+              minimum: 5
+              maximum: 120
+            pages:
+              type: integer
+              minimum: 1
+              maximum: 10
+              description: 提取文档数量，包括列表与详情；返回检查不计提取文档
+            records:
+              type: integer
+              minimum: 1
+              maximum: 20
+              description: 输出角色累计候选数
+            details:
+              type: integer
+              minimum: 0
+              maximum: 5
+        inputs:
+          type: array
+          maxItems: 6
+          description: offline 1..6，每个提取步骤必须 list；detail 输出必须 detail；live 必须为空
+          items:
+            type: object
+            required:
+              - step_id
+              - stage
+              - capture_id
+            properties:
+              step_id:
+                type: string
+              stage:
+                type: string
+                enum:
+                  - list
+                  - detail
+              capture_id:
+                type: string
+                format: uuid
+    TrialSummary:
+      type: object
+      properties:
+        status:
+          type: string
+        stop_reason:
+          type: string
+        failed_step_id:
+          type: string
+        failed_stage:
+          type: string
+        pages:
+          type: integer
+        candidates:
+          type: integer
+        network_accessed:
+          type: boolean
+          description: live 开始调度时保守标记可能访问
+        dry_run:
+          type: boolean
+          enum:
+            - true
+        warnings:
+          type: array
+          items:
+            type: string
+        output:
+          $ref: '#/components/schemas/OutputResult'
+    Trial:
+      type: object
+      properties:
+        trial_id:
+          type: string
+          format: uuid
+        collector_id:
+          type: string
+        collector_revision:
+          type: integer
+        definition_hash:
+          type: string
+          description: CanonicalJSON 后 SHA-256
+        status:
+          type: string
+          enum:
+            - queued
+            - running
+            - succeeded
+            - partial
+            - limited
+            - failed
+            - cancelled
+        cancel_requested:
+          type: boolean
+        current_step_id:
+          type: string
+        current_stage:
+          type: string
+        event_seq:
+          type: integer
+        input:
+          $ref: '#/components/schemas/TrialInput'
+        summary:
+          $ref: '#/components/schemas/TrialSummary'
+        created_at:
+          type: string
+          format: date-time
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+        finished_at:
+          type: string
+          format: date-time
+          nullable: true
+        dry_run:
+          type: boolean
+          enum:
+            - true
+        formal_records_written:
+          type: boolean
+          enum:
+            - false
+    TrialDocument:
+      type: object
+      properties:
+        document_id:
+          type: string
+          format: uuid
+        step_id:
+          type: string
+        stage:
+          type: string
+          enum:
+            - list
+            - detail
+        parent_record_index:
+          type: integer
+          description: '-1 表示不适用/离线未验证关联'
+        list_page:
+          type: integer
+        capture_id:
+          type: string
+        source_url:
+          type: string
+        base_url:
+          type: string
+        format:
+          type: string
+        content_hash:
+          type: string
+        extraction:
+          $ref: '#/components/schemas/ExtractionResult'
+    TrialList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Trial'
+        limit:
+          type: integer
+          enum:
+            - 20
+    TrialResults:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/TrialDocument'
+        has_more:
+          type: boolean
+        next_cursor:
+          type: string
+        status:
+          type: string
+        summary:
+          $ref: '#/components/schemas/TrialSummary'
     LogicalTableField:
       type: object
       properties:
