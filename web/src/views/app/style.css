@@ -81,8 +81,8 @@
 .editor-action-workspace .editor-actions .secondary-action { background: #edf0f5; color: #3f4a5d; }
 .editor-action-workspace .muted { font-size: 12px; line-height: 1.6; }
 .step-list { list-style: none; padding: 0; display: grid; gap: 9px; max-height: 420px; overflow-y: auto; }
-.step-list li { border: 1px solid #dce2ed; border-radius: 8px; background: #fff; padding: 10px; }
-.step-list li.selected { border-color: #4567c4; box-shadow: 0 0 0 1px #4567c433; }
+.step-list > li { border: 1px solid #dce2ed; border-radius: 8px; background: #fff; padding: 10px; }
+.step-list > li.selected { border-color: #4567c4; box-shadow: 0 0 0 1px #4567c433; }
 .step-list .step-title { background: none; border: 0; padding: 0; text-align: left; overflow-wrap: anywhere; width: 100%; font-weight: 600; }
 .step-list small { display: block; margin: 7px 0; }
 .step-controls { display: flex; gap: 5px; flex-wrap: wrap; }
@@ -197,3 +197,46 @@
 .governance-page small { display:block;overflow-wrap:anywhere;font-size:11px;margin-top:6px }
 .governance-page li { margin:7px 0;overflow-wrap:anywhere }
 .governance-page details { margin-top:12px }
+/* Guided v2.2 editor: keep the webpage, selection and rules in one workspace. */
+.collector-editor-page { max-width: 1880px; padding: 28px 24px; }
+.editor-entry-summary { margin-bottom: 18px; overflow-wrap: anywhere; }
+.collector-stage-nav { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 0; border-bottom: 1px solid #dfe3eb; }
+.collector-stage-nav button { border: 1px solid #dce2ed; border-radius: 8px; background: #fff; color: #425474; padding: 10px 14px; cursor: pointer; }
+.collector-stage-nav button[aria-current="step"] { background: #4567c4; color: #fff; border-color: #4567c4; }
+.editor-stage-help { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; color: #647086; padding: 16px 0; }
+.editor-advanced { min-width: 0; }
+.editor-advanced summary { cursor: pointer; color: #52617b; font-size: 12px; padding: 10px 0; }
+.editor-advanced[open] > summary { margin-bottom: 8px; }
+.collector-editor-page .editor-browser { margin-top: 0; padding: 20px; }
+.collector-editor-page .editor-action-workspace { grid-template-columns: 190px minmax(0, 1fr) 300px; gap: 16px; align-items: start; }
+.editor-page-pane, .editor-command-pane, .editor-record-pane { min-width: 0; }
+.editor-page-pane { position: relative; }
+.editor-page-pane .browser-frame-stage { margin-top: 14px; }
+.editor-page-empty { border: 1px dashed #c4d0e4; border-radius: 10px; background: #f7f9fc; padding: 50px 24px; min-height: 300px; }
+.editor-page-empty p { color: #647086; line-height: 1.8; margin-top: 12px; }
+.selection-goals { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.selection-goals button[aria-pressed="true"] { background: #4567c4; color: white; border-color: #4567c4; }
+.editor-command-pane { border: 1px solid #dfe3eb; border-radius: 10px; padding: 14px; background: #fff; }
+.editor-command-pane .command-form-grid { grid-template-columns: 1fr; gap: 8px; }
+.editor-command-pane .editor-actions label { max-width: none; width: 100%; }
+.editor-command-pane .selection-summary .editor-actions label { width: auto; }
+.editor-record-pane { grid-column: 1 / -1; }
+.editor-record-pane input, .editor-record-pane select { border: 1px solid #d5dce8; background: #fff; border-radius: 7px; padding: 8px; font: inherit; min-width: 0; }
+.editor-record-pane label { display: grid; gap: 6px; }
+.editor-record-pane .record-field-rule { align-items: start; }
+.editor-record-pane .record-field-rule .editor-advanced { max-width: 100%; }
+.editor-record-pane .record-field-rule .editor-advanced input { max-width: 100%; }
+.editor-record-pane .record-preview-table { max-height: 420px; }
+.editor-narrow-note { display: none; }
+@media (max-width: 1300px) {
+ .collector-editor-page .editor-action-workspace { grid-template-columns: minmax(0, 1fr) 300px; }
+ .collector-editor-page .editor-step-pane { grid-column: 1 / -1; }
+ .collector-editor-page .step-list { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); max-height: 200px; }
+}
+@media (max-width: 1000px) {
+ .collector-editor-page .editor-action-workspace { grid-template-columns: minmax(0, 1fr); }
+ .editor-page-pane { position: static; }
+ .editor-narrow-note { display: block; }
+ .collector-editor-page { padding: 24px 16px; }
+ .collector-editor-page .editor-browser { padding: 14px; }
+}

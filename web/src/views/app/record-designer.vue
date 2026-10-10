@@ -1,10 +1,16 @@
 <template>
 	<section class="record-designer">
 		<div class="pane-heading">
-			<h3>记录与详情路径</h3>
+			<h3>已选规则与当前页预览</h3>
 			<span>编辑会话 · 有界检查</span>
 		</div>
-		<p class="muted">配置并保存记录范围和字段后，检查当前页面的实际值。打开详情/下一页会访问网站；检查本身不写正式记录。</p>
+		<p class="muted">从上方网页点选内容，下方核对字段；保存后预览当前页面。详情与翻页的试访问仍需确认。</p>
+		<div class="editor-actions">
+			<button :disabled="!available || working || !!context" @click="emit('select', 'record')">从网页选记录</button
+			><button :disabled="!available || working" @click="emit('select', 'field')">从网页选字段</button
+			><button :disabled="!available || working || !!context" @click="emit('select', 'detail')">选详情入口</button
+			><button :disabled="!available || working || !!context" @click="emit('select', 'next')">选下一页</button>
+		</div>
 		<div class="editor-actions">
 			<select :value="stepID" :disabled="working || !!context" aria-label="记录步骤" @change="chooseStep(($event.target as HTMLSelectElement).value)">
 				<option value="">新记录步骤</option>
@@ -20,18 +26,21 @@
 					</select></label
 				><label>本页 / 累积列表记录上限<input v-model.number="plan.max_records" type="number" min="1" max="200" /></label>
 			</div>
-			<div v-if="plan.mode === 'repeated' && plan.locator" class="command-form-grid">
-				<label
-					>容器定位<select v-model="plan.locator.strategy">
-						<option value="css">CSS</option>
-						<option value="xpath">XPath</option>
-					</select></label
-				><label>容器规则<input v-model="plan.locator.expression" maxlength="2048" /></label>
-			</div>
+			<details v-if="plan.mode === 'repeated' && plan.locator" class="editor-advanced">
+				<summary>高级：记录范围定位规则</summary>
+				<div class="command-form-grid">
+					<label
+						>容器定位<select v-model="plan.locator.strategy">
+							<option value="css">CSS</option>
+							<option value="xpath">XPath</option>
+						</select></label
+					><label>容器规则<input v-model="plan.locator.expression" maxlength="2048" /></label>
+				</div>
+			</details>
 			<template v-for="group in fieldGroups" :key="group.role">
 				<div class="pane-heading">
 					<h4>{{ group.role === 'list' ? '当前页 / 每条记录的字段' : '详情页字段' }}</h4>
-					<button @click="addField(group.role)">添加字段</button>
+					<button @click="addField(group.role)">手动添加字段</button>
 				</div>
 				<div v-for="(field, index) in group.fields" :key="index" class="record-field-rule">
 					<input v-model="field.name" aria-label="字段名" placeholder="字段名" maxlength="64" />
@@ -42,19 +51,23 @@
 						<option value="attribute">属性</option>
 					</select>
 					<input v-if="field.extract === 'attribute'" v-model="field.attribute" aria-label="属性名" placeholder="例如 data-id" />
-					<template v-if="field.locator"
-						><select v-model="field.locator.strategy" aria-label="字段定位">
-							<option value="css">CSS</option>
-							<option value="xpath">XPath</option></select
-						><input
-							v-model="field.locator.expression"
-							aria-label="字段规则"
-							placeholder="相对容器规则，如 .title 或 .//a"
-							maxlength="2048" /></template
-					><span v-else>记录容器自身</span>
-					<button @click="field.locator = field.locator ? undefined : { strategy: 'css', expression: '' }">
-						{{ field.locator ? '改用容器自身' : '指定子元素' }}</button
-					><button @click="group.fields.splice(index, 1)">删除</button
+					<details class="editor-advanced">
+						<summary>高级定位规则</summary>
+						<template v-if="field.locator"
+							><select v-model="field.locator.strategy" aria-label="字段定位">
+								<option value="css">CSS</option>
+								<option value="xpath">XPath</option></select
+							><input
+								v-model="field.locator.expression"
+								aria-label="字段规则"
+								placeholder="相对容器规则，如 .title 或 .//a"
+								maxlength="2048" /></template
+						><span v-else>记录容器自身</span>
+						<button @click="field.locator = field.locator ? undefined : { strategy: 'css', expression: '' }">
+							{{ field.locator ? '改用容器自身' : '指定子元素' }}
+						</button>
+					</details>
+					<button @click="group.fields.splice(index, 1)">删除</button
 					><button :disabled="index === 0" @click="moveField(group.fields, index, -1)">↑</button
 					><button :disabled="index === group.fields.length - 1" @click="moveField(group.fields, index, 1)">↓</button
 					><FieldOptions :field="field" :role="group.role" />
@@ -73,7 +86,8 @@
 					移除详情路径
 				</button>
 			</div>
-			<div v-if="plan.detail" class="detail-path-config">
+			<details v-if="plan.detail" class="detail-path-config editor-advanced">
+				<summary>详情入口已配置 · 返回方式与高级规则</summary>
 				<h4>每条记录 → 发现详情 URL → 打开详情 → 提取详情字段 → 返回列表</h4>
 				<div class="command-form-grid">
 					<label
@@ -89,7 +103,7 @@
 						</select></label
 					><label>最多详情候选<input v-model.number="plan.detail.max_details" type="number" min="1" max="5" /></label>
 				</div>
-			</div>
+			</details>
 			<div class="editor-actions">
 				<button
 					v-if="!plan.next_page"
@@ -98,26 +112,33 @@
 					添加下一页入口</button
 				><button v-else @click="plan.next_page = undefined">移除下一页入口</button>
 			</div>
-			<div v-if="plan.next_page" class="command-form-grid">
-				<label
-					>下一页类型<select v-model="plan.next_page.kind">
-						<option value="link">链接导航</option>
-						<option value="click">翻页按钮</option>
-						<option value="load_more">加载更多（累积列表）</option>
-					</select></label
-				><label
-					>定位方式<select v-model="plan.next_page.locator.strategy">
-						<option value="css">CSS</option>
-						<option value="xpath">XPath</option>
-					</select></label
-				><label>规则<input v-model="plan.next_page.locator.expression" maxlength="2048" /></label
-				><label>最多列表轮次<input v-model.number="plan.next_page.max_pages" type="number" min="1" max="100" /></label
-				><label>动作后等待（毫秒）<input v-model.number="plan.next_page.wait_ms" type="number" min="0" max="10000" /></label>
-			</div>
+			<details v-if="plan.next_page" class="editor-advanced">
+				<summary>下一页已配置 · 翻页方式与高级规则</summary>
+				<div class="command-form-grid">
+					<label
+						>下一页类型<select v-model="plan.next_page.kind">
+							<option value="link">链接导航</option>
+							<option value="click">翻页按钮</option>
+							<option value="load_more">加载更多（累积列表）</option>
+						</select></label
+					><label
+						>定位方式<select v-model="plan.next_page.locator.strategy">
+							<option value="css">CSS</option>
+							<option value="xpath">XPath</option>
+						</select></label
+					><label>规则<input v-model="plan.next_page.locator.expression" maxlength="2048" /></label
+					><label>最多列表轮次<input v-model.number="plan.next_page.max_pages" type="number" min="1" max="100" /></label
+					><label>动作后等待（毫秒）<input v-model.number="plan.next_page.wait_ms" type="number" min="0" max="10000" /></label>
+				</div>
+			</details>
 			<p class="muted">
 				字段定位相对于各自记录容器；详情字段相对于整页。当前页面检查不连续运行。正式运行遵循已发布轮次上限与运行预算；加载更多的记录上限须能覆盖累积列表，超出会标记受限。重复/空页自动停止；动作后等待用于异步列表加载。
 			</p>
-			<button :disabled="!localDirty || unsupported" @click="save">{{ working ? '处理中…' : '保存记录步骤' }}</button>
+			<div class="editor-actions">
+				<button :disabled="!localDirty || unsupported || !available" @click="saveAndPreview">{{ working ? '处理中…' : '保存并预览当前页' }}</button
+				><button :disabled="!localDirty || unsupported" @click="save">只保存规则</button
+				><button :disabled="!localDirty || working" @click="undoLocal">撤销未保存规则</button>
+			</div>
 		</fieldset>
 		<p v-if="localDirty" class="status-warn">记录配置尚未保存；保存前不会用旧规则生成新预览。</p>
 		<p v-if="unsupported" class="status-warn">这份规则包含高级配置；请使用 JSON 编辑，当前表单不会覆盖它。</p>
@@ -220,6 +241,7 @@ const emit = defineEmits<{
 	(event: 'draft-saved', draft: Collector): void;
 	(event: 'highlight', value: PageHighlight): void;
 	(event: 'working', busy: boolean): void;
+	(event: 'select', target: SelectionRule['target']): void;
 }>();
 const emptyPlan = (): RecordPlan => ({ mode: 'single', max_records: 10, fields: [], detail_fields: [] });
 const plan = ref<RecordPlan>(emptyPlan()),
@@ -383,8 +405,15 @@ function applySelection(rule: SelectionRule) {
 			return;
 		}
 		const fields = context.value ? plan.value.detail_fields || (plan.value.detail_fields = []) : plan.value.fields;
+		let suffix = fields.length + 1;
+		while (fields.some((field) => field.name === `field_${suffix}`)) suffix++;
+		const name = rule.name || `field_${suffix}`;
+		if (fields.some((field) => field.name === name)) {
+			message.value = '字段名称已存在，请修改名称后重新加入。';
+			return;
+		}
 		fields.push({
-			name: `field_${fields.length + 1}`,
+			name,
 			extract: rule.extract || 'text',
 			locator: { ...rule.locator },
 			...(rule.extract === 'attribute' ? { attribute: 'data-id' } : {}),
@@ -394,9 +423,16 @@ function applySelection(rule: SelectionRule) {
 			message.value = '详情链接须在同一记录范围内点选。';
 			return;
 		}
-		enableDetail();
+		if (!plan.value.detail) enableDetail();
 		plan.value.detail!.locator = { ...rule.locator };
-	} else plan.value.next_page = { locator: { ...rule.locator }, kind: 'link', max_pages: 10, wait_ms: 500 };
+	} else
+		plan.value.next_page = {
+			max_pages: 10,
+			wait_ms: 500,
+			...plan.value.next_page,
+			locator: { ...rule.locator },
+			kind: rule.next_kind || plan.value.next_page?.kind || 'link',
+		};
 	message.value = '已填入点选规则，检查后保存记录步骤。';
 }
 function validate() {
@@ -406,11 +442,23 @@ function validate() {
 		['single', 'repeated'].includes(plan.value.mode) &&
 		Number.isInteger(plan.value.max_records) &&
 		plan.value.max_records >= 1 &&
-		plan.value.max_records <= 20 &&
+		plan.value.max_records <= 200 &&
 		names(plan.value.fields) &&
 		names(plan.value.detail_fields || []) &&
 		(plan.value.mode !== 'repeated' || !!plan.value.locator?.expression.trim())
 	);
+}
+function undoLocal() {
+	if (working.value || props.blocked || !localDirty.value) return;
+	plan.value = saved.value ? JSON.parse(saved.value) : emptyPlan();
+	preview.value = undefined;
+	message.value = '已撤销本地规则修改。';
+}
+async function saveAndPreview() {
+	if (await save()) {
+		await nextTick();
+		await previewCurrent();
+	}
 }
 async function save() {
 	if (working.value || props.blocked || unsupported.value || !localDirty.value) return;
@@ -441,6 +489,7 @@ async function save() {
 		saved.value = JSON.stringify(plan.value);
 		emit('draft-saved', draft);
 		message.value = '记录步骤已保存；请重新检查当前页面。';
+		return true;
 	} catch (cause: any) {
 		message.value = cause?.error?.message || '保存失败，本地配置已保留。';
 	} finally {

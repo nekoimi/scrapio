@@ -18,7 +18,7 @@
 					<button v-if="identityError" @click="loadIdentity">重试身份</button></span
 				>
 			</header>
-			<main class="app-content" tabindex="0" aria-label="页面内容"><router-view /></main>
+			<main class="app-content" tabindex="0" aria-label="页面内容"><router-view :key="route.name === 'v22CollectorDetail' ? String(route.params.id) : undefined" /></main>
 		</div>
 	</div>
 </template>

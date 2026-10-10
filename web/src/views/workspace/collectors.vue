@@ -1,6 +1,7 @@
 <template>
  <div class="v21-stack">
   <header class="v21-header"><div><div class="v21-eyebrow">Workspace / 采集器</div><h1>{{selectedWorkflow?.name||'采集器'}}</h1><p>为目标数据集配置来源，在发布前用真实样例预览保存结果。</p></div><div class="v21-actions"><el-button @click="load">刷新</el-button><el-button type="primary" :disabled="!projectId||!datasets.length" @click="startWizard">添加来源</el-button></div></header>
+  <p class="v21-note">当前页面使用手动规则配置。需要从网页点选记录、字段或翻页入口？<router-link class="v21-link" to="/app/collectors">打开 v2.2 点选工作台 →</router-link>（新建方案使用独立数据域。）</p>
   <p v-if="error" class="v21-error" role="alert">{{error}}</p>
   <div v-if="!datasets.length&&!loading" class="v21-empty">先创建目标数据集，再添加采集器。<router-link class="v21-link" to="/workspace/data">前往数据集 →</router-link></div>
   <div class="collector-layout" v-else><aside class="v21-card collector-list"><h2>来源列表</h2><div v-if="loading" class="v21-empty">加载中…</div><div v-else-if="!workflows.length" class="v21-empty">当前项目没有采集器。点击“添加来源”开始。</div><button v-for="item in workflows" :key="item.id" class="collector-item" :class="{active:item.id===selectedId}" @click="selectWorkflow(item.id)"><strong>{{item.name}}</strong><small>{{datasetName(item.dataset_id)}} · {{item.published_version_id?'已发布':'未发布'}}</small></button></aside>
