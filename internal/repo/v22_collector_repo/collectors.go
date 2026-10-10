@@ -33,18 +33,19 @@ type UpdateInput struct {
 }
 
 type Collector struct {
-	ID               string          `json:"id"`
-	Name             string          `json:"name"`
-	EntryURL         string          `json:"entry_url"`
-	EntryType        string          `json:"entry_type"`
-	Status           string          `json:"status"`
-	Definition       json.RawMessage `json:"definition"`
-	Revision         int             `json:"revision"`
-	ValidationStatus string          `json:"validation_status"`
-	ValidationErrors []string        `json:"validation_errors"`
-	SaveSummary      *SaveSummary    `json:"save_summary,omitempty"`
-	CreatedAt        time.Time       `json:"created_at"`
-	UpdatedAt        time.Time       `json:"updated_at"`
+	ID                 string          `json:"id"`
+	Name               string          `json:"name"`
+	EntryURL           string          `json:"entry_url"`
+	EntryType          string          `json:"entry_type"`
+	Status             string          `json:"status"`
+	Definition         json.RawMessage `json:"definition"`
+	Revision           int             `json:"revision"`
+	PublishedVersionID *string         `json:"published_version_id,omitempty"`
+	ValidationStatus   string          `json:"validation_status"`
+	ValidationErrors   []string        `json:"validation_errors"`
+	SaveSummary        *SaveSummary    `json:"save_summary,omitempty"`
+	CreatedAt          time.Time       `json:"created_at"`
+	UpdatedAt          time.Time       `json:"updated_at"`
 }
 
 type SaveSummary struct {
@@ -66,7 +67,7 @@ type ListPage struct {
 
 func ToDTO(row *table.V22Collector) Collector {
 	status, errors := validationState(row)
-	return Collector{ID: strconv.FormatInt(row.Id, 10), Name: row.Name, EntryURL: row.EntryURL, EntryType: row.EntryType, Status: row.Status, Definition: json.RawMessage(row.Definition), Revision: row.Revision, ValidationStatus: status, ValidationErrors: errors, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
+	return Collector{ID: strconv.FormatInt(row.Id, 10), Name: row.Name, EntryURL: row.EntryURL, EntryType: row.EntryType, Status: row.Status, Definition: json.RawMessage(row.Definition), Revision: row.Revision, PublishedVersionID: row.PublishedVersionId, ValidationStatus: status, ValidationErrors: errors, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
 }
 
 func validationState(row *table.V22Collector) (string, []string) {

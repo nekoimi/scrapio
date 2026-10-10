@@ -3,6 +3,8 @@ import { Session } from '/@/utils/storage';
 
 export interface Identity { id: string; username: string }
 export interface Capabilities {
+ supports_publication?:boolean;
+ supports_version_runs?:boolean;
  supports_output_checks?:boolean;
  supports_logical_tables?:boolean;
 	 supports_samples?: boolean;
@@ -22,7 +24,7 @@ export interface Capabilities {
   reason?: string;
 }
 export interface HomeState { status: 'pending' | 'ready'; reason?: string }
-export interface Collector { id: string; name: string; entry_url: string; entry_type: 'web' | 'json'; status: string; definition: Record<string, any>; revision: number; validation_status?: 'not_validated' | 'valid' | 'invalid' | 'stale'; validation_errors?: string[]; save_summary?: { revision: number; changed_fields: string[]; saved_at: string }; updated_at: string }
+export interface Collector { published_version_id?:string; id: string; name: string; entry_url: string; entry_type: 'web' | 'json'; status: string; definition: Record<string, any>; revision: number; validation_status?: 'not_validated' | 'valid' | 'invalid' | 'stale'; validation_errors?: string[]; save_summary?: { revision: number; changed_fields: string[]; saved_at: string }; updated_at: string }
 export interface BrowserSession { session_id: string; collector_id: string; draft_revision: number; status: string; expires_at: string; page_state_id: string; current_url: string; viewport: { width: number; height: number }; frame_url: string; heartbeat_interval_seconds: number; available: boolean; needs_reopen: boolean }
 
 export interface EditorAction {
@@ -91,6 +93,10 @@ async function get<T>(url: string): Promise<T> {
   return response.data as T;
 }
 
+export interface PublishIssue {code:string;message:string;step_id?:string;field_key?:string;sample_id?:string;stage?:string}
+export interface PublishCheck {check_id:string;collector_id:string;collector_revision:number;trial_id:string;definition_hash:string;manifest_hash:string;capability_hash:string;accept_limited:boolean;ready:boolean;result:{ready:boolean;issues:PublishIssue[];warnings:PublishIssue[]};manifest:{revision:number;schema_hash:string;schema_version:number;output_check_id:string;samples:{sample_id:string;revision:number;step_id:string;stage:string;kind:string;content_hash:string;expected_hash:string}[]};capabilities:Record<string,unknown>;created_at:string;expires_at:string}
+export interface PublishedVersion {version_id:string;collector_id:string;number:number;collector_revision:number;name:string;entry_type:'web'|'json';definition_hash:string;check_id:string;trial_id:string;contract_version:string;interpreter_version:string;capability_hash:string;manifest_hash:string;note:string;published_by:string;created_at:string;run_available:boolean;run_unavailable_reason:string;definition?:Record<string,any>;output_schema?:TableSchema;runtime_config?:TrialInput}
+
 export interface TrialInput {expected_revision:number;mode:'live'|'offline';confirmed:boolean;allowed_origins:string[];budget:{seconds:number;pages:number;records:number;details:number};inputs:{step_id:string;stage:'list'|'detail';capture_id:string}[]}
 export interface Trial {trial_id:string;collector_id:string;collector_revision:number;definition_hash:string;status:string;cancel_requested:boolean;current_step_id:string;current_stage:string;event_seq:number;input:TrialInput;summary:{status?:string;stop_reason?:string;failed_step_id?:string;failed_stage?:string;pages?:number;candidates?:number;network_accessed?:boolean;dry_run?:boolean;warnings?:string[];output?:OutputCheck['result']};created_at:string;started_at?:string;finished_at?:string;dry_run:boolean;formal_records_written:boolean}
 export interface TrialDocument {document_id:string;step_id:string;stage:'list'|'detail';parent_record_index:number;list_page:number;capture_id?:string;source_url:string;content_hash:string;extraction:ExtractionPreview['result']}
@@ -142,6 +148,14 @@ async function streamBrowserSession(id: string, signal: AbortSignal, onSession: 
 }
 
 export const appApi = {
+  createPublishCheck:(id:string,input:{expected_revision:number;trial_id:string;accept_limited:boolean},key:string)=>request({url:`/api/v3/collectors/${id}/publish-checks`,method:'post',data:input,headers:{'Idempotency-Key':key}}).then((response:any)=>response.data as PublishCheck),
+  publishCheck:(id:string,checkID:string)=>get<PublishCheck>(`/api/v3/collectors/${id}/publish-checks/${checkID}`),
+  publishCheckByKey:(id:string,key:string)=>request({url:`/api/v3/collectors/${id}/publish-checks/by-key`,method:'get',headers:{'Idempotency-Key':key}}).then((response:any)=>response.data as PublishCheck),
+  publishVersion:(id:string,input:{expected_revision:number;check_id:string;note:string},key:string)=>request({url:`/api/v3/collectors/${id}/versions`,method:'post',data:input,headers:{'Idempotency-Key':key}}).then((response:any)=>response.data as PublishedVersion),
+  versions:(id:string,cursor='')=>get<{items:PublishedVersion[];has_more:boolean;next_cursor:string}>(`/api/v3/collectors/${id}/versions?limit=25${cursor?`&cursor=${encodeURIComponent(cursor)}`:''}`),
+  version:(id:string)=>get<PublishedVersion>(`/api/v3/versions/${id}`),
+  versionByKey:(key:string)=>request({url:'/api/v3/versions/by-key',method:'get',headers:{'Idempotency-Key':key}}).then((response:any)=>response.data as PublishedVersion),
+  versionEvidence:(id:string)=>get<{version_id:string;check:PublishCheck;samples:{sample_id:string;name:string;revision:number;step_id:string;stage:string;kind:string;comparison:{status:string;assertion_count:number;differences:SampleDifference[]}}[]}>(`/api/v3/versions/${id}/evidence`),
   streamTrial,
   trials:(id:string)=>get<{items:Trial[];limit:number}>(`/api/v3/collectors/${id}/trials`),
   trial:(id:string)=>get<Trial>(`/api/v3/trials/${id}`),

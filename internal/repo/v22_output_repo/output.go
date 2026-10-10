@@ -384,7 +384,7 @@ func CreateCheck(ctx context.Context, ownerID, collectorID int64, key string, in
 	if _, err = insert.InsertOne(row); err != nil {
 		return nil, err
 	}
-	if _, err = s.Exec("DELETE FROM v22_output_checks WHERE collector_id=? AND owner_id=? AND id NOT IN (SELECT check_id FROM v22_output_bindings WHERE collector_id=?) AND id NOT IN (SELECT id FROM v22_output_checks WHERE collector_id=? AND owner_id=? ORDER BY created_at DESC,id DESC LIMIT 20)", collectorID, ownerID, collectorID, collectorID, ownerID); err != nil {
+	if _, err = s.Exec("DELETE FROM v22_output_checks WHERE collector_id=? AND owner_id=? AND id NOT IN (SELECT check_id FROM v22_output_bindings WHERE collector_id=?) AND id NOT IN (SELECT output_check_id FROM v22_versions WHERE collector_id=?) AND id NOT IN (SELECT id FROM v22_output_checks WHERE collector_id=? AND owner_id=? ORDER BY created_at DESC,id DESC LIMIT 20)", collectorID, ownerID, collectorID, collectorID, collectorID, ownerID); err != nil {
 		return nil, err
 	}
 	if err = s.Commit(); err != nil {

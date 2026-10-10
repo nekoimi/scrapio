@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
   title: scrapio v2.2 editor contract spike
-  version: 0.10.0-b04
-  description: A02～B04 开发契约：草稿、会话、动作、点选、快照、提取、样例、逻辑表、输出确认与有界全链路试采。发版实环境验收另行记录；发布版本和正式数据写入接 B05/B06。
+  version: 0.11.0-b05
+  description: A02～B05 开发契约：草稿、会话、动作、点选、快照、提取、样例、逻辑表、输出确认、有界试采与不可变发布版本。发版实环境验收另行记录；正式运行/数据写入接 B06。
 servers:
   - url: /api/v3
 security:
@@ -1830,7 +1830,7 @@ paths:
         '409':
           $ref: '#/components/responses/Error'
     delete:
-      summary: 删除终态试采证据；B05 建立引用时须加保护
+      summary: 删除未被发布版本引用的终态试采；有引用返回409
       responses:
         '204':
           description: 已删除
@@ -1953,6 +1953,299 @@ paths:
           $ref: '#/components/responses/Error'
         '409':
           $ref: '#/components/responses/Error'
+  /collectors/{collector_id}/publish-checks:
+    parameters:
+      - $ref: '#/components/parameters/CollectorId'
+    post:
+      summary: 重新检查全样例/实时试采/Schema/能力；无阻断才ready，检查不通过仍保存证据
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PublishCheckInput'
+      responses:
+        '201':
+          description: PublishCheck
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/PublishCheck'
+                  request_id:
+                    type: string
+                required:
+                  - data
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '408':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      description: 不访问目标网站或写正式记录。先做最多4秒网页协议探测，事务另有5秒预算；15分钟有效，24小时内实时试采。
+  /collectors/{collector_id}/publish-checks/by-key:
+    parameters:
+      - $ref: '#/components/parameters/CollectorId'
+      - $ref: '#/components/parameters/IdempotencyKey'
+    get:
+      summary: 按原请求键恢复发布检查，不重新执行
+      responses:
+        '200':
+          description: PublishCheck
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/PublishCheck'
+                  request_id:
+                    type: string
+                required:
+                  - data
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '408':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+  /collectors/{collector_id}/publish-checks/{check_id}:
+    parameters:
+      - $ref: '#/components/parameters/CollectorId'
+      - name: check_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      summary: 读取发布检查摘要/清单/能力；ready不代表依赖仍有效
+      responses:
+        '200':
+          description: PublishCheck
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/PublishCheck'
+                  request_id:
+                    type: string
+                required:
+                  - data
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '408':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+  /collectors/{collector_id}/versions:
+    parameters:
+      - $ref: '#/components/parameters/CollectorId'
+    post:
+      summary: 核对依赖后原子发布不可变版本与当前指针；不修改草稿revision/status
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PublishVersionInput'
+      responses:
+        '201':
+          description: PublishedVersion
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/PublishedVersion'
+                  request_id:
+                    type: string
+                required:
+                  - data
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '408':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      description: 同键重放返回原版本；同检查只生成一版。过期/依赖变化PUBLISH_STALE，阻断PUBLISH_BLOCKED；当前不创建正式运行。
+    get:
+      summary: 按版本号倒序分页；省略定义/Schema/运行配置
+      responses:
+        '200':
+          description: PublishedVersionPage
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/PublishedVersionPage'
+                  request_id:
+                    type: string
+                required:
+                  - data
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '408':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 25
+        - name: cursor
+          in: query
+          schema:
+            type: string
+            description: 小于此版本号；首次不传
+  /versions/by-key:
+    parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+    get:
+      summary: 按原请求键恢复发布版本
+      responses:
+        '200':
+          description: PublishedVersion
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/PublishedVersion'
+                  request_id:
+                    type: string
+                required:
+                  - data
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '408':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+  /versions/{version_id}:
+    parameters:
+      - name: version_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      summary: 读取不可变发布定义/Schema/运行配置与摘要
+      responses:
+        '200':
+          description: PublishedVersion
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/PublishedVersion'
+                  request_id:
+                    type: string
+                required:
+                  - data
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '408':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+  /versions/{version_id}/evidence:
+    parameters:
+      - name: version_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      summary: 读取发布检查及自包含样例副本；原样例后续修改不影响证据
+      responses:
+        '200':
+          description: VersionEvidence
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/VersionEvidence'
+                  request_id:
+                    type: string
+                required:
+                  - data
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '408':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
 components:
   securitySchemes:
     bearerAuth:
@@ -2002,6 +2295,377 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
   schemas:
+    PublishCheckInput:
+      type: object
+      properties:
+        expected_revision:
+          type: integer
+          minimum: 1
+        trial_id:
+          type: string
+          format: uuid
+        accept_limited:
+          type: boolean
+          default: false
+          description: 只接受明确已知的预算/覆盖 limited；不会放行失败或离线跳过路径
+      additionalProperties: false
+      required:
+        - expected_revision
+        - trial_id
+    PublishVersionInput:
+      type: object
+      properties:
+        expected_revision:
+          type: integer
+          minimum: 1
+        check_id:
+          type: string
+          format: uuid
+        note:
+          type: string
+          maxLength: 1000
+          description: 去首尾空白；冻结为版本说明
+      additionalProperties: false
+      required:
+        - expected_revision
+        - check_id
+    PublishIssue:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        step_id:
+          type: string
+        field_key:
+          type: string
+        sample_id:
+          type: string
+        stage:
+          type: string
+          enum:
+            - list
+            - detail
+            - action
+    PublicationCapabilities:
+      type: object
+      properties:
+        definition_hash:
+          type: string
+          minLength: 64
+          maxLength: 64
+        contract:
+          type: string
+          enum:
+            - publish.v1
+        interpreter:
+          type: string
+          enum:
+            - extract.v1
+        browser_protocol:
+          type: string
+        session:
+          type: boolean
+        commands:
+          type: boolean
+        snapshot:
+          type: boolean
+        http:
+          type: boolean
+        credential_ready:
+          type: boolean
+        actions:
+          type: array
+          items:
+            type: string
+    PublicationSampleIdentity:
+      type: object
+      properties:
+        sample_id:
+          type: string
+          format: uuid
+        revision:
+          type: integer
+          minimum: 1
+        step_id:
+          type: string
+        stage:
+          type: string
+          enum:
+            - list
+            - detail
+        kind:
+          type: string
+          enum:
+            - normal
+            - missing_field
+        capture_id:
+          type: string
+          format: uuid
+        content_hash:
+          type: string
+          minLength: 64
+          maxLength: 64
+        expected_hash:
+          type: string
+          minLength: 64
+          maxLength: 64
+    PublicationManifest:
+      type: object
+      properties:
+        revision:
+          type: integer
+          minimum: 1
+        definition_hash:
+          type: string
+          minLength: 64
+          maxLength: 64
+        schema_hash:
+          type: string
+          minLength: 64
+          maxLength: 64
+        schema_version:
+          type: integer
+          minimum: 1
+        output_check_id:
+          type: string
+          format: uuid
+        trial_id:
+          type: string
+          format: uuid
+        trial_hash:
+          type: string
+          minLength: 64
+          maxLength: 64
+        samples:
+          type: array
+          items:
+            $ref: '#/components/schemas/PublicationSampleIdentity'
+    PublishCheck:
+      type: object
+      properties:
+        check_id:
+          type: string
+          format: uuid
+        collector_id:
+          type: string
+        collector_revision:
+          type: integer
+          minimum: 1
+        trial_id:
+          type: string
+          format: uuid
+        definition_hash:
+          type: string
+          minLength: 64
+          maxLength: 64
+        manifest_hash:
+          type: string
+          minLength: 64
+          maxLength: 64
+        capability_hash:
+          type: string
+          minLength: 64
+          maxLength: 64
+        accept_limited:
+          type: boolean
+        ready:
+          type: boolean
+        result:
+          type: object
+          properties:
+            ready:
+              type: boolean
+            issues:
+              type: array
+              items:
+                $ref: '#/components/schemas/PublishIssue'
+            warnings:
+              type: array
+              items:
+                $ref: '#/components/schemas/PublishIssue'
+        manifest:
+          $ref: '#/components/schemas/PublicationManifest'
+        capabilities:
+          $ref: '#/components/schemas/PublicationCapabilities'
+        created_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+      required:
+        - check_id
+        - collector_id
+        - collector_revision
+        - trial_id
+        - ready
+        - result
+        - manifest
+        - capabilities
+        - expires_at
+      description: 有效期15分钟；发布时重读依赖和能力。全样例重新检查，不依赖B02轮换历史。
+    PublishedVersion:
+      type: object
+      properties:
+        version_id:
+          type: string
+          format: uuid
+        collector_id:
+          type: string
+        number:
+          type: integer
+          minimum: 1
+        collector_revision:
+          type: integer
+          minimum: 1
+        name:
+          type: string
+        entry_type:
+          type: string
+          enum:
+            - web
+            - json
+        definition_hash:
+          type: string
+          minLength: 64
+          maxLength: 64
+        check_id:
+          type: string
+          format: uuid
+        trial_id:
+          type: string
+          format: uuid
+        contract_version:
+          type: string
+        interpreter_version:
+          type: string
+        capability_hash:
+          type: string
+          minLength: 64
+          maxLength: 64
+        manifest_hash:
+          type: string
+          minLength: 64
+          maxLength: 64
+        note:
+          type: string
+        published_by:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        run_available:
+          type: boolean
+          enum:
+            - false
+          description: B06 正式执行接入前固定false
+        run_unavailable_reason:
+          type: string
+        definition:
+          $ref: '#/components/schemas/Definition'
+          description: 详情接口返回；列表省略
+        output_schema:
+          $ref: '#/components/schemas/LogicalTableSchema'
+          description: 详情接口返回；列表省略
+        runtime_config:
+          $ref: '#/components/schemas/TrialInput'
+          description: 冻结试采范围和预算作为运行默认配置；B06 必须重新确认，不能复用confirmed授权
+      required:
+        - version_id
+        - collector_id
+        - number
+        - collector_revision
+        - definition_hash
+        - check_id
+        - trial_id
+        - run_available
+      description: 不可变版本；与方案当前草稿revision/status独立，不支持修改。
+    PublishedVersionPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PublishedVersion'
+        has_more:
+          type: boolean
+        next_cursor:
+          type: string
+          description: 下一页版本号；无更多时为空
+    PublicationSampleProof:
+      allOf:
+        - $ref: '#/components/schemas/PublicationSampleIdentity'
+        - type: object
+          properties:
+            name:
+              type: string
+            input:
+              type: object
+              properties:
+                capture_id:
+                  type: string
+                  format: uuid
+                content:
+                  type: string
+                  description: 已保存脱敏输入副本，不访问网络
+                content_hash:
+                  type: string
+                  minLength: 64
+                  maxLength: 64
+                source_url:
+                  type: string
+                base_url:
+                  type: string
+                format:
+                  type: string
+                  enum:
+                    - html
+                    - json
+            expected:
+              $ref: '#/components/schemas/SampleExpected'
+            result:
+              $ref: '#/components/schemas/ExtractionResult'
+            comparison:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum:
+                    - passed
+                    - failed
+                    - unconfigured
+                assertion_count:
+                  type: integer
+                  minimum: 0
+                differences:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                      record_index:
+                        type: integer
+                      field_key:
+                        type: string
+                      expected_json:
+                        type: string
+                      actual_json:
+                        type: string
+    VersionEvidence:
+      type: object
+      properties:
+        version_id:
+          type: string
+          format: uuid
+        check:
+          $ref: '#/components/schemas/PublishCheck'
+        samples:
+          type: array
+          items:
+            $ref: '#/components/schemas/PublicationSampleProof'
     TrialInput:
       type: object
       additionalProperties: false
@@ -3161,6 +3825,13 @@ components:
     CapabilitiesResponse:
       type: object
       properties:
+        supports_publication:
+          type: boolean
+          description: 发布检查/不可变版本能力；不代表实际浏览器就绪。
+        supports_version_runs:
+          type: boolean
+          enum: [false]
+          description: B06 接入前正式执行不可用。
         editor_protocol:
           type: string
           example: editor.v1
@@ -3221,6 +3892,7 @@ components:
         definition:
           $ref: '#/components/schemas/Definition'
     Collector:
+      description: status 是草稿生命周期；是否有发布版本读取 published_version_id，发布不改变 revision/status。
       type: object
       required:
         - id
@@ -3231,6 +3903,10 @@ components:
         - revision
         - definition
       properties:
+        published_version_id:
+          type: string
+          format: uuid
+          description: 未发布时省略；最新发布版本指针。
         id:
           type: string
         name:

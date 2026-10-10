@@ -5,21 +5,22 @@ import "time"
 // V22Collector is the first isolated persistence model for the new product.
 // It intentionally does not reference legacy workflows or datasets.
 type V22Collector struct {
-	Id                int64      `json:"id"`
-	OwnerId           int64      `xorm:"owner_id" json:"owner_id"`
-	Name              string     `json:"name"`
-	EntryURL          string     `xorm:"entry_url" json:"entry_url"`
-	EntryType         string     `xorm:"entry_type" json:"entry_type"`
-	Status            string     `json:"status"`
-	Definition        string     `xorm:"jsonb definition" json:"definition"`
-	Revision          int        `json:"revision"`
-	ValidatedRevision int        `xorm:"validated_revision" json:"validated_revision"`
-	ValidationSummary string     `xorm:"jsonb validation_summary" json:"validation_summary"`
-	CreatedBy         int64      `xorm:"created_by" json:"created_by"`
-	UpdatedBy         int64      `xorm:"updated_by" json:"updated_by"`
-	CreatedAt         time.Time  `json:"created_at"`
-	UpdatedAt         time.Time  `json:"updated_at"`
-	ArchivedAt        *time.Time `xorm:"archived_at" json:"archived_at,omitempty"`
+	Id                 int64      `json:"id"`
+	OwnerId            int64      `xorm:"owner_id" json:"owner_id"`
+	Name               string     `json:"name"`
+	EntryURL           string     `xorm:"entry_url" json:"entry_url"`
+	EntryType          string     `xorm:"entry_type" json:"entry_type"`
+	Status             string     `json:"status"`
+	Definition         string     `xorm:"jsonb definition" json:"definition"`
+	Revision           int        `json:"revision"`
+	PublishedVersionId *string    `xorm:"published_version_id" json:"published_version_id,omitempty"`
+	ValidatedRevision  int        `xorm:"validated_revision" json:"validated_revision"`
+	ValidationSummary  string     `xorm:"jsonb validation_summary" json:"validation_summary"`
+	CreatedBy          int64      `xorm:"created_by" json:"created_by"`
+	UpdatedBy          int64      `xorm:"updated_by" json:"updated_by"`
+	CreatedAt          time.Time  `json:"created_at"`
+	UpdatedAt          time.Time  `json:"updated_at"`
+	ArchivedAt         *time.Time `xorm:"archived_at" json:"archived_at,omitempty"`
 }
 
 func (V22Collector) TableName() string { return "v22_collectors" }

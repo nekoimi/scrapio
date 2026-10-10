@@ -167,3 +167,6 @@
 .trial-input-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:12px 0}
 .trial-input-row label{display:flex;flex-direction:column;gap:4px;min-width:220px}
 .trial-document{margin-top:20px;padding-top:12px;border-top:1px solid var(--app-border,#dbe2ea)}
+.publication-panel pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:360px;overflow:auto}
+.publication-panel li{margin:8px 0}
+.publication-panel textarea{min-width:240px}

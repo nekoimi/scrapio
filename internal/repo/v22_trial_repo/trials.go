@@ -266,6 +266,13 @@ func Delete(ownerID int64, id string) error {
 	if !Terminal(row.Status) {
 		return ErrConflict
 	}
+	bound, err := s.Where("trial_id=?", id).Exist(new(table.V22Version))
+	if err != nil {
+		return err
+	}
+	if bound {
+		return ErrConflict
+	}
 	if _, err = s.ID(id).Delete(new(table.V22Trial)); err != nil {
 		return err
 	}
