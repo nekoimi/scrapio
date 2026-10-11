@@ -112,6 +112,7 @@
 	</div>
 </template>
 <script setup lang="ts">
+import { confirmAction } from '../../utils/dialog';
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import { useRoute, onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router';
 import { appApi, type CollectorSchedule, type ScheduleConfig, type CollectorAPIKey, type PublishedVersion, type RunInput, type DataRow } from './api';
@@ -301,7 +302,7 @@ async function retrySave() {
 	await performSave(pendingSave.value);
 }
 async function discard() {
-	if (busy.value || !window.confirm('服务器可能已完成保存。放弃本地编辑并读取当前计划？')) return;
+	if (busy.value || !(await confirmAction('服务器可能已完成保存。放弃本地编辑并读取当前计划？'))) return;
 	pendingSave.value = undefined;
 	sessionStorage.removeItem(storage('save'));
 	await reload();
@@ -343,7 +344,7 @@ async function recoverKey() {
 			sessionStorage.removeItem(storage('key'));
 		} else {
 			message.value = '原凭据尚未出现，请稍后再查；只有确认后才结束本地等待。';
-			if (window.confirm('原请求可能仍在处理。结束本地等待后请继续检查凭据列表，撤销不再使用的凭据。确认结束？')) {
+			if ((await confirmAction('原请求可能仍在处理。结束本地等待后请继续检查凭据列表，撤销不再使用的凭据。确认结束？'))) {
 				pendingKey.value = '';
 				sessionStorage.removeItem(storage('key'));
 			}
@@ -355,7 +356,7 @@ async function recoverKey() {
 	}
 }
 async function revoke(key: CollectorAPIKey) {
-	if (busy.value || !window.confirm(`撤销 ${key.name}？不会取消已有运行。`)) return;
+	if (busy.value || !(await confirmAction(`撤销 ${key.name}？不会取消已有运行。`))) return;
 	busy.value = true;
 	try {
 		await appApi.revokeAPIKey(id.value, key.id);
@@ -378,11 +379,11 @@ async function copySecret() {
 		message.value = '复制失败，请手动复制并保存。';
 	}
 }
-function leave() {
+async function leave() {
 	if (busy.value) return false;
 	return (
 		!(dirty.value || pendingSave.value || pendingKey.value || secret.value) ||
-		window.confirm('存在未保存配置、未确认请求或仅显示一次的密钥，确认离开？')
+		(await confirmAction('存在未保存配置、未确认请求或仅显示一次的密钥，确认离开？'))
 	);
 }
 function unload(e: BeforeUnloadEvent) {

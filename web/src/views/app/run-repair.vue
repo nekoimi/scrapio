@@ -49,6 +49,7 @@
 	</section>
 </template>
 <script setup lang="ts">
+import { confirmAction } from '../../utils/dialog';
 import { ref, watch, onMounted, onBeforeUnmount } from 'vue';
 import { onBeforeRouteLeave } from 'vue-router';
 import { appApi, type FormalRun, type RepairContext } from './api';
@@ -131,8 +132,8 @@ async function recover() {
 		if (token === epoch) busy.value = false;
 	}
 }
-function discard() {
-	if (window.confirm('结束等待不会删除服务端修复草稿。请先查询原请求，确认结束本地等待？')) clear();
+async function discard() {
+	if ((await confirmAction('结束等待不会删除服务端修复草稿。请先查询原请求，确认结束本地等待？'))) clear();
 }
 function unload(e: BeforeUnloadEvent) {
 	if (busy.value || pending.value) {
@@ -141,7 +142,7 @@ function unload(e: BeforeUnloadEvent) {
 	}
 }
 onBeforeRouteLeave(
-	() => (!busy.value && !pending.value) || window.confirm('存在未确认的修复请求，离开不会撤销服务端草稿；返回可查询原请求。确认离开？')
+	async () => (!busy.value && !pending.value) || (await confirmAction('存在未确认的修复请求，离开不会撤销服务端草稿；返回可查询原请求。确认离开？'))
 );
 watch(
 	() => [props.run.run_id, props.documentId],

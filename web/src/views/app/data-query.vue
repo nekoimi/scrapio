@@ -81,6 +81,7 @@
 	</section>
 </template>
 <script setup lang="ts">
+import { confirmAction } from '../../utils/dialog';
 import { ref, computed, watch, onBeforeUnmount } from 'vue';
 import { appApi, type DataView, type RecordQuery, type TableSchema } from './api';
 import { readError } from './data-read';
@@ -207,15 +208,15 @@ async function save(update: boolean) {
 async function recover() {
 	if (pending.value && !busy.value) await perform(pending.value);
 }
-function discardPending() {
-	if (window.confirm('先查询视图列表；结束本地等待不会撤销已保存视图。确认结束？')) {
+async function discardPending() {
+	if ((await confirmAction('先查询视图列表；结束本地等待不会撤销已保存视图。确认结束？'))) {
 		pending.value = undefined;
 		sessionStorage.removeItem(storage());
 	}
 }
 async function removeView() {
 	const v = selectedView.value;
-	if (!v || busy.value || !window.confirm(`删除视图 ${v.name}？不会删除正式数据。`)) return;
+	if (!v || busy.value || !(await confirmAction(`删除视图 ${v.name}？不会删除正式数据。`))) return;
 	busy.value = true;
 	const token = epoch;
 	try {

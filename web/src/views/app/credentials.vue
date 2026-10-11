@@ -80,6 +80,7 @@
 	</div>
 </template>
 <script setup lang="ts">
+import { confirmAction } from '../../utils/dialog';
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router';
 import { appApi, type Credential, type CredentialInput } from './api';
@@ -127,11 +128,11 @@ async function load() {
 		if (alive) busy.value = false;
 	}
 }
-function discard() {
-	return !dirty.value || window.confirm('放弃本地凭据编辑？秘密不会保存在页面之外。');
+async function discard() {
+	return !dirty.value || (await confirmAction('放弃本地凭据编辑？秘密不会保存在页面之外。'));
 }
-function createNew() {
-	if (!discard()) return;
+async function createNew() {
+	if (!(await discard())) return;
 	form.value = defaults();
 	expiresLocal.value = '';
 	masks.value = '';
@@ -159,8 +160,8 @@ function apply(c: Credential) {
 	selectedRevoked.value = c.status === 'revoked';
 	saved.value = state();
 }
-function select(c: Credential) {
-	if (discard()) apply(c);
+async function select(c: Credential) {
+	if ((await discard())) apply(c);
 }
 async function save() {
 	if (busy.value || pending.value) return;
@@ -209,7 +210,7 @@ async function recover() {
 	busy.value = true;
 	try {
 		const c = await appApi.credential(pending.value);
-		if (alive && window.confirm(`服务器当前 revision ${c.revision}，读取会清除本地秘密编辑。确认以服务器元数据为准？`)) {
+		if (alive && (await confirmAction(`服务器当前 revision ${c.revision}，读取会清除本地秘密编辑。确认以服务器元数据为准？`))) {
 			apply(c);
 			pending.value = '';
 			error.value = '已读取元数据，秘密不回显。';
@@ -224,7 +225,7 @@ async function recover() {
 	}
 }
 async function revoke(c: Credential) {
-	if (!window.confirm(`撤销 ${c.name}？后续取样和运行会拒绝此引用；既有结果保留。`)) return;
+	if (!(await confirmAction(`撤销 ${c.name}？后续取样和运行会拒绝此引用；既有结果保留。`))) return;
 	busy.value = true;
 	try {
 		const v = await appApi.revokeCredential(c.credential_id, c.revision);
@@ -246,9 +247,9 @@ onBeforeUnmount(() => {
 	alive = false;
 	form.value.secret = '';
 });
-function leaveCredentials() { return (!dirty.value && !pending.value && !busy.value) || window.confirm('凭据编辑未保存或请求未确认，确认离开？本地秘密不会保留，服务器已接受的写入仍可能完成。'); }
+async function leaveCredentials() { return (!dirty.value && !pending.value && !busy.value) || (await confirmAction('凭据编辑未保存或请求未确认，确认离开？本地秘密不会保留，服务器已接受的写入仍可能完成。')); }
 onBeforeRouteLeave(leaveCredentials);
-onBeforeRouteUpdate((to,from)=>to.query.tab===from.query.tab || leaveCredentials());
+onBeforeRouteUpdate(async (to,from)=>to.query.tab===from.query.tab || (await leaveCredentials()));
 </script>
 <style scoped>
 .credential-row {

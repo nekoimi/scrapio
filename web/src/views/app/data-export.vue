@@ -35,6 +35,7 @@
 	</section>
 </template>
 <script setup lang="ts">
+import { confirmAction } from '../../utils/dialog';
 import { ref, watch, onBeforeUnmount } from 'vue';
 import { appApi, type QueryPage, type DataExport } from './api';
 import { readError } from './data-read';
@@ -102,8 +103,8 @@ async function recover() {
 		if (token === epoch) busy.value = false;
 	}
 }
-function discard() {
-	if (window.confirm('结束本地等待不会撤销导出。请先查询原请求并检查任务列表，确认结束？')) {
+async function discard() {
+	if ((await confirmAction('结束本地等待不会撤销导出。请先查询原请求并检查任务列表，确认结束？'))) {
 		pending.value = '';
 		sessionStorage.removeItem(storage());
 	}

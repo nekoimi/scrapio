@@ -212,6 +212,7 @@
 	</section>
 </template>
 <script setup lang="ts">
+import { confirmAction } from '../../utils/dialog';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import {
 	appApi,
@@ -364,8 +365,8 @@ function differenceLabel(code: string) {
 		)[code] || code
 	);
 }
-function confirmDiscard() {
-	return !dirty.value || window.confirm('样例编辑尚未保存，继续会丢弃这些修改。确认？');
+async function confirmDiscard() {
+	return !dirty.value || (await confirmAction('样例编辑尚未保存，继续会丢弃这些修改。确认？'));
 }
 function setSelected(row?: SavedSample) {
 	selected.value = row;
@@ -395,7 +396,7 @@ async function loadList(more = false) {
 	}
 }
 async function selectSample(id: string) {
-	if (busy.value || !confirmDiscard()) return;
+	if (busy.value || !(await confirmDiscard())) return;
 	const token = ++epoch;
 	busy.value = true;
 	try {
@@ -538,8 +539,8 @@ async function recover() {
 		busy.value = false;
 	}
 }
-function endWaiting() {
-	if (window.confirm('只结束本地等待，不撤销服务端保存。请先检查样例列表避免重复创建，确认？')) clearPending();
+async function endWaiting() {
+	if ((await confirmAction('只结束本地等待，不撤销服务端保存。请先检查样例列表避免重复创建，确认？'))) clearPending();
 }
 async function save() {
 	if (!selected.value || busy.value || props.blocked) return;
@@ -612,14 +613,16 @@ async function useInput() {
 	}
 }
 async function remove() {
+	const row = selected.value;
 	if (
 		!selected.value ||
 		busy.value ||
 		dirty.value ||
 		selected.value.protected ||
-		!window.confirm('删除样例会一并删除该样例的检查证据，原输入快照日志仍保留。确认删除？')
+		!(await confirmAction('删除样例会一并删除该样例的检查证据，原输入快照日志仍保留。确认删除？'))
 	)
 		return;
+	if (disposed || busy.value || dirty.value || props.blocked || selected.value !== row || !row || row.protected) return;
 	busy.value = true;
 	try {
 		const id = selected.value.sample_id;

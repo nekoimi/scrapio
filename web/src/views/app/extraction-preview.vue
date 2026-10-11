@@ -112,6 +112,7 @@
 	</section>
 </template>
 <script setup lang="ts">
+import { confirmAction } from '../../utils/dialog';
 import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue';
 import { appApi, type Collector, type BrowserSession, type InputCapture, type ExtractionPreview, type ExtractedField } from './api';
 import SamplePanel from './sample-panel.vue';
@@ -275,8 +276,8 @@ async function resolveSnapshot() {
 		schedulePreview();
 	}
 }
-function clearPending() {
-	if (!window.confirm('这里只结束本地等待，不删除服务端快照；新取样会使用新请求键。确认？')) return;
+async function clearPending() {
+	if (!(await confirmAction('这里只结束本地等待，不删除服务端快照；新取样会使用新请求键。确认？'))) return;
 	pendingKey.value = '';
 	sessionStorage.removeItem(storageKey());
 }

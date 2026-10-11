@@ -26,6 +26,7 @@
 	</section>
 </template>
 <script setup lang="ts">
+import { confirmAction } from '../../utils/dialog';
 import { ref, watch, onBeforeUnmount, onMounted } from 'vue';
 import { onBeforeRouteLeave } from 'vue-router';
 import { appApi, type FormalRun } from './api';
@@ -83,8 +84,8 @@ async function recover() {
 		if (token === epoch) busy.value = false;
 	}
 }
-function discard() {
-	if (window.confirm('结束本地等待不会取消服务器运行。请先查询原请求并检查运行列表，确认结束？')) clear();
+async function discard() {
+	if ((await confirmAction('结束本地等待不会取消服务器运行。请先查询原请求并检查运行列表，确认结束？'))) clear();
 }
 function unload(e: BeforeUnloadEvent) {
 	if (busy.value || pending.value) {
@@ -92,7 +93,7 @@ function unload(e: BeforeUnloadEvent) {
 		e.returnValue = '';
 	}
 }
-onBeforeRouteLeave(() => (!busy.value && !pending.value) || window.confirm('有未确认的重试请求；离开后可返回查询，离开不会撤销运行。'));
+onBeforeRouteLeave(async () => (!busy.value && !pending.value) || (await confirmAction('有未确认的重试请求；离开后可返回查询，离开不会撤销运行。')));
 onMounted(() => window.addEventListener('beforeunload', unload));
 watch(
 	() => props.run.run_id,

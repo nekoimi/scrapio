@@ -13,7 +13,7 @@ function mount(filename,initial,api={},confirm=()=>true){
  const template=compileTemplate({source:descriptor.template.content,filename,id:'record-test',compilerOptions:{bindingMetadata:script.bindings}});assert.equal(template.errors.length,0);
  const output=ts.transpileModule(script.content,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true}}).outputText;
  const module={exports:{}}; const events=[],navigations=[],props=vue.reactive(initial);
- vm.runInNewContext(output,{module,exports:module.exports,require:name=>name==='vue'?vue:name==='./api'?{appApi:api}:name==='./editor-feedback'?require('./workbench-loader.cjs'):{},window:{confirm},
+ vm.runInNewContext(output,{module,exports:module.exports,require:name=>name==='vue'?vue:name==='./api'?{appApi:api}:name==='../../utils/dialog'?{confirmAction:async(...args)=>confirm(...args)}:name==='./editor-feedback'?require('./workbench-loader.cjs'):{},
   sessionStorage:{getItem:()=>null,setItem(){},removeItem(){}},crypto:require('node:crypto'),URL,document:{getElementById:()=>null}});
  const component=module.exports.default;let state;
  const setup=component.setup; component.setup=(props,context)=>{state=setup(props,context);return state;};component.render=()=>vue.h('div');
@@ -27,13 +27,13 @@ function designer(api={},extra={},confirm){
  return mount('record-designer.vue',{draft:{id:'collector',name:'Movies',revision:1,definition:{steps:[{step_id:'records',type:'record_set',config:plan()}]}},session:{session_id:'session',page_state_id:'page',available:true},blocked:false,enabled:true,execute:async()=>{throw new Error('Unexpected website action');},view:'rules',...extra},api,confirm);
 }
 
-function detailWorkflow({status='succeeded',candidates=true,confirm=()=>true,redirectToList=false,errorCode,errorMessage}={}){
+function detailWorkflow({status='succeeded',candidates=true,confirm=()=>true,redirectToList=false,entryURL='https://example.test/movie/1',finalURL,errorCode,errorMessage}={}){
  const calls=[];let h;
  const api={updateCollector:async(_,input)=>{calls.push('save');return {...h.props.draft,revision:h.props.draft.revision+1,definition:input.definition};},
   previewRecords:async(_,page,revision,step,stage)=>{calls.push(`preview-${stage}`);return {page_state_id:page,stage,records:[{index:0,values:{},fields:[]}],current_url:h.props.session.current_url,
-   detail_urls:stage==='list' && candidates?[{url:'https://example.test/movie/1',raw_url:'/movie/1',record_index:0}]:[],next_pages:[],warnings:[]};}};
+   detail_urls:stage==='list' && candidates?[{url:entryURL,raw_url:'/movie/1',record_index:0}]:[],next_pages:[],warnings:[]};}};
  h=designer(api,{session:{session_id:'session',page_state_id:'page',available:true,current_url:'https://example.test/list'},execute:async action=>{
-  calls.push(action.type);if(status==='succeeded')h.props.session={...h.props.session,current_url:action.type==='back'||redirectToList?'https://example.test/list':action.value,page_state_id:action.type==='back'?'returned':'detail'};
+  calls.push(action.type);if(status==='succeeded')h.props.session={...h.props.session,current_url:action.type==='back'||redirectToList?'https://example.test/list':finalURL||action.value,page_state_id:action.type==='back'?'returned':'detail'};
   await tick();return {command_id:'cmd-detail',status,result:{final_url:h.props.session.current_url,error_code:errorCode,error:errorMessage}};
  }},confirm);
  h.state.enableDetail();h.state.plan.value.fields=[];
@@ -84,6 +84,55 @@ test('detail navigation feedback preserves receipt diagnosis and blocks uncertai
    assert.equal(h.state.selectionBlocked.value,true);
   }finally{h.unmount();}
  }
+});
+test('cross-origin detail redirects confirm the actual page instead of reporting navigation failure',async()=>{
+ const questions=[];
+ const {h,calls}=detailWorkflow({finalURL:'https://detail.example.test/movie/1',confirm:question=>{questions.push(question);return true;}});
+ try{
+  await h.state.openExampleDetail();
+  assert.equal(h.state.failureDetails.value,undefined);assert.equal(h.state.selectionBlocked.value,false);
+  assert.equal(h.state.context.value.detailURL,'https://detail.example.test/movie/1');
+  assert.equal(questions.length,2);assert.match(questions[1],/实际地址：https:\/\/detail.example.test/);
+  assert.equal(calls.filter(call=>call==='navigate').length,1);assert.ok(calls.includes('preview-detail'));
+ }finally{h.unmount();}
+});
+test('declining redirect confirmation preserves an opened page and allows confirming without navigating again',async()=>{
+ let accepted=false;
+ const {h,calls}=detailWorkflow({finalURL:'https://other.test/movie',confirm:question=>!question.includes('跨域跳转')||accepted});
+ try{
+  await h.state.openExampleDetail();
+  assert.equal(h.state.context.value.uncertain,false);assert.equal(h.state.selectionBlocked.value,true);
+  assert.equal(calls.includes('preview-detail'),false);assert.equal(h.state.failureDetails.value,undefined);
+  accepted=true;await h.state.resumeDetailFields();
+  assert.equal(h.state.selectionBlocked.value,false);assert.equal(calls.filter(call=>call==='navigate').length,1);
+ }finally{h.unmount();}
+});
+test('upgrading a detail URL to HTTPS does not fail or require a second confirmation',async()=>{
+ let questions=0;
+ const {h,calls}=detailWorkflow({entryURL:'http://example.test/movie/1',finalURL:'https://example.test/movie/1',confirm:()=>{questions++;return true;}});
+ try{
+  await h.state.openExampleDetail();assert.equal(questions,1);
+  assert.equal(h.state.failureDetails.value,undefined);assert.equal(h.state.selectionBlocked.value,false);
+  assert.ok(calls.includes('preview-detail'));
+ }finally{h.unmount();}
+});
+test('an unapproved cross-origin detail can return to the original list',async()=>{
+ const {h,calls}=detailWorkflow({finalURL:'https://other.test/movie',confirm:question=>!question.includes('跨域跳转')});
+ try{
+  await h.state.openExampleDetail();await h.state.returnToList();
+  assert.equal(h.state.context.value,undefined);assert.equal(h.props.session.current_url,'https://example.test/list');
+  assert.ok(calls.includes('back'));assert.equal(calls.includes('preview-detail'),false);
+ }finally{h.unmount();}
+});
+test('changing page during asynchronous navigation confirmation prevents dispatch',async()=>{
+ let resolve;
+ const {h,calls}=detailWorkflow({confirm:()=>new Promise(done=>{resolve=done;})});
+ try{
+  const pending=h.state.openExampleDetail();for(let i=0;i<10&&!resolve;i++)await tick();
+  assert.equal(typeof resolve,'function');
+  h.props.session.page_state_id='another-page';resolve(true);await pending;
+  assert.equal(calls.includes('navigate'),false);assert.equal(h.state.context.value,undefined);
+ }finally{h.unmount();}
 });
 test('missing candidates or declined navigation leave the list without selecting detail fields',async()=>{
  for(const options of [{candidates:false},{confirm:()=>false}]){
@@ -157,9 +206,9 @@ test('single active field editor, unique new names and reordering preserve objec
 test('removing details explains related field loss, cancellation preserves the entire path',async()=>{
  let allowed=false,question='';const h=rules({plan:{...plan(),detail:{locator:{strategy:'css',expression:'a'},return_strategy:'back',max_details:3},detail_fields:[field('description')]}},text=>{question=text;return allowed;});
  try{
-  h.state.removeDetail();assert.match(question,/1 个详情字段/);assert.ok(h.props.plan.detail);assert.equal(h.props.plan.detail_fields.length,1);
-  allowed=true;h.props.detailPage=true;await tick();h.state.removeDetail();assert.ok(h.props.plan.detail);
-  h.props.detailPage=false;await tick();h.state.removeDetail();assert.equal(h.props.plan.detail,undefined);assert.equal(h.props.plan.detail_fields.length,0);
+  await h.state.removeDetail();assert.match(question,/1 个详情字段/);assert.ok(h.props.plan.detail);assert.equal(h.props.plan.detail_fields.length,1);
+  allowed=true;h.props.detailPage=true;await tick();await h.state.removeDetail();assert.ok(h.props.plan.detail);
+  h.props.detailPage=false;await tick();await h.state.removeDetail();assert.equal(h.props.plan.detail,undefined);assert.equal(h.props.plan.detail_fields.length,0);
  }finally{h.unmount();}
 });
 test('selection routes directly to its node and keeps unsaved fields when moving through the flow',()=>{

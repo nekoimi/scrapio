@@ -50,6 +50,7 @@
 	</section>
 </template>
 <script setup lang="ts">
+import { confirmAction } from '../../utils/dialog';
 import { computed, ref, watch, onBeforeUnmount } from 'vue';
 import { onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router';
 import { appApi, type QualityState, type QualityPolicy } from './api';
@@ -74,7 +75,7 @@ function apply(v: QualityState) {
 }
 const message = (e: any) => e?.error?.message || e?.message || '响应未确认，请重新读取';
 async function reload() {
-	if (busy.value || (dirty.value && !window.confirm('重新读取会覆盖本地策略编辑，确认？'))) return;
+	if (busy.value || (dirty.value && !(await confirmAction('重新读取会覆盖本地策略编辑，确认？')))) return;
 	const token = ++epoch;
 	busy.value = true;
 	error.value = '';
@@ -109,7 +110,7 @@ async function save() {
 }
 watch(
 	() => props.collectorId,
-	() => {
+	async () => {
 		epoch++;
 		state.value = undefined;
 		form.value = undefined;
@@ -120,7 +121,7 @@ watch(
 );
 onBeforeUnmount(() => epoch++);
 defineExpose({ hasUnsavedChanges: () => dirty.value || busy.value });
-const leave = () => (!dirty.value && !busy.value) || window.confirm('质量策略尚未保存或请求未确认，确认离开？服务器已接受的保存仍可能完成。');
+const leave = async () => (!dirty.value && !busy.value) || (await confirmAction('质量策略尚未保存或请求未确认，确认离开？服务器已接受的保存仍可能完成。'));
 onBeforeRouteLeave(leave);
 onBeforeRouteUpdate(leave);
 </script>

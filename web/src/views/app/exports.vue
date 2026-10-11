@@ -24,6 +24,7 @@
 	</div>
 </template>
 <script setup lang="ts">
+import { confirmAction } from '../../utils/dialog';
 import { ref, computed, watch, onBeforeUnmount } from 'vue';
 import { useRoute } from 'vue-router';
 import { appApi, type DataExport } from './api';
@@ -67,7 +68,7 @@ function reload() {
 	void load();
 }
 async function cancel(job: DataExport) {
-	if (working.value || !window.confirm('取消导出将停止文件生成，不影响正式记录。确认取消？')) return;
+	if (working.value || !(await confirmAction('取消导出将停止文件生成，不影响正式记录。确认取消？'))) return;
 	working.value = job.export_id;
 	const token = epoch;
 	try {

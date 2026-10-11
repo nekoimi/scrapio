@@ -128,6 +128,7 @@
 	</div>
 </template>
 <script setup lang="ts">
+import { confirmAction } from '../../utils/dialog';
 import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue';
 import { useRoute, onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router';
 import { appApi, type LogicalTable, type TableSchema, type SchemaImpact, type DataRow } from './api';
@@ -214,8 +215,8 @@ async function load() {
 		if (token === epoch) busy.value = false;
 	}
 }
-function reset() {
-	if (!dirty.value || window.confirm('重新读取会丢弃本地字段修改；未确认的操作请先查询原预览。')) void load();
+async function reset() {
+	if (!dirty.value || (await confirmAction('重新读取会丢弃本地字段修改；未确认的操作请先查询原预览。'))) void load();
 }
 async function preview() {
 	if (!table.value || !schema.value) return;
@@ -262,11 +263,11 @@ async function apply() {
 		if (token === epoch) busy.value = false;
 	}
 }
-function leave() {
-	return (!busy.value && !uncertain.value && !dirty.value) || window.confirm('字段修改或确认结果尚未处理完，确认离开？');
+async function leave() {
+	return (!busy.value && !uncertain.value && !dirty.value) || (await confirmAction('字段修改或确认结果尚未处理完，确认离开？'));
 }
 onBeforeRouteLeave(leave);
-onBeforeRouteUpdate((to, from) => to.params.id === from.params.id || leave());
+onBeforeRouteUpdate(async (to, from) => to.params.id === from.params.id || (await leave()));
 watch(id, () => void load());
 onMounted(() => void load());
 onBeforeUnmount(() => epoch++);

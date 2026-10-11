@@ -127,6 +127,7 @@
 	</section>
 </template>
 <script setup lang="ts">
+import { confirmAction } from '../../utils/dialog';
 import { onMounted, onBeforeUnmount, ref, watch } from 'vue';
 import RunCompletion from './run-completion.vue';
 import RunCheckpoints from './run-checkpoints.vue';
@@ -186,8 +187,8 @@ function clear() {
 	pendingKey.value = '';
 	sessionStorage.removeItem(keyStorage());
 }
-function clearPending() {
-	if (window.confirm('结束本地等待不会取消服务器运行。请先查询原请求或刷新历史，确认？')) clear();
+async function clearPending() {
+	if ((await confirmAction('结束本地等待不会取消服务器运行。请先查询原请求或刷新历史，确认？'))) clear();
 }
 function stop() {
 	controller?.abort();
@@ -338,7 +339,9 @@ async function recover() {
 }
 async function cancel() {
 	if (busy.value || !selected.value || !selected.value.controls?.can_cancel) return;
- if(!window.confirm('确认停止后续执行及本批写入？已发生的网站动作不能撤销；若已完成提交，会返回已完成状态。'))return;
+	const selectedRun = selected.value;
+ if(!(await confirmAction('确认停止后续执行及本批写入？已发生的网站动作不能撤销；若已完成提交，会返回已完成状态。')))return;
+	if (disposed || busy.value || selected.value !== selectedRun || !selectedRun.controls?.can_cancel) return;
 	busy.value = true;
 	const id = selected.value.run_id,
 		token = epoch;

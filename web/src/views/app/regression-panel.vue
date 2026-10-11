@@ -111,6 +111,7 @@
 	</section>
 </template>
 <script setup lang="ts">
+import { confirmAction } from '../../utils/dialog';
 import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue';
 import { appApi, type Collector, type PublishedVersion, type RegressionJob, type VersionRestore } from './api';
 import DifferenceView from './difference-view.vue';
@@ -157,8 +158,8 @@ function clear(kind: 'job' | 'restore') {
 	else restorePending.value = '';
 	sessionStorage.removeItem(storage(kind));
 }
-function clearUnknown(kind: 'job' | 'restore') {
-	if (window.confirm('结束本地等待不会撤销服务器操作；请先查询原请求。确认？')) clear(kind);
+async function clearUnknown(kind: 'job' | 'restore') {
+	if ((await confirmAction('结束本地等待不会撤销服务器操作；请先查询原请求。确认？'))) clear(kind);
 }
 function apply(j: RegressionJob) {
 	if (disposed) return;
@@ -272,13 +273,15 @@ async function cancel() {
 	}
 }
 async function remove() {
+	const row = selected.value;
 	if (
 		!selected.value ||
 		active.value ||
 		busy.value ||
-		!window.confirm('删除此离线报告及其冻结输入？已发布版本保留差异确认摘要；删除后原任务键无法查询。')
+		!(await confirmAction('删除此离线报告及其冻结输入？已发布版本保留差异确认摘要；删除后原任务键无法查询。'))
 	)
 		return;
+	if (disposed || busy.value || active.value || !row || selected.value !== row) return;
 	busy.value = true;
 	const id = selected.value.job_id;
 	try {
@@ -295,14 +298,16 @@ async function remove() {
 	}
 }
 async function restore() {
+	const revision = props.draft.revision, id = props.draft.id, version = baseID.value;
 	if (
 		busy.value ||
 		props.blocked ||
 		restorePending.value ||
 		!baseID.value ||
-		!window.confirm('复制历史版本为独立新草稿，原草稿、版本、运行及调度保持原样。新草稿不继承样例与输出确认，需重新配置检查。确认？')
+		!(await confirmAction('复制历史版本为独立新草稿，原草稿、版本、运行及调度保持原样。新草稿不继承样例与输出确认，需重新配置检查。确认？'))
 	)
 		return;
+	if (disposed || busy.value || props.blocked || restorePending.value || id !== props.draft.id || revision !== props.draft.revision || version !== baseID.value) return;
 	busy.value = true;
 	const key = crypto.randomUUID();
 	restorePending.value = key;

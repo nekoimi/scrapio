@@ -89,6 +89,7 @@
 	</div>
 </template>
 <script setup lang="ts">
+import { confirmAction } from '../../utils/dialog';
 import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue';
 import { onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router';
 import { appApi, type RetentionState, type RetentionPolicy, type CleanupPreview } from './api';
@@ -143,7 +144,7 @@ async function loadState() {
 	}
 }
 async function reload() {
-	if ((dirty.value || uncertain.value) && !window.confirm('刷新会重置本地规则和清理预览，确认继续？')) return;
+	if ((dirty.value || uncertain.value) && !(await confirmAction('刷新会重置本地规则和清理预览，确认继续？'))) return;
 	busy.value = true;
 	error.value = '';
 	uncertain.value = false;
@@ -216,11 +217,11 @@ async function apply() {
 		if (token === epoch) busy.value = false;
 	}
 }
-function leave() {
-	return (!dirty.value && !busy.value && !uncertain.value) || window.confirm('规则修改或清理结果尚未处理完，确认离开？');
+async function leave() {
+	return (!dirty.value && !busy.value && !uncertain.value) || (await confirmAction('规则修改或清理结果尚未处理完，确认离开？'));
 }
 onBeforeRouteLeave(leave);
 onBeforeRouteUpdate(leave);
-onMounted(() => void reload());
+onMounted(async () => void reload());
 onBeforeUnmount(() => epoch++);
 </script>

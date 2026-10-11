@@ -1,6 +1,12 @@
 <template>
 	<section class="record-designer">
 		<p v-if="selectionBlocked" class="status-warn" role="status">详情页面尚未确认或浏览器已离开示例详情，暂不能点选字段。请先在操作记录核对回执及当前页面，再恢复路径。</p>
+		<div v-if="context?.needsConfirmation" class="selection-scope" role="status">
+			<p>详情已打开，网站跳转到了其他域名。请核对当前网页是否为所需详情。</p>
+			<p>原地址：{{ context.requestedURL }}<br />实际地址：{{ context.detailURL }}</p>
+			<button :disabled="working || !available || context.detailURL !== session?.current_url" @click="resumeDetailFields">确认当前详情页并选字段</button>
+			<button :disabled="working || !available || localDirty" @click="returnToList">返回列表</button>
+		</div>
 		<div v-show="view !== 'preview'">
 			<div class="record-source-toolbar">
 				<label
@@ -133,6 +139,7 @@
 </template>
 
 <script setup lang="ts">
+import { confirmAction } from '../../utils/dialog';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import RecordRuleEditor from './record-rule-editor.vue';
 import EditorErrorNotice from './editor-error-notice.vue';
@@ -183,6 +190,8 @@ type PathContext = {
 	stepID: string;
 	listURL: string;
 	detailURL?: string;
+	requestedURL?: string;
+	needsConfirmation?: boolean;
 	recordIndex?: number;
 	strategy: 'back' | 'navigate-list';
 	uncertain: boolean;
@@ -246,7 +255,7 @@ const unsupported = computed(
 );
 const recordScope = computed(() => (plan.value.mode === 'repeated' ? plan.value.locator : undefined));
 const detailPage = computed(() => !!context.value);
-const selectionBlocked = computed(() => !!context.value && (context.value.uncertain ||
+const selectionBlocked = computed(() => !!context.value && (context.value.uncertain || context.value.needsConfirmation ||
 	(!!context.value.detailURL && props.session?.current_url !== context.value.detailURL)));
 function setWorking(value: boolean) {
 	working.value = value;
@@ -298,8 +307,8 @@ function loadPlan(step?: Record<string, any>) {
 			!['single', 'repeated'].includes(value.mode));
 	plan.value = malformed.value ? emptyPlan() : step ? JSON.parse(JSON.stringify(value)) : emptyPlan();
 }
-function reload() {
-	if (localDirty.value && !window.confirm('重新加载将丢弃未保存的记录配置，确认？')) return;
+async function reload() {
+	if (localDirty.value && !(await confirmAction('重新加载将丢弃未保存的记录配置，确认？'))) return;
 	const step = recordSteps.value.find((step) => step.step_id === stepID.value) || recordSteps.value[0];
 	stepID.value = step?.step_id || '';
 	loadPlan(step);
@@ -307,9 +316,9 @@ function reload() {
 	baseRevision.value = props.draft.revision;
 	epoch++;
 }
-function chooseStep(id: string) {
+async function chooseStep(id: string) {
 	if (working.value || context.value) return;
-	if (localDirty.value && !window.confirm('切换步骤将丢弃未保存修改，确认？')) return;
+	if (localDirty.value && !(await confirmAction('切换步骤将丢弃未保存修改，确认？'))) return;
 	stepID.value = id;
 	ruleEditor.value?.resetNode();
 	const step = recordSteps.value.find((step) => step.step_id === id);
@@ -517,22 +526,51 @@ async function execute(action: Partial<EditorAction>) {
 			stage: `command:${action.type}`,
 		},
 	};
-	if (
-		action.type === 'navigate' &&
-		action.value &&
-		result.result.final_url &&
-		new URL(result.result.final_url).origin !== new URL(action.value).origin
-	)
-		throw new Error('页面跳转到范围外的域名，路径停止，请手动检查。');
+	if (result.result.final_url) {
+		const destination = new URL(result.result.final_url);
+		if (!['http:', 'https:'].includes(destination.protocol) || destination.username || destination.password)
+			throw new Error('动作已完成，但当前地址无法用于网页采集，请检查实际页面。');
+	}
 	return result;
+}
+async function readDetailFields() {
+	const path = context.value;
+	if (disposed || !path || path.uncertain || path.sessionID !== props.session?.session_id || path.stepID !== stepID.value || path.detailURL !== props.session?.current_url) return false;
+	if (path.needsConfirmation) {
+		const page = props.session?.page_state_id;
+		if (!(await confirmAction(`网页已打开并发生跨域跳转。\n原地址：${path.requestedURL}\n实际地址：${path.detailURL}\n请核对网页内容；确认这是需要的详情页后继续选字段。`, '确认详情页面'))) {
+			message.value = '详情已打开，尚未确认页面用途；可核对后继续选字段，或返回列表。';
+			return false;
+		}
+		if (disposed || context.value !== path || props.session?.session_id !== path.sessionID ||
+			props.session?.page_state_id !== page || props.session?.current_url !== path.detailURL)
+			throw new Error('确认期间网页或会话已变化，请核对当前页面后继续。');
+		path.needsConfirmation = false;
+		storeContext();
+	}
+	await readPreview('detail');
+	message.value = '已打开示例详情，请在网页中选择详情字段；保存后可返回列表继续配置。';
+	return true;
+}
+async function resumeDetailFields() {
+	if (!available.value || working.value || localDirty.value || !context.value?.needsConfirmation) return;
+	setWorking(true);
+	let ready = false;
+	try { ready = await readDetailFields(); }
+	catch (cause) { reportFailure(cause, '确认详情页面并检查字段'); }
+	finally { setWorking(false); }
+	if (ready && !selectionBlocked.value) {
+		ruleEditor.value?.focusSelection('detail');
+		beginSelection('field');
+	}
 }
 async function openDetail(url: string, recordIndex = 0) {
 	if (!canNavigate.value || !plan.value.detail || context.value || visited.value.size >= plan.value.detail.max_details) return;
 	if (preview.value?.stage !== 'list' || !preview.value.detail_urls.some(link => link.url === url && link.record_index === recordIndex && !link.error)) return;
 	const pageState = preview.value!.page_state_id,
 		sessionID = props.session?.session_id;
-	if (!window.confirm(`打开示例详情 ${url}，成功后在详情页选择字段；不会写正式数据。确认访问？`)) return;
-	if (!canNavigate.value || sessionID !== props.session?.session_id) return;
+	if (!(await confirmAction(`打开示例详情 ${url}，成功后在详情页选择字段；不会写正式数据。确认访问？`))) return;
+	if (!canNavigate.value || sessionID !== props.session?.session_id || pageState !== props.session?.page_state_id || disposed || context.value) return;
 	const session = props.session!;
 	context.value = {
 		sessionID: session.session_id,
@@ -554,12 +592,16 @@ async function openDetail(url: string, recordIndex = 0) {
 		if (props.session?.current_url !== context.value.detailURL) throw new Error('详情动作已结束，但当前页面地址尚未确认；请先查询回执并检查页面位置。');
 		if (context.value.detailURL.split('#')[0] === context.value.listURL.split('#')[0]) throw new Error('打开详情后仍停留在列表地址，请检查入口或网站重定向，不能在列表中选择详情字段。');
 		context.value.uncertain = false;
+		context.value.requestedURL = url;
+		const requested = new URL(url), destination = new URL(context.value.detailURL);
+		// HTTPS upgrades on the same host are routine; a different origin needs
+		// a page-purpose decision, not a false navigation failure.
+		context.value.needsConfirmation = requested.origin !== destination.origin &&
+			!(requested.protocol === 'http:' && destination.protocol === 'https:' && requested.hostname === destination.hostname && !requested.port && !destination.port);
 		storeContext();
 		visited.value.add(url);
 		phase = '检查已打开详情页的字段';
-		await readPreview('detail');
-		ready = true;
-		message.value = '已打开示例详情，请在网页中选择详情字段；保存后可返回列表继续配置。';
+		ready = await readDetailFields();
 	} catch (cause: any) {
 		reportFailure(cause, phase);
 	} finally {
@@ -589,8 +631,8 @@ async function returnToList() {
 	if (!context.value || !available.value || working.value || localDirty.value || context.value.uncertain) return;
 	const path = { ...context.value },
 		pageState = props.session!.page_state_id;
-	if (!window.confirm(`按 ${path.strategy} 返回列表并重新验证记录范围，确认？`)) return;
-	if (!available.value || path.sessionID !== props.session?.session_id) return;
+	if (!(await confirmAction(`按 ${path.strategy} 返回列表并重新验证记录范围，确认？`))) return;
+	if (disposed || !available.value || path.sessionID !== props.session?.session_id || pageState !== props.session?.page_state_id || working.value || localDirty.value) return;
 	setWorking(true);
 	context.value.uncertain = true;
 	storeContext();
@@ -616,8 +658,8 @@ async function openNext(next: RecordPreview['next_pages'][number]) {
 	if (!canNavigate.value || nextVisited.value || context.value || !plan.value.next_page) return;
 	const pageState = preview.value!.page_state_id,
 		sessionID = props.session?.session_id;
-	if (!window.confirm('本轮只访问一次下一页/点击加载更多，再检查记录范围；不会连续翻页。确认？')) return;
-	if (!canNavigate.value || sessionID !== props.session?.session_id) return;
+	if (!(await confirmAction('本轮只访问一次下一页/点击加载更多，再检查记录范围；不会连续翻页。确认？'))) return;
+	if (disposed || !canNavigate.value || sessionID !== props.session?.session_id || pageState !== props.session?.page_state_id || context.value || nextVisited.value) return;
 	nextVisited.value = true;
 	setWorking(true);
 	try {
@@ -634,8 +676,8 @@ async function openNext(next: RecordPreview['next_pages'][number]) {
 		setWorking(false);
 	}
 }
-function forgetContext() {
-	if (window.confirm('清除仅删除路径上下文，不移动网页；请先查询未确认动作并确认页面位置。确认？')) {
+async function forgetContext() {
+	if ((await confirmAction('清除仅删除路径上下文，不移动网页；请先查询未确认动作并确认页面位置。确认？'))) {
 		context.value = undefined;
 		storeContext();
 		preview.value = undefined;
@@ -643,15 +685,15 @@ function forgetContext() {
 }
 watch(
 	() => props.draft.revision,
-	() => {
+	async () => {
 		epoch++;
-		if (!localDirty.value && !working.value) reload();
+		if (!localDirty.value && !working.value) await reload();
 	}
 );
 watch(
 	() => props.selectedStep?.step_id,
-	() => {
-		if (props.selectedStep?.type === 'record_set') chooseStep(props.selectedStep.step_id);
+	async () => {
+		if (props.selectedStep?.type === 'record_set') await chooseStep(props.selectedStep.step_id);
 	}
 );
 watch(
@@ -664,9 +706,9 @@ watch(
 		restoreContext();
 	}
 );
-onMounted(() => {
+onMounted(async () => {
 	saved.value = JSON.stringify(plan.value);
-	reload();
+	await reload();
 	restoreContext();
 });
 onBeforeUnmount(() => {
@@ -675,7 +717,7 @@ onBeforeUnmount(() => {
 });
 async function focusField(id: string, key: string, role: string) {
 	if (id !== stepID.value) {
-		chooseStep(id);
+		await chooseStep(id);
 		await nextTick();
 	}
 	if (id !== stepID.value) return;

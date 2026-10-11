@@ -297,6 +297,7 @@
 </template>
 
 <script setup lang="ts">
+import { confirmAction, promptValue } from '../../utils/dialog';
 import EditorErrorNotice from './editor-error-notice.vue';
 import { editorProblem, problemMessage, type EditorProblem } from './editor-feedback';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
@@ -640,7 +641,9 @@ async function moveStep(index: number, offset: number) {
 }
 async function removeStep(index: number) {
 	if (!canEdit.value || recordPanel.value?.detailPage || index < 0 || index >= steps.value.length) return;
-	if (!window.confirm(`删除“${stepLabel(steps.value[index])}”及其关联配置？保存到草稿后生效。`)) return;
+	const step = steps.value[index], revision = props.draft.revision;
+	if (!(await confirmAction(`删除“${stepLabel(steps.value[index])}”及其关联配置？保存到草稿后生效。`))) return;
+	if (disposed || !canEdit.value || recordPanel.value?.detailPage || revision !== props.draft.revision || steps.value[index] !== step) return;
 	await saveSteps(steps.value.filter((_, i) => i !== index));
 	selectedStep.value = -1;
 }
@@ -773,15 +776,19 @@ async function poll(command: EditorCommand, epoch: number): Promise<EditorComman
 async function send(action: Partial<EditorAction>, record: boolean, confirmed = false): Promise<EditorCommand> {
 	if (action.type !== 'scroll') wheelQueue.clear();
 	const session = props.session;
+	const originGeneration = generation, originRevision = props.draft.revision;
 	if (!session?.available || props.dirty || props.saving || pending.value || unknownRequest.value)
 		throw new Error('会话不可用、草稿未同步或上一动作尚未确认');
 	if (!supported.value.includes(action.type!)) throw new Error('当前浏览器服务不支持这个动作');
 	if (
 		!confirmed &&
 		['click', 'input'].includes(action.type!) &&
-		!window.confirm(`即将在目标网站执行“${labels[action.type!]}”。可能触发表单提交或外部操作，确认执行？`)
+		!(await confirmAction(`即将在目标网站执行“${labels[action.type!]}”。可能触发表单提交或外部操作，确认执行？`))
 	)
 		throw new Error('已取消，未执行网页动作');
+	if (disposed || originGeneration !== generation || originRevision !== props.draft.revision || session.session_id !== props.session?.session_id ||
+		!props.session?.available || props.dirty || props.saving || pending.value || unknownRequest.value)
+		throw new Error('确认期间会话、草稿或动作状态已变化，请重新核对后操作。');
 	const epoch = generation;
 	const current = await refreshState(session.session_id);
 	if (disposed || epoch !== generation || !current.available) throw new Error('会话已变化，未派发动作');
@@ -866,9 +873,10 @@ async function resolveUnknown() {
 }
 async function saveCheckpoint() {
 	if (!canEdit.value || !steps.value.length) return;
+	const id = props.draft.id, revision = props.draft.revision;
 	const through = steps.value[selectedStep.value >= 0 ? selectedStep.value : steps.value.length - 1];
-	const name = window.prompt('检查点名称（保存至当前选中步骤）', `检查点 ${checkpoints.value.length + 1}`);
-	if (!name) return;
+	const name = (await promptValue('检查点名称（保存至当前选中步骤）', `检查点 ${checkpoints.value.length + 1}`));
+	if (!name || disposed || !canEdit.value || props.draft.id !== id || props.draft.revision !== revision || !steps.value.includes(through)) return;
 	try {
 		await appApi.createCheckpoint(props.draft.id, { name, expected_revision: props.draft.revision, through_step_id: through.step_id });
 		await refreshCheckpoints();
@@ -885,14 +893,16 @@ async function removeCheckpoint(checkpoint: EditorCheckpoint) {
 	}
 }
 async function replay(checkpoint: EditorCheckpoint) {
+	const sessionID = props.session?.session_id, revision = props.draft.revision;
 	if (
 		!canEdit.value ||
 		!supported.value.length ||
-		!window.confirm(
+		!(await confirmAction(
 			`从入口重放“${checkpoint.name}”的 ${checkpoint.snapshot.steps.length} 步快照。会关闭当前会话并重新打开；点击/输入可能产生外部操作，不会自动重试失败动作。确认？`
-		)
+		))
 	)
 		return;
+	if (disposed || !canEdit.value || sessionID !== props.session?.session_id || revision !== props.draft.revision) return;
 	replaying.value = true;
 	stopReplay.value = false;
 	notice.value = '';

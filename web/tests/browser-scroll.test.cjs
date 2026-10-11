@@ -34,7 +34,7 @@ function mount(overrides = {}, refresh) {
   const module = { exports: {} };
   class FocusTarget { focus() { this.focused = true; } }
   const origin = new FocusTarget();
-  vm.runInNewContext(output.outputText, { module, exports: module.exports, require: name => ({ vue, './api': { appApi: api }, './editor-feedback': require('./workbench-loader.cjs'), './browser-workbench': require('./workbench-loader.cjs'), './browser-selection.vue': {}, './record-designer.vue': {} })[name],
+  vm.runInNewContext(output.outputText, { module, exports: module.exports, require: name => ({ vue, '../../utils/dialog': { confirmAction: async () => { throw new Error('scroll should not open a click confirmation'); } }, './api': { appApi: api }, './editor-feedback': require('./workbench-loader.cjs'), './browser-workbench': require('./workbench-loader.cjs'), './browser-selection.vue': {}, './record-designer.vue': {} })[name],
     crypto: { randomUUID: require('node:crypto').randomUUID }, window: { confirm: () => { throw new Error('scroll should not open a click confirmation'); } },
     document: { activeElement: origin }, HTMLElement: FocusTarget, setTimeout, clearTimeout,
   });

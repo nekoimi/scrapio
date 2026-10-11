@@ -20,6 +20,7 @@
  </div>
 </template>
 <script setup lang="ts">
+import { promptValue } from '../../utils/dialog';
 import { computed,onMounted,onUnmounted,reactive,ref,watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { ElMessage } from 'element-plus';
@@ -44,7 +45,7 @@ function currentFilter():RecordFilter{return {dataset_id:selected.value,query:qu
 function applyFilters(){activeView.value=0;page.value=1;loadRecords();}
 async function loadExtras(id:number){if(!id)return;try{const [sources,saved]=await Promise.all([api.recordCoverage(id),api.recordViews(id)]);if(selected.value!==id)return;coverage.value=sources||[];views.value=saved||[];}catch(e){error.value=errorText(e);}}
 function useView(view:SavedView){query.value=view.filter.query||'';sourceId.value=view.filter.source_id||0;activity.value=view.filter.activity||'';sinceDate.value=view.filter.since?view.filter.since.slice(0,10):'';activeView.value=view.id;page.value=1;loadRecords();}
-async function saveCurrentView(){const name=window.prompt('视图名称');if(!name?.trim())return;try{const saved=await api.saveRecordView(selected.value,name.trim(),currentFilter());await loadExtras(selected.value);activeView.value=saved.id;ElMessage.success('视图已保存');}catch(e){ElMessage.error(errorText(e));}}
+async function saveCurrentView(){const id=selected.value;const name=await promptValue('视图名称');if(!name||id!==selected.value)return;try{const saved=await api.saveRecordView(id,name,currentFilter());await loadExtras(id);activeView.value=saved.id;ElMessage.success('视图已保存');}catch(e){ElMessage.error(errorText(e));}}
 async function deleteCurrentView(){if(!activeView.value)return;try{await api.deleteRecordView(selected.value,activeView.value);activeView.value=0;await loadExtras(selected.value);ElMessage.success('视图已删除');}catch(e){ElMessage.error(errorText(e));}}
 function saveBlob(blob:Blob,name:string){const url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download=name;link.click();setTimeout(()=>URL.revokeObjectURL(url),30000);}
 async function exportRecords(){exportBusy.value=true;try{if(total.value<=1000){saveBlob(await api.exportDirect(currentFilter()),`dataset-${selected.value}.csv`);return;}exportJob.value=await api.exportCreate(currentFilter());ElMessage.success('后台导出已创建');}catch(e){ElMessage.error(errorText(e));}finally{exportBusy.value=false;}}

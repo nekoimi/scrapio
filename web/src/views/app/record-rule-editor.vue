@@ -194,6 +194,7 @@
 </template>
 
 <script setup lang="ts">
+import { confirmAction } from '../../utils/dialog';
 import { computed, nextTick, ref, watch } from 'vue';
 import type { FieldRule, RecordPlan, RecordPreview, SelectionRule } from './api';
 import FieldOptions from './field-options.vue';
@@ -245,9 +246,11 @@ function enableDetail() {
 function enableNext() {
 	props.plan.next_page = { locator: { strategy: 'css', expression: '' }, kind: 'link', max_pages: 10, wait_ms: 500 };
 }
-function removeDetail() {
+async function removeDetail() {
 	if (props.detailPage || props.disabled) return;
-	if (!window.confirm(`移除详情路径将同时删除 ${props.plan.detail_fields?.length || 0} 个详情字段。确认移除？`)) return;
+	const plan = props.plan;
+	if (!(await confirmAction(`移除详情路径将同时删除 ${props.plan.detail_fields?.length || 0} 个详情字段。确认移除？`))) return;
+	if (props.detailPage || props.disabled || props.plan !== plan) return;
 	props.plan.detail = undefined;
 	props.plan.detail_fields = [];
 	editingField.value = undefined;
@@ -265,10 +268,11 @@ function addField() {
 function editField(field: FieldRule) {
 	editingField.value = editingField.value === field ? undefined : field;
 }
-function removeField() {
+async function removeField() {
 	const field = editingField.value;
 	if (!field || props.disabled) return;
-	if (!window.confirm(`删除字段“${field.name}”？保存后生效。`)) return;
+	if (!(await confirmAction(`删除字段“${field.name}”？保存后生效。`))) return;
+	if (props.disabled || editingField.value !== field) return;
 	const index = fields.value.indexOf(field);
 	if (index >= 0) fields.value.splice(index, 1);
 	editingField.value = undefined;

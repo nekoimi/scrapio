@@ -32,6 +32,7 @@
 	</div>
 </template>
 <script setup lang="ts">
+import { confirmAction } from '../../utils/dialog';
 import { ref, watch, onBeforeUnmount } from 'vue';
 import { useRoute } from 'vue-router';
 import { appApi, type QualityIssue } from './api';
@@ -56,7 +57,7 @@ async function load() {
 }
 async function resolve() {
 	const i = issue.value;
-	if (!i || busy.value || !window.confirm('已阅读正式恢复运行证据，确认当前问题恢复？新异常仍会重新打开。')) return;
+	if (!i || busy.value || !(await confirmAction('已阅读正式恢复运行证据，确认当前问题恢复？新异常仍会重新打开。'))) return;
 	busy.value = true;
 	const token = epoch;
 	try {

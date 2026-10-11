@@ -66,6 +66,7 @@
 	</div>
 </template>
 <script setup lang="ts">
+import { confirmAction } from '../../utils/dialog';
 import { ref, computed, watch, onBeforeUnmount, onMounted } from 'vue';
 import { useRoute, useRouter, onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router';
 import { appApi, type LogicalTable, type DataRow, type RecordQuery, type QueryPage } from './api';
@@ -106,14 +107,14 @@ function applyQuery(q: RecordQuery) {
 	}
 	void router.replace({ query: { ...route.query, q: serialized, record: undefined } });
 }
-function leave() {
+async function leave() {
 	return (
 		(!queryPanel.value?.hasUnsavedChanges() && !exportPanel.value?.hasUnsavedChanges()) ||
-		window.confirm('有未应用条件或未确认请求，确认离开？本地未确认请求可在原数据表恢复。')
+		(await confirmAction('有未应用条件或未确认请求，确认离开？本地未确认请求可在原数据表恢复。'))
 	);
 }
 onBeforeRouteLeave(leave);
-onBeforeRouteUpdate((to, from) => (to.params.id !== from.params.id ? leave() : true));
+onBeforeRouteUpdate(async (to, from) => (to.params.id !== from.params.id ? (await leave()) : true));
 const collectors = (id: string) => parseJSON<DataRow[]>(stats.value[id]?.collectors_json || '[]', []);
 function value(row: DataRow, key: string) {
 	const fields = parseJSON<{ field_key: string; value_json: string }[]>(row.fields_json || '[]', []);

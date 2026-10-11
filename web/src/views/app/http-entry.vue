@@ -121,6 +121,7 @@
 </template>
 
 <script setup lang="ts">
+import { confirmAction, promptValue } from '../../utils/dialog';
 import { computed, onBeforeUnmount, onMounted, nextTick, ref, watch } from 'vue';
 import JsonTreeNode from './json-tree-node.vue';
 import FieldOptions from './field-options.vue';
@@ -212,7 +213,7 @@ function loadDraft() {
 }
 async function reloadDraft() {
 	if (busy.value || props.blocked) return;
-	if (hasUnsavedChanges() && !window.confirm('重新加载会放弃本地未保存的请求和 JSON 规则，确认？')) return;
+	if (hasUnsavedChanges() && !(await confirmAction('重新加载会放弃本地未保存的请求和 JSON 规则，确认？'))) return;
 	busy.value = true;
 	try {
 		const latest = await appApi.collector(props.draft.id);
@@ -228,9 +229,9 @@ async function reloadDraft() {
 		busy.value = false;
 	}
 }
-function abandonPending() {
+async function abandonPending() {
 	if (busy.value || capture.value?.status === 'running') return;
-	if (!window.confirm('原请求可能已在目标网站执行。这里只结束本地等待，不撤销原请求；新取样会使用新请求键。请先在目标网站核实 POST 结果。继续？'))
+	if (!(await confirmAction('原请求可能已在目标网站执行。这里只结束本地等待，不撤销原请求；新取样会使用新请求键。请先在目标网站核实 POST 结果。继续？')))
 		return;
 	unresolved.value = undefined;
 	capture.value = undefined;
@@ -289,7 +290,7 @@ async function createCapture() {
 	if (!canCapture.value) return;
 	if (
 		source.value === 'http' &&
-		!window.confirm(`将以已保存的 ${httpMethod.value} 访问 ${props.draft.entry_url}。POST 可能产生外部副作用；失败不会自动重发。确认？`)
+		!(await confirmAction(`将以已保存的 ${httpMethod.value} 访问 ${props.draft.entry_url}。POST 可能产生外部副作用；失败不会自动重发。确认？`))
 	)
 		return;
 	if (!canCapture.value) return;
@@ -350,9 +351,9 @@ async function loadCapture(id: string) {
 		busy.value = false;
 	}
 }
-function selectPointer(pointer: string, array: boolean) {
+async function selectPointer(pointer: string, array: boolean) {
 	if (array) {
-		if (plan.value.fields.length && !window.confirm('切换记录数组会清空已有相对字段，确认？')) return;
+		if (plan.value.fields.length && !(await confirmAction('切换记录数组会清空已有相对字段，确认？'))) return;
 		plan.value.array_pointer = pointer;
 		plan.value.fields = [];
 		message.value = '已选择数组，继续点选其任一元素内的字段。';
@@ -368,7 +369,7 @@ function selectPointer(pointer: string, array: boolean) {
 		message.value = '字段必须位于数组元素内';
 		return;
 	}
-	const name = window.prompt('字段名称', `field_${plan.value.fields.length + 1}`);
+	const name = (await promptValue('字段名称', `field_${plan.value.fields.length + 1}`));
 	if (!name) return;
 	plan.value.fields.push({ name, pointer: parts.length === 1 ? '' : '/' + parts.slice(1).join('/') });
 }

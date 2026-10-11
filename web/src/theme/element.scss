@@ -331,3 +331,12 @@
 		overflow: auto;
 	}
 }
+
+// Shared confirmations use template colors and controls, with readable URLs.
+.scrapio-dialog {
+	max-width: calc(100vw - 32px);
+	.el-message-box__message p {
+		white-space: pre-line;
+		overflow-wrap: anywhere;
+	}
+}

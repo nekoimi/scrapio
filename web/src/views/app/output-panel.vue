@@ -178,6 +178,7 @@
 	</section>
 </template>
 <script setup lang="ts">
+import { confirmAction } from '../../utils/dialog';
 import { computed, onMounted, onBeforeUnmount, ref } from 'vue';
 import {
 	appApi,
@@ -311,8 +312,8 @@ function removeField(index: number) {
 	schema.value.unique_key = schema.value.unique_key.filter((k) => k !== key);
 	mapping.value = mapping.value.filter((m) => m.target_field_key !== key);
 }
-function generate() {
-	if (dirty.value && schema.value.fields.length && !window.confirm('用保存字段重建新表草案会覆盖当前表配置，确认？')) return;
+async function generate() {
+	if (dirty.value && schema.value.fields.length && !(await confirmAction('用保存字段重建新表草案会覆盖当前表配置，确认？'))) return;
 	schema.value = { fields: sources.value.map((f) => ({ ...f, type: f.type || 'json' })), unique_key: [] };
 	mapping.value = schema.value.fields.map((f) => ({ source_field_key: f.field_key, target_field_key: f.field_key }));
 	tableName.value ||= `${props.draft.name}数据`;
@@ -408,8 +409,8 @@ async function recoverCheck() {
 		busy.value = false;
 	}
 }
-function clearPending() {
-	if (window.confirm('结束本地等待不删除服务器预演，确认？')) {
+async function clearPending() {
+	if ((await confirmAction('结束本地等待不删除服务器预演，确认？'))) {
 		pendingKey.value = '';
 		sessionStorage.removeItem(storageKey());
 	}
@@ -423,7 +424,9 @@ function applyConfirmed(value: Collector) {
 }
 async function confirm() {
 	if (busy.value || props.blocked || stale.value || !check.value?.ready || pendingConfirm.value) return;
-	if (!window.confirm('确认保存字段映射、唯一键及更新策略？新表只在这次确认时创建，不写正式记录。')) return;
+	const checked = check.value;
+	if (!(await confirmAction('确认保存字段映射、唯一键及更新策略？新表只在这次确认时创建，不写正式记录。'))) return;
+	if (disposed || busy.value || props.blocked || stale.value || check.value !== checked || pendingConfirm.value) return;
 	busy.value = true;
 	const id = check.value.check_id;
 	try {

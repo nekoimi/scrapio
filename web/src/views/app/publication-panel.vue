@@ -122,6 +122,7 @@
 	</section>
 </template>
 <script setup lang="ts">
+import { confirmAction } from '../../utils/dialog';
 import { computed, onMounted, onBeforeUnmount, ref } from 'vue';
 import { appApi, type Collector, type Trial, type PublishCheck, type PublishedVersion, type PublishIssue } from './api';
 import RunPanel from './run-panel.vue';
@@ -171,8 +172,8 @@ function clear(kind: 'check' | 'publish') {
 	else pendingPublish.value = '';
 	sessionStorage.removeItem(storage(kind));
 }
-function clearPending(kind: 'check' | 'publish') {
-	if (window.confirm('结束本地等待不会撤销服务器已完成的操作。请先查询原请求或刷新版本，确认？')) clear(kind);
+async function clearPending(kind: 'check' | 'publish') {
+	if ((await confirmAction('结束本地等待不会撤销服务器已完成的操作。请先查询原请求或刷新版本，确认？'))) clear(kind);
 }
 async function loadVersions(more = false) {
 	const page = await appApi.versions(props.draft.id, more ? versionCursor.value : '');
@@ -268,7 +269,9 @@ async function applyPublished(value: PublishedVersion) {
 }
 async function publish() {
 	if (busy.value || stale.value || !check.value?.ready || !differenceReady.value || pendingCheck.value || pendingPublish.value) return;
-	if (!window.confirm('确认发布当前检查绑定的规则、Schema、样例和试采范围？发布后版本不可修改，正式运行需另行触发。')) return;
+	const checked = check.value;
+	if (!(await confirmAction('确认发布当前检查绑定的规则、Schema、样例和试采范围？发布后版本不可修改，正式运行需另行触发。'))) return;
+	if (disposed || busy.value || stale.value || check.value !== checked || !differenceReady.value || pendingCheck.value || pendingPublish.value) return;
 	busy.value = true;
 	const key = crypto.randomUUID();
 	pendingPublish.value = key;

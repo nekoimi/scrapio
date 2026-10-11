@@ -134,6 +134,7 @@
 	</section>
 </template>
 <script setup lang="ts">
+import { confirmAction } from '../../utils/dialog';
 import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue';
 import { appApi, type Collector, type InputCapture, type SavedSample, type Trial, type TrialDocument, type TrialEvent, type TrialInput } from './api';
 const props = defineProps<{ draft: Collector; capture?: InputCapture; blocked: boolean }>();
@@ -356,8 +357,8 @@ async function recover() {
 		busy.value = false;
 	}
 }
-function clearPending() {
-	if (window.confirm('结束本地等待不会取消服务器上可能已创建的试采，请先检查历史。确认？')) {
+async function clearPending() {
+	if ((await confirmAction('结束本地等待不会取消服务器上可能已创建的试采，请先检查历史。确认？'))) {
 		pendingKey.value = '';
 		sessionStorage.removeItem(keyStorage());
 	}
@@ -375,7 +376,7 @@ async function cancelTrial() {
 	}
 }
 async function deleteTrial(value: Trial) {
-	if (!window.confirm('删除这次试采的文档与事件证据？不能恢复。')) return;
+	if (!(await confirmAction('删除这次试采的文档与事件证据？不能恢复。'))) return;
 	busy.value = true;
 	try {
 		await appApi.deleteTrial(value.trial_id);

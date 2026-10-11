@@ -223,6 +223,7 @@
 	</div>
 </template>
 <script setup lang="ts">
+import { confirmAction } from '../../utils/dialog';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router';
 import BrowserActions from './browser-actions.vue';
@@ -320,7 +321,7 @@ async function bringRepairInput(value: InputCapture, step: string, stage: string
 	previewPanel.value?.selectInput(step, stage);
 }
 
-function confirmLeave() {
+async function confirmLeave() {
 	return (
 		(!dirty.value &&
 			!saving.value &&
@@ -329,11 +330,11 @@ function confirmLeave() {
 			!previewPanel.value?.hasUnsavedChanges() &&
 			!trialPanel.value?.hasUnsavedChanges() &&
 			!publicationPanel.value?.hasUnsavedChanges()) ||
-		window.confirm('配置尚未保存或请求未确认，离开会丢弃本地修改；服务器已接受的操作仍会继续。确认离开？')
+		(await confirmAction('配置尚未保存或请求未确认，离开会丢弃本地修改；服务器已接受的操作仍会继续。确认离开？'))
 	);
 }
 onBeforeRouteLeave(confirmLeave);
-onBeforeRouteUpdate((to, from) => to.params.id === from.params.id || confirmLeave());
+onBeforeRouteUpdate(async (to, from) => to.params.id === from.params.id || (await confirmLeave()));
 const route = useRoute();
 const draft = ref<Collector>();
 const name = ref('');
