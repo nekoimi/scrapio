@@ -83,7 +83,8 @@
 			<button v-if="unknownRequest" :disabled="querying" @click="resolveUnknown">确认上一请求（沿用请求键）</button>
 			<button v-if="last || pending || unknownRequest" @click="openPanel('history')">查看操作记录</button>
 			<span v-if="dirty || recordPanel?.localDirty" class="status-warn">规则有未保存修改</span>
-			<p v-if="notice" class="app-error">{{ notice }}</p>
+			<EditorErrorNotice v-if="failureDetails" :problem="failureDetails" />
+			<p v-else-if="notice" class="app-error">{{ notice }}</p>
 		</div>
 		<nav class="workbench-panel-tabs" aria-label="工作台面板">
 			<button
@@ -296,6 +297,8 @@
 </template>
 
 <script setup lang="ts">
+import EditorErrorNotice from './editor-error-notice.vue';
+import { editorProblem, problemMessage, type EditorProblem } from './editor-feedback';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import {
 	appApi,
@@ -456,6 +459,13 @@ const querying = ref(false);
 const replaying = ref(false);
 const stopReplay = ref(false);
 const notice = ref('');
+const failureDetails = ref<EditorProblem>();
+watch(notice, () => { failureDetails.value = undefined; }, { flush: 'sync' });
+function reportFailure(cause: any, action: string) {
+	const problem = editorProblem(cause, action);
+	notice.value = problemMessage(problem);
+	failureDetails.value = problem;
+}
 const unknownRequest = ref<{ sessionId: string; key: string; input: EditorAction }>();
 const recordScroll = ref(false), updatingFrame = ref(false);
 let disposed = false;
@@ -518,7 +528,7 @@ async function scrollPixels(distance: number): Promise<boolean> {
 		const result = await send({ type: 'scroll', value: String(Math.round(Math.max(-1200, Math.min(1200, distance)))), timeout_ms: 10000, page_state_id: props.session!.page_state_id }, record);
 		return result.status === 'succeeded' && !props.frameFailed && !unknownRequest.value;
 	} catch (cause: any) {
-		notice.value = cause?.error?.message || cause?.message || '滚动结果尚未确认，请查询原回执；不会自动重发。';
+		reportFailure(cause, '滚动远端网页');
 		return false;
 	} finally { submitting.value = false; }
 }
@@ -613,10 +623,10 @@ async function saveSteps(next: Record<string, any>[]) {
 			name: props.draft.name,
 			expected_revision: props.draft.revision,
 			definition: { ...props.draft.definition, steps: next },
-		});
+		}, true);
 		if (!disposed) emit('draft-saved', draft);
 	} catch (cause: any) {
-		notice.value = cause?.error?.message || '步骤保存失败，当前列表仍保留；请处理草稿冲突后重试。';
+		reportFailure(cause, '保存流程步骤');
 	} finally {
 		savingSteps.value = false;
 	}
@@ -726,7 +736,7 @@ async function refreshCheckpoints() {
 	}
 }
 async function refreshState(id: string) {
-	const state = await appApi.browserSession(id);
+	const state = await appApi.browserSession(id, true);
 	if (!disposed && id === props.session?.session_id) emit('session-state', state);
 	return state;
 }
@@ -810,7 +820,7 @@ async function executeForm() {
 	try {
 		await send(configuredAction(), mode.value === 'record');
 	} catch (cause: any) {
-		notice.value = cause?.error?.message || cause?.message || '动作请求未确认，请查询回执。';
+		reportFailure(cause, `执行网页动作“${labels[actionType.value] || actionType.value}”`);
 	} finally {
 		submitting.value = false;
 	}
@@ -822,7 +832,7 @@ async function runStep(step: Record<string, any>) {
 	try {
 		await send(stepAction(step), false);
 	} catch (cause: any) {
-		notice.value = cause?.error?.message || cause?.message || '单步执行未确认。';
+		reportFailure(cause, '执行当前流程步骤');
 	} finally {
 		submitting.value = false;
 	}
@@ -849,7 +859,7 @@ async function resolveUnknown() {
 		pending.value = command;
 		await poll(command, generation);
 	} catch (cause: any) {
-		notice.value = cause?.error?.message || '上一请求仍未确认，请检查页面或重新打开会话。';
+		reportFailure(cause, '查询上一动作回执');
 	} finally {
 		querying.value = false;
 	}
@@ -863,7 +873,7 @@ async function saveCheckpoint() {
 		await appApi.createCheckpoint(props.draft.id, { name, expected_revision: props.draft.revision, through_step_id: through.step_id });
 		await refreshCheckpoints();
 	} catch (cause: any) {
-		notice.value = cause?.error?.message || '检查点保存失败。';
+		reportFailure(cause, '保存流程检查点');
 	}
 }
 async function removeCheckpoint(checkpoint: EditorCheckpoint) {
@@ -908,7 +918,7 @@ async function replay(checkpoint: EditorCheckpoint) {
 		if (!stopReplay.value) notice.value = '检查点重放完成。当前页面可继续配置；没有写入正式采集数据。';
 		else notice.value = '已停止派发后续步骤；当前动作已发出的请求仍需查看回执。';
 	} catch (cause: any) {
-		notice.value = cause?.error?.message || cause?.message || '重放中断，不会自动继续。';
+		reportFailure(cause, '重放流程');
 	} finally {
 		replaying.value = false;
 	}

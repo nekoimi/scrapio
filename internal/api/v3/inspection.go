@@ -73,7 +73,7 @@ func InspectBrowserPage(browser *drission_rod.DrissionRod, operation string) htt
 				if step["step_id"] == input.StepID {
 					plan, parseErr := editor.RecordPlanFromStep(step)
 					if parseErr != nil {
-						fail(w, r, 400, "INVALID_ARGUMENT", parseErr.Error(), false, "records", "config")
+						fail(w, r, 400, "INVALID_RECORD_PLAN", "记录配置未通过检查："+parseErr.Error(), false, "record-preview:"+input.Stage, "config")
 						return
 					}
 					input.RecordPlan = &plan
@@ -81,7 +81,7 @@ func InspectBrowserPage(browser *drission_rod.DrissionRod, operation string) htt
 				}
 			}
 			if input.RecordPlan == nil || input.Stage == "detail" && input.RecordPlan.Detail == nil {
-				fail(w, r, 400, "INVALID_ARGUMENT", "记录步骤或详情路径不存在", false, "records", "step_id")
+				fail(w, r, 400, "RECORD_STEP_MISSING", "记录步骤或详情路径不存在，请核对当前步骤与已保存草稿", false, "record-preview:"+input.Stage, "step_id")
 				return
 			}
 		}
@@ -118,7 +118,8 @@ func InspectBrowserPage(browser *drission_rod.DrissionRod, operation string) htt
 			} else {
 				entry.Debug("editor inspection rejected")
 			}
-			fail(w, r, status, code, message, status == 503, "inspect", "")
+			stage, path := inspectionContext(operation, input.Stage, code)
+			fail(w, r, status, code, message, status == 503, stage, path)
 			return
 		}
 		ok(w, r, result)
@@ -129,6 +130,18 @@ func InspectBrowserPage(browser *drission_rod.DrissionRod, operation string) htt
 // Older browser services returning INVALID_ARGUMENT remain compatible.
 func inspectionFailure(code string) (int, string) {
 	switch code {
+	case "INSPECTION_INPUT_LIMIT":
+		return 400, "当前规则配置超过浏览器检查容量，请精简本次检查的字段或规则"
+	case "INVALID_RECORD_PLAN":
+		return 400, "浏览器未接受记录方式或预览阶段，请核对采集步骤并确认两端版本一致"
+	case "RECORD_PREVIEW_LIMIT":
+		return 400, "浏览器单次预览最多 20 条记录；请升级主平台以自动按预览预算取样，正式采集上限不变"
+	case "INVALID_FIELD_RULE":
+		return 400, "列表或详情字段配置无效，请核对字段名称、提取方式和定位规则"
+	case "FIELD_PREVIEW_LIMIT":
+		return 400, "单个列表或详情页面最多检查 30 个字段，请精简对应页面的字段"
+	case "INVALID_DETAIL_RULE":
+		return 400, "详情候选上限须为 1 至 5，请在详情路径的高级配置中调整"
 	case "NO_ELEMENT":
 		return 400, "此位置没有可选元素，请选择可见内容"
 	case "OUTSIDE_RECORD_SCOPE":
@@ -150,10 +163,29 @@ func inspectionFailure(code string) (int, string) {
 	case "SESSION_GONE":
 		return 410, "会话已结束，请恢复或重新打开后重新验证"
 	case "INVALID_ARGUMENT":
-		return 400, "检查参数、元素或定位规则无效，请重新点选或核对规则"
+		return 400, "浏览器服务拒绝了本次检查，但尚未细分原因；请核对当前操作的配置并确认服务版本一致"
 	case "INSPECTION_FAILED":
 		return 503, "页面检查失败，请更新画面或确认服务连接后重试"
 	default:
 		return 503, "检查服务暂时不可用，请确认连接后重试"
 	}
+}
+
+func inspectionContext(operation, pageRole, code string) (string, string) {
+	stage := operation
+	if operation == "record-preview" {
+		stage += ":" + pageRole
+	}
+	path := ""
+	switch code {
+	case "RECORD_PREVIEW_LIMIT":
+		path = "config.max_records"
+	case "INVALID_RECORD_PLAN", "INVALID_FIELD_RULE", "FIELD_PREVIEW_LIMIT", "INSPECTION_INPUT_LIMIT":
+		path = "config"
+	case "INVALID_DETAIL_RULE":
+		path = "config.detail.max_details"
+	case "INVALID_LOCATOR":
+		path = "locator"
+	}
+	return stage, path
 }

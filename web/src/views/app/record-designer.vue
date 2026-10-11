@@ -58,7 +58,7 @@
 		</div>
 		<div v-show="view !== 'rules'">
 			<div class="editor-actions">
-				<button :disabled="!canPreview" @click="previewCurrent">{{ context ? '检查当前详情页字段' : '预览当前列表/单页' }}</button
+				<button :disabled="!canPreview" @click="previewCurrent()">{{ context ? '检查当前详情页字段' : '预览当前列表/单页' }}</button
 				><button v-if="context" :disabled="!available || working || localDirty || context.uncertain" @click="returnToList">返回列表并重新验证</button
 				><button v-if="context" :disabled="working || blocked" @click="forgetContext">清除路径上下文</button>
 			</div>
@@ -73,6 +73,7 @@
 					}}</strong
 				>
 				<p class="muted">revision {{ previewRevision }} · {{ preview.current_url }} · 正式写入 0 条</p>
+				<p v-if="plan.max_records > 20" class="muted">编辑器预览最多取前 20 条样例，正式采集上限仍为 {{ plan.max_records }} 条。</p>
 				<p v-if="previewStale" class="status-warn">页面或草稿已变化，以下是过期预览。重新检查后才可继续访问路径。</p>
 				<div class="record-preview-table">
 					<table>
@@ -126,13 +127,16 @@
 			</section>
 			<p v-if="!preview" class="muted">保存规则后，点击“预览当前列表/单页”检查提取结果。此处不写入正式数据。</p>
 		</div>
-		<p v-if="message" class="app-error" role="status">{{ message }}</p>
+		<EditorErrorNotice v-if="failureDetails" :problem="failureDetails" />
+		<p v-else-if="message" class="app-error" role="status">{{ message }}</p>
 	</section>
 </template>
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import RecordRuleEditor from './record-rule-editor.vue';
+import EditorErrorNotice from './editor-error-notice.vue';
+import { editorProblem, problemMessage, recordConfigProblem, type EditorProblem } from './editor-feedback';
 import {
 	appApi,
 	type BrowserSession,
@@ -186,6 +190,13 @@ type PathContext = {
 const context = ref<PathContext>();
 const ruleEditor = ref<InstanceType<typeof RecordRuleEditor>>();
 const selectionNotice = ref('');
+const failureDetails = ref<EditorProblem>();
+watch(message, () => { failureDetails.value = undefined; }, { flush: 'sync' });
+function reportFailure(cause: any, action: string) {
+	const problem = editorProblem(cause, action);
+	message.value = problemMessage(problem);
+	failureDetails.value = problem;
+}
 let fieldToReplace: { field: FieldRule; role: 'list' | 'detail' } | undefined;
 const summary = computed(() => ({
 	record: plan.value.mode === 'single' ? '整页一条' : plan.value.locator?.expression ? '重复容器 · 已配置' : '待配置范围',
@@ -396,17 +407,7 @@ async function inspectPath(_target: 'detail' | 'next') {
 	await previewCurrent();
 }
 function validate() {
-	const names = (fields: FieldRule[]) =>
-		fields.every((f, i) => f.name && fields.findIndex((x) => x.name === f.name) === i && (!f.locator || f.locator.expression.trim()));
-	return (
-		['single', 'repeated'].includes(plan.value.mode) &&
-		Number.isInteger(plan.value.max_records) &&
-		plan.value.max_records >= 1 &&
-		plan.value.max_records <= 200 &&
-		names(plan.value.fields) &&
-		names(plan.value.detail_fields || []) &&
-		(plan.value.mode !== 'repeated' || !!plan.value.locator?.expression.trim())
-	);
+	return !recordConfigProblem(plan.value);
 }
 function undoLocal() {
 	if (working.value || props.blocked || !localDirty.value) return;
@@ -427,7 +428,8 @@ async function saveAndPreview() {
 async function save() {
 	if (working.value || props.blocked || unsupported.value || !localDirty.value) return;
 	if (!validate()) {
-		message.value = '请检查记录预算、字段名称和定位器。';
+		const issue = recordConfigProblem(plan.value)!;
+		reportFailure({ error: { code: 'INVALID_RECORD_CONFIG', message: issue.message, stage: 'save', path: issue.path } }, '保存采集规则');
 		return;
 	}
 	if (!Array.isArray(props.draft.definition.steps)) {
@@ -446,7 +448,7 @@ async function save() {
 			name: props.draft.name,
 			expected_revision: baseRevision.value,
 			definition: { ...props.draft.definition, steps },
-		});
+		}, true);
 		if (disposed) return;
 		stepID.value = id;
 		baseRevision.value = draft.revision;
@@ -456,7 +458,7 @@ async function save() {
 		selectionNotice.value = '';
 		return true;
 	} catch (cause: any) {
-		message.value = cause?.error?.message || '保存失败，本地配置已保留。';
+		reportFailure(cause, '保存采集规则');
 	} finally {
 		setWorking(false);
 	}
@@ -490,21 +492,31 @@ async function readPreview(stage: 'list' | 'detail') {
 	previewRevision.value = revision;
 	return result;
 }
-async function previewCurrent() {
+async function previewCurrent(action = context.value ? '检查详情页字段' : '检查列表记录与详情入口') {
 	if (!canPreview.value) return;
 	setWorking(true);
+	previewRevision.value = 0;
 	message.value = '';
 	try {
 		await readPreview(context.value ? 'detail' : 'list');
+		return true;
 	} catch (cause: any) {
-		message.value = cause?.error?.message || cause?.message || '预览失败';
+		reportFailure(cause, action);
+		return false;
 	} finally {
 		setWorking(false);
 	}
 }
 async function execute(action: Partial<EditorAction>) {
 	const result = await props.execute({ ...action, page_state_id: action.page_state_id || props.session?.page_state_id });
-	if (result.status !== 'succeeded') throw new Error('动作失败或结果未确认，路径停止；请查看动作回执');
+	if (result.status !== 'succeeded') throw {
+		command_id: result.command_id,
+		error: {
+			code: result.status === 'failed' ? result.result.error_code || 'COMMAND_FAILED' : 'OUTCOME_UNCERTAIN',
+			message: result.status === 'failed' ? result.result.error || '网页动作执行失败，路径已停止。' : '动作结果尚未确认，路径已停止。',
+			stage: `command:${action.type}`,
+		},
+	};
 	if (
 		action.type === 'navigate' &&
 		action.value &&
@@ -533,6 +545,7 @@ async function openDetail(url: string, recordIndex = 0) {
 	storeContext();
 	setWorking(true);
 	let ready = false;
+	let phase = '打开示例详情';
 	try {
 		const command = await execute({ type: 'navigate', value: url, timeout_ms: 10000, page_state_id: pageState });
 		await nextTick();
@@ -543,11 +556,12 @@ async function openDetail(url: string, recordIndex = 0) {
 		context.value.uncertain = false;
 		storeContext();
 		visited.value.add(url);
+		phase = '检查已打开详情页的字段';
 		await readPreview('detail');
 		ready = true;
 		message.value = '已打开示例详情，请在网页中选择详情字段；保存后可返回列表继续配置。';
 	} catch (cause: any) {
-		message.value = cause?.error?.message || cause?.message || '详情路径中断';
+		reportFailure(cause, phase);
 	} finally {
 		setWorking(false);
 	}
@@ -561,7 +575,7 @@ async function openExampleDetail() {
 	if (localDirty.value && !(await save())) return;
 	await nextTick();
 	if (!canPreview.value) return;
-	await previewCurrent();
+	if (!(await previewCurrent('打开详情前检查列表记录与详情入口'))) return;
 	if (!canNavigate.value || preview.value?.stage !== 'list') return;
 	const candidate = preview.value.detail_urls.find(link => link.url && !link.error && !visited.value.has(link.url));
 	if (!candidate?.url) {
@@ -593,7 +607,7 @@ async function returnToList() {
 		storeContext();
 		message.value = '已返回列表并重新发现记录，可继续选择下一条详情。';
 	} catch (cause: any) {
-		message.value = cause?.error?.message || cause?.message || '返回列表失败，路径停止';
+		reportFailure(cause, '返回列表并检查记录范围');
 	} finally {
 		setWorking(false);
 	}
@@ -615,7 +629,7 @@ async function openNext(next: RecordPreview['next_pages'][number]) {
 		const result = await readPreview('list');
 		message.value = result.records.length ? '下一页记录范围已检查，本轮到此停止。' : '下一页没有记录，本轮结束。';
 	} catch (cause: any) {
-		message.value = cause?.error?.message || cause?.message || '下一页检查中断，不会自动重试';
+		reportFailure(cause, '访问并检查下一页');
 	} finally {
 		setWorking(false);
 	}

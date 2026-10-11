@@ -18,6 +18,8 @@ func TestInspectionFailure(t *testing.T) {
 		{"RECORD_SCOPE_EMPTY", 400}, {"INVALID_ARGUMENT", 400}, {"INSPECTION_LIMIT", 400},
 		{"ELEMENT_REFERENCE_STALE", 409}, {"STALE_PAGE_STATE", 409}, {"INSPECTION_BUSY", 409},
 		{"SESSION_GONE", 410}, {"INSPECTION_FAILED", 503}, {"remote-stack-secret", 503},
+		{"RECORD_PREVIEW_LIMIT", 400}, {"INVALID_RECORD_PLAN", 400}, {"INVALID_DETAIL_RULE", 400},
+		{"INVALID_FIELD_RULE", 400}, {"FIELD_PREVIEW_LIMIT", 400}, {"INSPECTION_INPUT_LIMIT", 400},
 	} {
 		t.Run(tc.code, func(t *testing.T) {
 			status, message := inspectionFailure(tc.code)
@@ -34,5 +36,16 @@ func TestInspectionFailure(t *testing.T) {
 				t.Fatal("inspection response leaked remote details or omitted recovery guidance")
 			}
 		})
+	}
+}
+
+func TestInspectionContextKeepsOperationAndConfigurationLocation(t *testing.T) {
+	stage, path := inspectionContext("record-preview", "list", "INVALID_DETAIL_RULE")
+	if stage != "record-preview:list" || path != "config.detail.max_details" {
+		t.Fatalf("missing detail context: stage=%s path=%s", stage, path)
+	}
+	stage, path = inspectionContext("locator-check", "", "INVALID_LOCATOR")
+	if stage != "locator-check" || path != "locator" {
+		t.Fatalf("missing locator context: stage=%s path=%s", stage, path)
 	}
 }

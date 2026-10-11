@@ -2,6 +2,23 @@ package editor
 
 import "testing"
 
+func TestRecordPreviewBudgetKeepsFormalPlan(t *testing.T) {
+	for _, budget := range []int{1, 10, 20, 21, 200} {
+		plan := RecordPlan{Mode: "single", MaxRecords: budget, Fields: []FieldRule{}}
+		preview := plan.ForPreview()
+		want := budget
+		if want > 20 {
+			want = 20
+		}
+		if preview.MaxRecords != want || plan.MaxRecords != budget {
+			t.Fatalf("preview=%d formal=%d expected preview=%d formal=%d", preview.MaxRecords, plan.MaxRecords, want, budget)
+		}
+		if err := preview.Validate(); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
 func TestRecordPlanBudgetsAndRelativeFields(t *testing.T) {
 	plan := RecordPlan{Mode: "repeated", Locator: &Locator{Strategy: "css", Expression: ".item"}, MaxRecords: 10, Fields: []FieldRule{{Name: "title", Locator: &Locator{Strategy: "xpath", Expression: ".//h2"}, Extract: "text"}}}
 	if err := plan.Validate(); err != nil {

@@ -24,7 +24,7 @@ function mount(api = {}) {
   const template = compileTemplate({ source: descriptor.template.content, filename, id: 'selection-test', compilerOptions: { bindingMetadata: script.bindings } });
   assert.equal(template.errors.length, 0);
   const timers = new Set();
-  const component = evaluate(script.content, { vue, './browser-state': require('./workbench-loader.cjs'), './api': { appApi: api } }, {
+  const component = evaluate(script.content, { vue, './browser-state': require('./workbench-loader.cjs'), './editor-feedback': require('./workbench-loader.cjs'), './api': { appApi: api } }, {
     setTimeout: fn => { timers.add(fn); return fn; }, clearTimeout: fn => timers.delete(fn),
   });
   let state;

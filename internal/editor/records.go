@@ -37,6 +37,15 @@ type RecordPlan struct {
 	NextPage     *NextPageRule `json:"next_page,omitempty"`
 }
 
+// Preview samples stay bounded even when the formal collection budget is larger.
+// Return a copy so inspecting an entry never changes its saved run configuration.
+func (p RecordPlan) ForPreview() RecordPlan {
+	if p.MaxRecords > 20 {
+		p.MaxRecords = 20
+	}
+	return p
+}
+
 func validLocator(locator *Locator, relative bool) bool {
 	return locator != nil && (locator.Strategy == "css" || locator.Strategy == "xpath") && locator.Expression != "" && len(locator.Expression) <= 2048 && (!relative || locator.Strategy != "xpath" || locator.Expression[0] == '.')
 }

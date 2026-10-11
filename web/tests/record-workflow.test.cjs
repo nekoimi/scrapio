@@ -13,7 +13,7 @@ function mount(filename,initial,api={},confirm=()=>true){
  const template=compileTemplate({source:descriptor.template.content,filename,id:'record-test',compilerOptions:{bindingMetadata:script.bindings}});assert.equal(template.errors.length,0);
  const output=ts.transpileModule(script.content,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true}}).outputText;
  const module={exports:{}}; const events=[],navigations=[],props=vue.reactive(initial);
- vm.runInNewContext(output,{module,exports:module.exports,require:name=>name==='vue'?vue:name==='./api'?{appApi:api}:{},window:{confirm},
+ vm.runInNewContext(output,{module,exports:module.exports,require:name=>name==='vue'?vue:name==='./api'?{appApi:api}:name==='./editor-feedback'?require('./workbench-loader.cjs'):{},window:{confirm},
   sessionStorage:{getItem:()=>null,setItem(){},removeItem(){}},crypto:require('node:crypto'),URL,document:{getElementById:()=>null}});
  const component=module.exports.default;let state;
  const setup=component.setup; component.setup=(props,context)=>{state=setup(props,context);return state;};component.render=()=>vue.h('div');
@@ -27,14 +27,14 @@ function designer(api={},extra={},confirm){
  return mount('record-designer.vue',{draft:{id:'collector',name:'Movies',revision:1,definition:{steps:[{step_id:'records',type:'record_set',config:plan()}]}},session:{session_id:'session',page_state_id:'page',available:true},blocked:false,enabled:true,execute:async()=>{throw new Error('Unexpected website action');},view:'rules',...extra},api,confirm);
 }
 
-function detailWorkflow({status='succeeded',candidates=true,confirm=()=>true,redirectToList=false}={}){
+function detailWorkflow({status='succeeded',candidates=true,confirm=()=>true,redirectToList=false,errorCode,errorMessage}={}){
  const calls=[];let h;
  const api={updateCollector:async(_,input)=>{calls.push('save');return {...h.props.draft,revision:h.props.draft.revision+1,definition:input.definition};},
   previewRecords:async(_,page,revision,step,stage)=>{calls.push(`preview-${stage}`);return {page_state_id:page,stage,records:[{index:0,values:{},fields:[]}],current_url:h.props.session.current_url,
    detail_urls:stage==='list' && candidates?[{url:'https://example.test/movie/1',raw_url:'/movie/1',record_index:0}]:[],next_pages:[],warnings:[]};}};
  h=designer(api,{session:{session_id:'session',page_state_id:'page',available:true,current_url:'https://example.test/list'},execute:async action=>{
   calls.push(action.type);if(status==='succeeded')h.props.session={...h.props.session,current_url:action.type==='back'||redirectToList?'https://example.test/list':action.value,page_state_id:action.type==='back'?'returned':'detail'};
-  await tick();return {status,result:{final_url:h.props.session.current_url}};
+  await tick();return {command_id:'cmd-detail',status,result:{final_url:h.props.session.current_url,error_code:errorCode,error:errorMessage}};
  }},confirm);
  h.state.enableDetail();h.state.plan.value.fields=[];
  return {h,calls};
@@ -70,6 +70,21 @@ test('a successful navigation receipt that redirects to the list cannot enable d
   assert.equal(h.events.filter(event=>event[0]==='select').length,0);
  }finally{h.unmount();}
 });
+test('detail navigation feedback preserves receipt diagnosis and blocks uncertain replays',async()=>{
+ for(const status of ['failed','uncertain']){
+  const {h,calls}=detailWorkflow({status,errorCode:'INVALID_LOCATOR',errorMessage:'详情入口定位规则无效'});try{
+   await h.state.openExampleDetail();
+   const issue=h.state.failureDetails.value;
+   assert.equal(issue.title,'打开示例详情失败');assert.equal(issue.commandID,'cmd-detail');
+   assert.equal(issue.stage,'command:navigate');
+   assert.equal(issue.code,status==='failed'?'INVALID_LOCATOR':'OUTCOME_UNCERTAIN');
+   if(status==='failed')assert.equal(issue.reason,'详情入口定位规则无效');
+   else assert.match(issue.recovery,/确认结果前不要重复执行/);
+   assert.equal(calls.filter(call=>call==='navigate').length,1);
+   assert.equal(h.state.selectionBlocked.value,true);
+  }finally{h.unmount();}
+ }
+});
 test('missing candidates or declined navigation leave the list without selecting detail fields',async()=>{
  for(const options of [{candidates:false},{confirm:()=>false}]){
   const {h,calls}=detailWorkflow(options);try{
@@ -93,6 +108,20 @@ test('detail node cannot emit field selection while the webpage is still the lis
   h.props.detailPage=true;await tick();h.state.select('field');assert.equal(h.events[0][0],'select');
   h.state.activeNode.value='fields';h.state.select('field');assert.equal(h.events.length,1);
  }finally{h.unmount();}
+});
+test('failed list inspection names its phase and invalidates an old preview instead of opening a detail',async()=>{
+ let reads=0,actions=0;
+ const d=designer({previewRecords:async()=>{
+  if(++reads>1)throw {error:{code:'INVALID_ARGUMENT',stage:'record-preview:list'},request_id:'req-list'};
+  return {page_state_id:'page',stage:'list',records:[],current_url:'https://example.test/list',detail_urls:[{record_index:0,url:'https://example.test/detail'}],next_pages:[],warnings:[]};
+ }},{execute:async()=>{actions++;throw new Error('must not navigate');}});
+ try{
+  d.state.plan.value.detail={locator:{strategy:'css',expression:'a'},max_details:3,return_strategy:'back'};
+  d.state.saved.value=JSON.stringify(d.state.plan.value);
+  await d.state.previewCurrent();await d.state.openExampleDetail();
+  assert.equal(actions,0);assert.match(d.state.failureDetails.value.title,/打开详情前检查列表/);
+  assert.equal(d.state.failureDetails.value.requestID,'req-list');assert.equal(d.state.previewStale.value,true);
+ }finally{d.unmount();}
 });
 test('node switching preserves field edits and never navigates or executes a webpage',async()=>{
  const h=rules();try{

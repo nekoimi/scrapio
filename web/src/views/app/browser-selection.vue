@@ -153,11 +153,14 @@
 				</button>
 			</template>
 		</details>
-		<p v-if="message" class="app-error" role="status">{{ message }}</p>
+		<EditorErrorNotice v-if="failureDetails" :problem="failureDetails" />
+		<p v-else-if="message" class="app-error" role="status">{{ message }}</p>
 	</section>
 </template>
 
 <script setup lang="ts">
+import EditorErrorNotice from './editor-error-notice.vue';
+import { editorProblem, problemMessage, type EditorProblem } from './editor-feedback';
 import { stateChange } from './browser-state';
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import {
@@ -212,6 +215,8 @@ const childIndex = ref(1);
 const busy = ref(false);
 watch(busy, value => emit('working', value), { flush: 'sync' });
 const message = ref('');
+const failureDetails = ref<EditorProblem>();
+watch(message, () => { failureDetails.value = undefined; }, { flush: 'sync' });
 const canConfirm = computed(() => props.recheckEnabled ? !!props.session?.available && !props.recheckBlocked : available.value);
 const available = computed(() => props.enabled && !!props.session?.available && !props.blocked);
 const targetMode = computed(() => props.target === 'field' || props.target === 'detail' ? 'field' : 'record');
@@ -405,7 +410,7 @@ function reselect() {
 function accept(id: string, state: string, epoch: number) {
 	return !disposed && epoch === generation && id === props.session?.session_id && state === props.session?.page_state_id && available.value;
 }
-function failure(cause: any, hover = false) {
+function failure(cause: any, hover = false, action = '检查点选元素') {
 	const code = cause?.error?.code;
 	const hints: Record<string, string> = {
 		NO_ELEMENT: '此位置没有可选元素，请选择可见内容。',
@@ -420,13 +425,15 @@ function failure(cause: any, hover = false) {
 		COMMAND_PENDING: '上一动作结果尚未确认，请先查询回执。',
 		SESSION_GONE: '会话已结束，配置已保留；恢复或重新打开后请重新验证。',
 		FORBIDDEN: '当前账号没有此会话的访问权限，请检查登录账号。',
-		INVALID_ARGUMENT: '检查参数、元素或规则无效；请重新点选或核对定位规则。',
+		INVALID_ARGUMENT: '服务拒绝了本次检查，尚未细分具体原因。',
 	};
 	if (code === 'STALE_FRAME' || code === 'STALE_PAGE_STATE' || code === 'SESSION_GONE' || code === 'ELEMENT_REFERENCE_STALE')
 		invalidateEvidence(hints[code]);
 	if (hover && ['NO_ELEMENT', 'OUTSIDE_RECORD_SCOPE', 'RECORD_SCOPE_EMPTY', 'ELEMENT_REFERENCE_STALE', 'INVALID_ARGUMENT'].includes(code)) return;
-	const requestID = cause?.error?.request_id || cause?.request_id;
-	message.value = (hints[code] || '检查服务暂时不可用，请确认连接后重试；当前输入已保留。') + (requestID ? `（请求 ${requestID}）` : '');
+	const problem = editorProblem(cause, action);
+	if (hints[code] && code !== 'INVALID_ARGUMENT') problem.reason = hints[code];
+	message.value = problemMessage(problem);
+	failureDetails.value = problem;
 }
 function drainQueued() {
 	const next = queued;
@@ -479,7 +486,7 @@ async function inspect(input: Partial<InspectionInput>, pageState: string, hover
 	} catch (cause: any) {
 		if (accept(session.session_id, pageState, epoch) && (!hover || hoverEpoch === hoverGeneration)) {
 			if (hover) highlight([], pageState, 'hover');
-			failure(cause, hover);
+			failure(cause, hover, input.element_id ? '检查元素或所属链接' : '检查网页点选位置');
 		}
 	} finally {
 		busy.value = false;
@@ -581,7 +588,7 @@ async function validateLocator() {
 		highlight([], pageState, result.match_count === 1 ? 'similar' : 'selected');
 		highlight(result.elements, pageState, result.match_count === 1 ? 'selected' : 'similar');
 	} catch (cause: any) {
-		if (accept(session.session_id, pageState, epoch)) failure(cause);
+		if (accept(session.session_id, pageState, epoch)) failure(cause, false, '验证当前定位规则');
 	} finally {
 		busy.value = false;
 		drainQueued();
@@ -621,7 +628,7 @@ async function loadDOM(id = '', offset = 0) {
 		const result = await appApi.domChildren(session.session_id, pageState, id, offset);
 		if (accept(session.session_id, pageState, epoch)) dom.value = result;
 	} catch (cause: any) {
-		if (accept(session.session_id, pageState, epoch)) failure(cause);
+		if (accept(session.session_id, pageState, epoch)) failure(cause, false, '读取网页 DOM 层级');
 	} finally {
 		busy.value = false;
 		drainQueued();

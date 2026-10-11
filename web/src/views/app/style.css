@@ -308,6 +308,13 @@
 .browser-frame-status > button { margin-left: auto; flex-shrink: 0; }
 
 /* Flow overview and one active record configuration keep the webpage unobstructed. */
+.editor-error-notice { margin: 12px 0; padding: 14px 16px; border: 1px solid #e8b8b8; border-radius: 8px; background: #fff7f7; color: #8b3434; overflow-wrap: anywhere; }
+.editor-error-notice p { margin: 8px 0; }
+.editor-error-notice .editor-error-recovery { color: #596579; }
+.editor-error-notice details { margin-top: 10px; font-size: 12px; }
+.editor-error-notice summary { cursor: pointer; }
+.editor-error-notice dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; }
+.editor-error-notice dd { margin: 0; }
 .selection-goals { display: flex; flex-wrap: wrap; gap: 8px; }
 .selection-goals > button { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 145px; text-align: left; }
 .selection-goals small { color: #647086; font-size: 12px; font-weight: 400; }

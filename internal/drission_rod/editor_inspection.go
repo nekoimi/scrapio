@@ -14,6 +14,10 @@ func (d *DrissionRod) InspectEditorPage(ctx context.Context, sessionID, requestI
 	if client == nil {
 		return nil, &BrowserError{Code: "BROWSER_UNAVAILABLE", Message: "browser unavailable"}
 	}
+	if operation == "record-preview" && input.RecordPlan != nil {
+		previewPlan := input.RecordPlan.ForPreview()
+		input.RecordPlan = &previewPlan
+	}
 	data, err := json.Marshal(input)
 	if err != nil {
 		return nil, err
