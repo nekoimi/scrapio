@@ -7,6 +7,8 @@ declare module 'axios' {
     interface AxiosRequestConfig {
         // The caller renders failures locally. Authentication still uses the global flow.
         localError?: boolean;
+        // Capture clients need bytes and metadata from the same HTTP response.
+        responseEnvelope?: boolean;
     }
 }
 
@@ -55,7 +57,7 @@ service.interceptors.response.use(
             }
             return Promise.reject(res);
         } else {
-            return res;
+            return response.config.responseEnvelope ? response : res;
         }
     },
     (error) => {

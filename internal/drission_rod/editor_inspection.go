@@ -28,7 +28,8 @@ func (d *DrissionRod) InspectEditorPage(ctx context.Context, sessionID, requestI
 		return nil, &BrowserError{Code: response.ErrorCode, Message: response.Error}
 	}
 	var result struct {
-		PageStateID string `json:"page_state_id"`
+		PageStateID string        `json:"page_state_id"`
+		State       *editor.State `json:"state"`
 	}
 	limit := 1024 * 1024
 	if operation == "snapshot" {
@@ -36,6 +37,9 @@ func (d *DrissionRod) InspectEditorPage(ctx context.Context, sessionID, requestI
 	}
 	if len(response.ResultJson) > limit || json.Unmarshal([]byte(response.ResultJson), &result) != nil || result.PageStateID != input.PageStateID {
 		return nil, &BrowserError{Code: "INVALID_RESPONSE", Message: "invalid or stale inspection response"}
+	}
+	if result.State != nil && result.State.Validate(input.PageStateID, false) != nil {
+		return nil, &BrowserError{Code: "INVALID_RESPONSE", Message: "invalid inspection state"}
 	}
 	return json.RawMessage(response.ResultJson), nil
 }

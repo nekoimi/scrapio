@@ -937,8 +937,10 @@ type EditorSessionResponse struct {
 	ViewportWidth   int32                  `protobuf:"varint,11,opt,name=viewport_width,json=viewportWidth,proto3" json:"viewport_width,omitempty"`
 	ViewportHeight  int32                  `protobuf:"varint,12,opt,name=viewport_height,json=viewportHeight,proto3" json:"viewport_height,omitempty"`
 	Screenshot      []byte                 `protobuf:"bytes,13,opt,name=screenshot,proto3" json:"screenshot,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// Optional editor.state.v1 state; frame metadata belongs to these screenshot bytes.
+	StateJson     string `protobuf:"bytes,14,opt,name=state_json,json=stateJson,proto3" json:"state_json,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *EditorSessionResponse) Reset() {
@@ -1062,6 +1064,13 @@ func (x *EditorSessionResponse) GetScreenshot() []byte {
 	return nil
 }
 
+func (x *EditorSessionResponse) GetStateJson() string {
+	if x != nil {
+		return x.StateJson
+	}
+	return ""
+}
+
 type EditorCommandRequest struct {
 	state             protoimpl.MessageState `protogen:"open.v1"`
 	ProtocolVersion   string                 `protobuf:"bytes,1,opt,name=protocol_version,json=protocolVersion,proto3" json:"protocol_version,omitempty"`
@@ -1078,6 +1087,7 @@ type EditorCommandRequest struct {
 	HasPosition       bool                   `protobuf:"varint,12,opt,name=has_position,json=hasPosition,proto3" json:"has_position,omitempty"`
 	X                 float64                `protobuf:"fixed64,13,opt,name=x,proto3" json:"x,omitempty"`
 	Y                 float64                `protobuf:"fixed64,14,opt,name=y,proto3" json:"y,omitempty"`
+	FrameSequence     int64                  `protobuf:"varint,15,opt,name=frame_sequence,json=frameSequence,proto3" json:"frame_sequence,omitempty"` // editor.state.v1 coordinate basis; zero for legacy requests
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -1206,6 +1216,13 @@ func (x *EditorCommandRequest) GetX() float64 {
 func (x *EditorCommandRequest) GetY() float64 {
 	if x != nil {
 		return x.Y
+	}
+	return 0
+}
+
+func (x *EditorCommandRequest) GetFrameSequence() int64 {
+	if x != nil {
+		return x.FrameSequence
 	}
 	return 0
 }
@@ -1613,7 +1630,7 @@ const file_fetch_proto_rawDesc = "" +
 	"session_id\x18\x03 \x01(\tR\tsessionId\x12\x1f\n" +
 	"\vttl_seconds\x18\x04 \x01(\x05R\n" +
 	"ttlSeconds\x12\"\n" +
-	"\rpage_state_id\x18\x05 \x01(\tR\vpageStateId\"\xc9\x03\n" +
+	"\rpage_state_id\x18\x05 \x01(\tR\vpageStateId\"\xe8\x03\n" +
 	"\x15EditorSessionResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12)\n" +
 	"\x10protocol_version\x18\x02 \x01(\tR\x0fprotocolVersion\x12\x1d\n" +
@@ -1634,7 +1651,9 @@ const file_fetch_proto_rawDesc = "" +
 	"\x0fviewport_height\x18\f \x01(\x05R\x0eviewportHeight\x12\x1e\n" +
 	"\n" +
 	"screenshot\x18\r \x01(\fR\n" +
-	"screenshot\"\xc2\x03\n" +
+	"screenshot\x12\x1d\n" +
+	"\n" +
+	"state_json\x18\x0e \x01(\tR\tstateJson\"\xe9\x03\n" +
 	"\x14EditorCommandRequest\x12)\n" +
 	"\x10protocol_version\x18\x01 \x01(\tR\x0fprotocolVersion\x12\x1d\n" +
 	"\n" +
@@ -1654,7 +1673,8 @@ const file_fetch_proto_rawDesc = "" +
 	"\tconfirmed\x18\v \x01(\bR\tconfirmed\x12!\n" +
 	"\fhas_position\x18\f \x01(\bR\vhasPosition\x12\f\n" +
 	"\x01x\x18\r \x01(\x01R\x01x\x12\f\n" +
-	"\x01y\x18\x0e \x01(\x01R\x01y\"\xc0\x03\n" +
+	"\x01y\x18\x0e \x01(\x01R\x01y\x12%\n" +
+	"\x0eframe_sequence\x18\x0f \x01(\x03R\rframeSequence\"\xc0\x03\n" +
 	"\x15EditorCommandResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12)\n" +
 	"\x10protocol_version\x18\x02 \x01(\tR\x0fprotocolVersion\x12\x1d\n" +

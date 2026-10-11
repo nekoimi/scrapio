@@ -1,3 +1,4 @@
+import { validBrowserState, type BrowserState, type CaptureBlob } from './browser-state';
 import { computed, nextTick, shallowRef, ref } from 'vue';
 
 export interface FrameTarget {
@@ -5,6 +6,7 @@ export interface FrameTarget {
 	pageStateID: string;
 	url: string;
 	available: boolean;
+	state?: BrowserState;
 }
 interface DecodedFrame extends FrameTarget {
 	objectURL: string;
@@ -76,7 +78,14 @@ export function createBrowserFrame(options: FrameOptions) {
 		if (disposed) return;
 		const prior = target.value;
 		if (prior?.sessionID !== value?.sessionID) clear();
-		else if (prior?.pageStateID !== value?.pageStateID || prior?.available !== value?.available || prior?.url !== value?.url) {
+		else if (
+			prior?.pageStateID !== value?.pageStateID ||
+			prior?.available !== value?.available ||
+			prior?.url !== value?.url ||
+			prior?.state?.document_id !== value?.state?.document_id ||
+			prior?.state?.frame_state_id !== value?.state?.frame_state_id ||
+			prior?.state?.validation_state_id !== value?.state?.validation_state_id
+		) {
 			invalidate();
 			error.value = '';
 		}
@@ -99,13 +108,33 @@ export function createBrowserFrame(options: FrameOptions) {
 			pending = undefined;
 			let objectURL = '';
 			try {
-				const blob = await options.load(job.target);
+				const blob = (await options.load(job.target)) as CaptureBlob;
+				const metadata = blob.frameState;
+				if (job.target.state && !metadata) throw new Error('缺少画面元数据');
+				if (
+					metadata &&
+					(!validBrowserState(metadata, job.target.pageStateID, true) ||
+						(job.target.state &&
+							(metadata.document_id !== job.target.state.document_id ||
+								metadata.frame_state_id !== job.target.state.frame_state_id ||
+								metadata.validation_state_id !== job.target.state.validation_state_id)))
+				)
+					throw new Error('画面版本不一致');
 				if (!valid(job)) continue;
 				objectURL = createURL(blob);
 				const size = await decode(objectURL);
 				if (!valid(job)) continue;
+				if (
+					metadata &&
+					(metadata.image!.width !== size.width ||
+						metadata.image!.height !== size.height ||
+						(frame.value?.sessionID === job.target.sessionID &&
+							frame.value.state?.frame_sequence &&
+							metadata.frame_sequence! <= frame.value.state.frame_sequence))
+				)
+					throw new Error('画面尺寸或帧序号无效');
 				const prior = frame.value;
-				frame.value = { ...job.target, objectURL, ...size };
+				frame.value = { ...job.target, state: metadata, objectURL, ...size };
 				objectURL = ''; // Ownership transferred to the displayed frame.
 				needsRefresh.value = false;
 				error.value = '';

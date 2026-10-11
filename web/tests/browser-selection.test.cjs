@@ -24,7 +24,7 @@ function mount(api = {}) {
   const template = compileTemplate({ source: descriptor.template.content, filename, id: 'selection-test', compilerOptions: { bindingMetadata: script.bindings } });
   assert.equal(template.errors.length, 0);
   const timers = new Set();
-  const component = evaluate(script.content, { vue, './api': { appApi: api } }, {
+  const component = evaluate(script.content, { vue, './browser-state': require('./workbench-loader.cjs'), './api': { appApi: api } }, {
     setTimeout: fn => { timers.add(fn); return fn; }, clearTimeout: fn => timers.delete(fn),
   });
   let state;
@@ -75,6 +75,25 @@ test('save blocking preserves inputs; page changes require new evidence before r
   } finally { editor.unmount(); }
 });
 
+test('split state explains invalidation while preserving inputs; identical SSE state keeps evidence', async () => {
+  const current = { protocol: 'editor.state.v1', document_id: 'document', frame_state_id: 'frame', validation_state_id: 'dom' };
+  let resultState = current;
+  const h = mount({ checkLocator: async (_, input) => ({ ...locatorResult(input), state: resultState }) });
+  try {
+    const s = h.state; h.props.session.state = current; await settle();
+    s.expression.value = '.title'; s.fieldName.value = '标题'; await s.validateLocator();
+    assert.equal(s.checkValid.value, true);
+    h.props.session.state = { ...current }; await settle(); assert.equal(s.checkValid.value, true);
+    h.props.session = { ...h.props.session, page_state_id: 'page-2', state: { ...current, frame_state_id: 'scrolled' } }; await settle();
+    assert.equal(s.checkValid.value, false); assert.match(s.staleReason.value, /旧坐标/); assert.equal(s.fieldName.value, '标题');
+    resultState = h.props.session.state; await s.validateLocator(); assert.equal(s.checkValid.value, true);
+    h.props.session = { ...h.props.session, page_state_id: 'page-3', state: { ...current, validation_state_id: 'new-dom' } }; await settle();
+    assert.match(s.staleReason.value, /DOM/);
+    h.props.session = { ...h.props.session, page_state_id: 'page-4', state: { ...current, document_id: 'new-document' } }; await settle();
+    assert.match(s.staleReason.value, /文档/); assert.equal(s.expression.value, '.title');
+  } finally { h.unmount(); }
+});
+
 test('target and browse-mode changes retain independent pending configurations', async () => {
   const editor = mount({ checkLocator: async (_, input) => locatorResult(input) });
   try {
@@ -114,6 +133,7 @@ test('hover misses stay quiet, service failures stay visible, and editing suspen
   const editor = mount({ inspectElement: async () => { calls++; throw { error: { code }, request_id: 'request-1' }; } });
   try {
     const s = editor.state;
+    editor.props.frameState = { frame_sequence: 7 }; await settle();
     s.frameHover(1, 1, 'page-1'); editor.fireHover(); await settle();
     assert.equal(s.message.value, '');
     code = 'BROWSER_UNAVAILABLE'; s.frameHover(1, 1, 'page-1'); editor.fireHover(); await settle();
@@ -145,15 +165,30 @@ test('explicit click supersedes an in-flight hover and keeps unfinished field pr
   const editor = mount({ inspectElement: (_, input) => new Promise(resolve => requests.push({ input, resolve })) });
   try {
     const s = editor.state;
+    editor.props.frameState = { frame_sequence: 7 }; await settle();
     s.frameHover(1, 1, 'page-1'); editor.fireHover();
     s.framePick(20, 20, 'page-1');
     const result = id => ({ page_state_id: 'page-1', element: { element_id: id, tag: 'img', attributes: {}, text: id }, locators: [] });
     requests[0].resolve(result('hover')); await settle();
     assert.equal(requests.length, 2); assert.equal(s.selection.value, undefined);
+    assert.equal(requests[1].input.frame_sequence, 7);
     assert.equal(editor.events.some(e => e[0] === 'highlight' && e[1].kind === 'hover' && e[1].elements.length), false);
     s.fieldName.value = '正在编辑的标题'; s.extractKind.value = 'link';
     requests[1].resolve(result('selected')); await settle();
     assert.equal(s.selection.value.element.element_id, 'selected');
     assert.equal(s.fieldName.value, '正在编辑的标题'); assert.equal(s.extractKind.value, 'link');
   } finally { editor.unmount(); }
+});
+
+
+test('capture request can retain response headers without changing ordinary response unwrapping', () => {
+  let response;
+  const axios = { create: () => ({ interceptors: { request: { use() {} }, response: { use: fn => { response = fn; } } } }) };
+  evaluate(fs.readFileSync(path.join(__dirname, '../src/utils/request.ts'), 'utf8').replace('import.meta.env.VITE_API_URL', "''"), {
+    axios, 'element-plus': { ElMessage: {}, ElMessageBox: {} }, '/@/utils/storage': { Session: {} }, qs: {},
+  });
+  const normal = { data: { data: 'value' }, config: {} };
+  assert.equal(response(normal), normal.data);
+  const capture = { data: new Blob(), config: { responseEnvelope: true }, headers: { 'x-scrapio-frame': 'metadata' } };
+  assert.equal(response(capture), capture);
 });

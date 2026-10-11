@@ -33,23 +33,24 @@ type createEditorSessionInput struct {
 }
 
 type editorSessionDTO struct {
-	SessionID                string         `json:"session_id"`
-	CollectorID              string         `json:"collector_id"`
-	DraftRevision            int            `json:"draft_revision"`
-	Status                   string         `json:"status"`
-	ExpiresAt                time.Time      `json:"expires_at"`
-	PageStateID              string         `json:"page_state_id"`
-	CurrentURL               string         `json:"current_url"`
-	Viewport                 map[string]int `json:"viewport"`
-	FrameURL                 string         `json:"frame_url"`
-	HeartbeatIntervalSeconds int            `json:"heartbeat_interval_seconds"`
-	Available                bool           `json:"available"`
-	NeedsReopen              bool           `json:"needs_reopen"`
+	State                    json.RawMessage `json:"state,omitempty"`
+	SessionID                string          `json:"session_id"`
+	CollectorID              string          `json:"collector_id"`
+	DraftRevision            int             `json:"draft_revision"`
+	Status                   string          `json:"status"`
+	ExpiresAt                time.Time       `json:"expires_at"`
+	PageStateID              string          `json:"page_state_id"`
+	CurrentURL               string          `json:"current_url"`
+	Viewport                 map[string]int  `json:"viewport"`
+	FrameURL                 string          `json:"frame_url"`
+	HeartbeatIntervalSeconds int             `json:"heartbeat_interval_seconds"`
+	Available                bool            `json:"available"`
+	NeedsReopen              bool            `json:"needs_reopen"`
 }
 
 func sessionDTO(row *table.V22BrowserSession) editorSessionDTO {
 	return editorSessionDTO{
-		SessionID: row.Id, CollectorID: strconv.FormatInt(row.CollectorId, 10), DraftRevision: row.DraftRevision,
+		State: row.BrowserState, SessionID: row.Id, CollectorID: strconv.FormatInt(row.CollectorId, 10), DraftRevision: row.DraftRevision,
 		Status: row.Status, ExpiresAt: row.ExpiresAt, PageStateID: row.PageStateId, CurrentURL: row.CurrentURL,
 		Viewport: map[string]int{"width": row.ViewportWidth, "height": row.ViewportHeight},
 		FrameURL: "/api/v3/browser-sessions/" + row.Id + "/frame", HeartbeatIntervalSeconds: 20,
@@ -155,6 +156,7 @@ func CreateBrowserSession(browser *drission_rod.DrissionRod) http.HandlerFunc {
 			writeSessionError(w, r, err)
 			return
 		}
+		attachSessionState(row, state)
 		created(w, r, sessionDTO(row))
 	}
 }
@@ -212,6 +214,7 @@ func HeartbeatBrowserSession(browser *drission_rod.DrissionRod) http.HandlerFunc
 			writeSessionError(w, r, err)
 			return
 		}
+		attachSessionState(session, state)
 		ok(w, r, sessionDTO(session))
 	}
 }
@@ -290,6 +293,11 @@ func GetBrowserSessionFrame(browser *drission_rod.DrissionRod) http.HandlerFunc 
 		w.Header().Set("Content-Type", "image/png")
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("X-Page-State-ID", state.PageStateID)
+		if state.State != nil {
+			metadata, _ := json.Marshal(state.State)
+			w.Header().Set("X-Scrapio-Frame", string(metadata))
+		}
+		w.Header().Set("Access-Control-Expose-Headers", "X-Page-State-ID, X-Scrapio-Frame")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write(state.Screenshot)
 	}
@@ -391,12 +399,14 @@ func refreshOwnedSessionFromBrowser(r *http.Request, ownerID int64, sessionID st
 			return v22_session_repo.Get(ownerID, sessionID)
 		}
 	}
+	var liveState drission_rod.EditorSessionState
 	if !session.ExpiresAt.After(time.Now()) {
 		err = v22_session_repo.SetStatus(ownerID, sessionID, "expired")
 	} else if browser == nil {
 		err = v22_session_repo.SetStatus(ownerID, sessionID, "disconnected")
 	} else {
 		state, browserErr := browser.GetEditorSession(r.Context(), sessionID)
+		liveState = state
 		if browserErr != nil {
 			err = v22_session_repo.SetStatus(ownerID, sessionID, sessionFailureStatus(browserErr))
 		} else {
@@ -407,7 +417,11 @@ func refreshOwnedSessionFromBrowser(r *http.Request, ownerID int64, sessionID st
 		return nil, err
 	}
 	// Always read persisted state: close/expiry may have won the race.
-	return v22_session_repo.Get(ownerID, sessionID)
+	row, readErr := v22_session_repo.Get(ownerID, sessionID)
+	if readErr == nil {
+		attachSessionState(row, liveState)
+	}
+	return row, readErr
 }
 
 func sessionFailureStatus(err error) string {
@@ -480,4 +494,11 @@ func browserCode(err error) string {
 		return browserError.Code
 	}
 	return ""
+}
+
+func attachSessionState(row *table.V22BrowserSession, state drission_rod.EditorSessionState) {
+	if row == nil || row.Status != "ready" || state.State == nil || row.Id != state.SessionID || row.PageStateId != state.PageStateID {
+		return
+	}
+	row.BrowserState, _ = json.Marshal(state.State)
 }

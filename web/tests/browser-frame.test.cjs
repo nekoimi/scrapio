@@ -9,7 +9,7 @@ const moduleSource = ts.transpileModule(fs.readFileSync(path.join(__dirname, '..
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText;
 const exportsObject = {};
-vm.runInNewContext(moduleSource, { exports: exportsObject, require: () => vue });
+vm.runInNewContext(moduleSource, { exports: exportsObject, require: name => name === 'vue' ? vue : require('./workbench-loader.cjs') });
 const { createBrowserFrame } = exportsObject;
 const target = (pageStateID = 'page-1', sessionID = 'session-1') => ({ sessionID, pageStateID, url: '/frame', available: true });
 const deferred = () => { let resolve, reject; const promise = new Promise((a, b) => { resolve = a; reject = b; }); return { promise, resolve, reject }; };
@@ -156,4 +156,17 @@ test('editor reserves inspection and hidden stages from SSE captures; remote whe
     s.remoteWheel.value = true; s.handleFrameWheel(event); assert.equal(prevent, 1);
     s.editorStage.value = 'preview'; s.handleFrameWheel(event); assert.equal(consumed, 1);
   } finally { h.unmount(); }
+});
+
+const metadata = (overrides = {}) => ({ protocol: 'editor.state.v1', page_state_id: 'page-1', document_id: 'a'.repeat(64), validation_state_id: 'b'.repeat(64), frame_state_id: 'c'.repeat(64), viewport: { width: 640, height: 400 }, scroll: { x: 0, y: 0 }, pixel_ratio: 2, image: { width: 1280, height: 800 }, frame_sequence: 1, captured_at_unix_ms: 1, ...overrides });
+test('negotiated capture requires matching metadata and decoded pixel dimensions', async () => {
+  const h = harness(); h.queue.setTarget({ ...target(), state: metadata() });
+  let task = h.queue.refresh(); await tick(); h.requests[0].resolve({ id: 'valid', frameState: metadata() }); await task;
+  assert.equal(h.queue.stale.value, false); assert.equal(h.queue.frame.value.state.frame_sequence, 1);
+  for (const bad of [undefined, metadata({ page_state_id: 'old' }), metadata({ image: { width: 20, height: 20 } }), metadata({ frame_sequence: 1 })]) {
+    task = h.queue.refresh(); await tick(); h.requests.at(-1).resolve({ id: 'bad', frameState: bad }); await task;
+    assert.equal(h.queue.frame.value.objectURL, 'image-valid'); assert.equal(h.queue.stale.value, true);
+  }
+  task = h.queue.refresh(); await tick(); h.requests.at(-1).resolve({ id: 'next', frameState: metadata({ frame_sequence: 2 }) }); await task;
+  assert.equal(h.queue.stale.value, false); h.queue.dispose();
 });

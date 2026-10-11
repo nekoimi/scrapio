@@ -1,9 +1,12 @@
 package drission_rod
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"github.com/nekoimi/scrapio/internal/credential"
+	"github.com/nekoimi/scrapio/internal/editor"
+	"image/png"
 	"time"
 
 	"github.com/google/uuid"
@@ -29,6 +32,7 @@ type EditorSessionState struct {
 	CurrentURL  string
 	Width       int32
 	Height      int32
+	State       *editor.State
 	Screenshot  []byte
 }
 
@@ -112,10 +116,16 @@ func (d *DrissionRod) editorSessionCall(ctx context.Context, sessionID, action s
 	if err != nil {
 		return EditorSessionState{}, classifyRPCError(request.RequestId, err)
 	}
+	if action == "frame" && response != nil && response.Success && (response.SessionId != sessionID || response.PageStateId != pageStateID || response.Status != "ready" || len(response.Screenshot) == 0) {
+		return EditorSessionState{}, &BrowserError{Code: "INVALID_RESPONSE", Message: "frame response does not match request"}
+	}
 	return editorSessionResponse(response)
 }
 
 func editorSessionResponse(response *pb.EditorSessionResponse) (EditorSessionState, error) {
+	if response == nil {
+		return EditorSessionState{}, &BrowserError{Code: "INVALID_RESPONSE"}
+	}
 	if !response.Success {
 		code := response.ErrorCode
 		if code == "" {
@@ -123,11 +133,23 @@ func editorSessionResponse(response *pb.EditorSessionResponse) (EditorSessionSta
 		}
 		return EditorSessionState{}, &BrowserError{Code: code, RequestID: response.RequestId, Message: response.Error, Retryable: code == "BROWSER_UNAVAILABLE" || code == "CAPACITY_REACHED"}
 	}
+	var metadata *editor.State
+	if response.StateJson != "" {
+		if response.ProtocolVersion != EditorProtocolVersion || len(response.StateJson) > 4096 || json.Unmarshal([]byte(response.StateJson), &metadata) != nil || metadata.Validate(response.PageStateId, len(response.Screenshot) > 0) != nil {
+			return EditorSessionState{}, &BrowserError{Code: "INVALID_RESPONSE", Message: "invalid state metadata"}
+		}
+		if len(response.Screenshot) > 0 {
+			size, err := png.DecodeConfig(bytes.NewReader(response.Screenshot))
+			if err != nil || size.Width != metadata.Image.Width || size.Height != metadata.Image.Height {
+				return EditorSessionState{}, &BrowserError{Code: "INVALID_RESPONSE", Message: "frame dimensions do not match capture metadata"}
+			}
+		}
+	}
 	return EditorSessionState{
 		SessionID: response.SessionId, Status: response.Status,
 		ExpiresAt: time.UnixMilli(response.ExpiresAtUnixMs), PageStateID: response.PageStateId,
 		CurrentURL: response.CurrentUrl, Width: response.ViewportWidth, Height: response.ViewportHeight,
-		Screenshot: response.Screenshot,
+		Screenshot: response.Screenshot, State: metadata,
 	}, nil
 }
 
@@ -160,4 +182,17 @@ func (d *DrissionRod) ProbeEditorAuthorization(ctx context.Context) error {
 		return &BrowserError{Code: "AUTHORIZATION_UNAVAILABLE"}
 	}
 	return nil
+}
+
+// Extension probe does not allocate a tab. Legacy services reject it and retain
+// editor.v1 behavior; support is never inferred from health or local code.
+func (d *DrissionRod) ProbeEditorState(ctx context.Context) bool {
+	client := d.Client()
+	if client == nil {
+		return false
+	}
+	call, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	response, err := client.GetEditorSession(call, &pb.EditorSessionRequest{ProtocolVersion: editor.StateProtocol, SessionId: "protocol-probe"})
+	return err == nil && response != nil && response.ProtocolVersion == EditorProtocolVersion && response.ErrorCode == "STATE_SUPPORTED"
 }

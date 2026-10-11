@@ -23,7 +23,7 @@ type EditorCommandResult struct {
 }
 
 func (d *DrissionRod) ExecuteEditorCommand(ctx context.Context, sessionID, commandID string, input editor.Command) (EditorCommandResult, error) {
-	r := &pb.EditorCommandRequest{ProtocolVersion: EditorProtocolVersion, SessionId: sessionID, CommandId: commandID, RequestId: commandID, PageStateId: input.PageStateID, Type: input.Type, Value: input.Value, TimeoutMs: int32(input.TimeoutMS), Confirmed: input.Confirmed}
+	r := &pb.EditorCommandRequest{ProtocolVersion: EditorProtocolVersion, SessionId: sessionID, CommandId: commandID, RequestId: commandID, PageStateId: input.PageStateID, Type: input.Type, Value: input.Value, TimeoutMs: int32(input.TimeoutMS), Confirmed: input.Confirmed, FrameSequence: input.FrameSequence}
 	if input.Locator != nil {
 		r.LocatorStrategy = input.Locator.Strategy
 		r.LocatorExpression = input.Locator.Expression

@@ -22,6 +22,7 @@ type Position struct {
 	Y float64 `json:"y"`
 }
 type Command struct {
+	FrameSequence    int64     `json:"frame_sequence,omitempty"`
 	PageStateID      string    `json:"page_state_id"`
 	ExpectedRevision int       `json:"expected_revision"`
 	Type             string    `json:"type"`
@@ -38,7 +39,7 @@ func (c *Command) Validate() error {
 	if c.TimeoutMS == 0 {
 		c.TimeoutMS = 10000
 	}
-	if c.PageStateID == "" || len(c.PageStateID) > 256 || c.ExpectedRevision < 1 || c.TimeoutMS < 100 || c.TimeoutMS > 30000 {
+	if c.FrameSequence < 0 || c.FrameSequence > 9007199254740991 || c.PageStateID == "" || len(c.PageStateID) > 256 || c.ExpectedRevision < 1 || c.TimeoutMS < 100 || c.TimeoutMS > 30000 {
 		return errors.New("page_state_id, expected_revision and bounded timeout_ms are required")
 	}
 	if len(c.Value) > 4096 || len(c.StepID) > 128 {

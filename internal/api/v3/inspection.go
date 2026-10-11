@@ -141,6 +141,8 @@ func inspectionFailure(code string) (int, string) {
 		return 409, "元素已失效，请重新点选或按当前规则验证"
 	case "INSPECTION_LIMIT":
 		return 400, "检查超过数量限制，请缩小规则范围或重新打开会话"
+	case "STALE_FRAME":
+		return 409, "截图依据已更新，请更新画面后重新点选；配置已保留"
 	case "STALE_PAGE_STATE":
 		return 409, "页面已变化，请更新画面后重新验证；当前配置可保留"
 	case "INSPECTION_BUSY":

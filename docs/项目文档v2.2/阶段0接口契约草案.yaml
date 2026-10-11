@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: scrapio v2.2 editor contract spike
-  version: 0.22.0-d05
+  version: 0.22.0-ux07
   description: A02～D05 开发契约：固定版本采集、定时/API、冻结查询和导出、完整运行中心、日常首页与方案健康、失败输入修复草稿、全样例离线回归、版本比较与历史草稿复制、异常策略与正式恢复确认、加密凭据和隔离浏览器授权、Schema影响与容量保留/操作审计。真实迁移、并发和页面验收另行记录。
 servers:
   - url: /api/v3
@@ -952,8 +952,13 @@ paths:
       summary: 获取对应页面版本的 PNG 截图，返回 X-Page-State-ID 并禁止缓存
       responses:
         '200':
-          description: 画面帧；X-Page-State-ID 与请求一致
+          description: 画面帧；X-Page-State-ID 与请求一致。扩展服务的 X-Scrapio-Frame 为同次捕获的 BrowserState JSON（最多4096字符），缺失时严格按旧令牌降级。
           headers:
+            X-Scrapio-Frame:
+              description: 可选 editor.state.v1 JSON；包括同次捕获帧序号、图片尺寸、CSS视口、DPR、滚动偏移和捕获时间，不能与其他 GET/SSE 状态拼接。
+              schema:
+                type: string
+                maxLength: 4096
             X-Page-State-ID:
               schema:
                 type: string
@@ -970,7 +975,7 @@ paths:
           $ref: '#/components/responses/Error'
         '503':
           $ref: '#/components/responses/Error'
-      description: 陈旧页面状态返回 409。页面版本覆盖 DOM、导航、滚动、viewport 变化，不保证捕获 canvas、视频和动画的每个像素变化。
+      description: 陈旧页面状态返回 409。坐标检查/点击可携带 frame_sequence；最新帧已推进时拒绝 STALE_FRAME，不放宽页面令牌。页面版本覆盖 DOM、导航、滚动、viewport 变化，不保证捕获 canvas、视频和动画的每个像素变化。
       x-implementation-status: implemented
   /browser-sessions/{session_id}/events:
     parameters:
@@ -5099,6 +5104,64 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
   schemas:
+    FrameSize:
+      type: object
+      required: [width, height]
+      properties:
+        width:
+          type: integer
+          minimum: 1
+          maximum: 16384
+        height:
+          type: integer
+          minimum: 1
+          maximum: 16384
+    BrowserState:
+      type: object
+      description: editor.state.v1 扩展；分类标识不放宽 page_state_id。滚动保持 DOM 标识，不代表可复用旧坐标或旧确认；任何版本变化仍须重新验证。
+      required: [protocol, page_state_id, document_id, validation_state_id, frame_state_id, viewport, scroll, pixel_ratio]
+      properties:
+        protocol:
+          type: string
+          enum: [editor.state.v1]
+        page_state_id:
+          type: string
+        document_id:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+        validation_state_id:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+        frame_state_id:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+        viewport:
+          $ref: '#/components/schemas/FrameSize'
+        scroll:
+          type: object
+          required: [x, y]
+          properties:
+            x:
+              type: number
+            y:
+              type: number
+        pixel_ratio:
+          type: number
+          minimum: 0
+          exclusiveMinimum: true
+          maximum: 8
+        frame_sequence:
+          type: integer
+          format: int64
+          minimum: 1
+          description: 仅同次 PNG 捕获提供；单会话递增，不是动作回执。
+        image:
+          $ref: '#/components/schemas/FrameSize'
+        captured_at_unix_ms:
+          type: integer
+          format: int64
+          minimum: 1
+          description: 仅同次 PNG 捕获提供，浏览器服务器时间。
     SchemaChangeInput:
       type: object
       properties:
@@ -8652,6 +8715,12 @@ components:
     CapabilitiesResponse:
       type: object
       properties:
+        state_protocol:
+          type: string
+          enum: [legacy, editor.state.v1]
+          description: 实际浏览器扩展探测结果；不凭旧 Health 推断。
+        supports_frame_metadata:
+          type: boolean
         run_contract:
           type: string
           enum:
@@ -8933,6 +9002,8 @@ components:
         - available
         - needs_reopen
       properties:
+        state:
+          $ref: '#/components/schemas/BrowserState'
         session_id:
           type: string
         status:
@@ -8990,6 +9061,12 @@ components:
         - expected_revision
         - type
       properties:
+        frame_sequence:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 9007199254740991
+          description: editor.state.v1 的截图坐标依据；取自显示帧元数据，过期返回 STALE_FRAME。旧服务省略/零值。
         page_state_id:
           type: string
           maxLength: 256
@@ -9177,6 +9254,12 @@ components:
       required:
         - page_state_id
       properties:
+        frame_sequence:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 9007199254740991
+          description: editor.state.v1 的截图坐标依据；取自显示帧元数据，过期返回 STALE_FRAME。旧服务省略/零值。
         page_state_id:
           type: string
         position:
@@ -9265,6 +9348,8 @@ components:
     LocatorInspection:
       type: object
       properties:
+        state:
+          $ref: '#/components/schemas/BrowserState'
         page_state_id:
           type: string
         locator:
@@ -9305,6 +9390,8 @@ components:
     ElementInspection:
       type: object
       properties:
+        state:
+          $ref: '#/components/schemas/BrowserState'
         page_state_id:
           type: string
         element:
@@ -9324,6 +9411,8 @@ components:
     DOMChildren:
       type: object
       properties:
+        state:
+          $ref: '#/components/schemas/BrowserState'
         page_state_id:
           type: string
         root:

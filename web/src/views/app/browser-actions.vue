@@ -87,6 +87,7 @@
 				v-show="selecting"
 				ref="selectionPanel"
 				:session="session"
+				:frame-state="frameState"
 				:mode="mode === 'field-select' ? 'field' : 'record'"
 				:enabled="inspectionSupported"
 				:target="selectionTarget"
@@ -227,7 +228,7 @@ import BrowserSelection from './browser-selection.vue';
 import { createWheelQueue, wheelPixels } from './browser-workbench';
 import RecordDesigner from './record-designer.vue';
 
-const props = withDefaults(defineProps<{ draft: Collector; session?: BrowserSession; dirty: boolean; saving: boolean; frameReady: boolean; frameRefreshing: boolean; frameFailed?: boolean; active?: boolean; wheelEnabled?: boolean; refreshFrame: (state?: BrowserSession) => Promise<void> }>(), { active: true, wheelEnabled: true });
+const props = withDefaults(defineProps<{ draft: Collector; session?: BrowserSession; dirty: boolean; saving: boolean; frameReady: boolean; frameRefreshing: boolean; frameFailed?: boolean; frameState?: BrowserSession['state']; active?: boolean; wheelEnabled?: boolean; refreshFrame: (state?: BrowserSession) => Promise<void> }>(), { active: true, wheelEnabled: true });
 const emit = defineEmits<{
 	(event: 'draft-saved', draft: Collector): void;
 	(event: 'session-state', session: BrowserSession): void;
@@ -284,6 +285,7 @@ const expression = ref('');
 const timeout = ref(10000);
 const position = ref<{ x: number; y: number }>();
 const positionPageStateID = ref('');
+const positionFrameSequence = ref<number>();
 const selectedStep = ref(-1);
 const checkpoints = ref<EditorCheckpoint[]>([]);
 const history = ref<EditorCommand[]>([]);
@@ -404,6 +406,7 @@ function configuredAction(): Partial<EditorAction> {
 	if (position.value) {
 		action.position = { ...position.value };
 		action.page_state_id = positionPageStateID.value;
+		action.frame_sequence = positionFrameSequence.value;
 	} else if (['click', 'input', 'wait'].includes(action.type!) && expression.value.trim())
 		action.locator = { strategy: strategy.value, expression: expression.value.trim() };
 	return action;
@@ -481,6 +484,7 @@ function frameClick(x: number, y: number, pageStateID: string) {
 	}
 	if (!canExecute.value || !pageStateID) return;
 	positionPageStateID.value = pageStateID;
+	positionFrameSequence.value = props.frameState?.frame_sequence;
 	position.value = { x, y };
 	actionType.value = 'click';
 	notice.value = '已准备点击动作，请在右侧确认执行；网页还未被点击。';

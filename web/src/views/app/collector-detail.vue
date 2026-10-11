@@ -95,6 +95,7 @@
 					:saving="saving"
 					:frame-ready="frameInteractive"
 					:frame-refreshing="frameRefreshing"
+					:frame-state="frameQueue.frame.value?.state"
 					:frame-failed="!!frameError"
 					:wheel-enabled="remoteWheel"
 					:active="tabVisible && editorStage === 'edit'"
@@ -116,6 +117,7 @@
 						</div>
 						<p class="muted viewport-help">{{ remoteWheel ? '滚轮滚动远端主页面，可能触发懒加载；不支持内部滚动容器。' : '滚轮只移动本地截图，远端页面不滚动。' }} 原始比例按网页 CSS 宽度显示，可用视口滚动条本地查看。
 							{{ automaticStatus }}
+							{{ frameProtocolStatus }}
 						</p>
 						<div class="browser-web-viewport" tabindex="0" aria-label="独立网页视口" @wheel="handleFrameWheel" @mouseenter="pointerInFrame = true; adaptiveFrames.activity()" @mouseleave="pointerInFrame = false; actionsPanel?.leaveFrame()">
 						<div v-if="frameObjectUrl" class="browser-frame-stage" :style="frameDisplayStyle" :data-stale="!frameInteractive" :aria-busy="frameRefreshing" @mouseleave="actionsPanel?.leaveFrame()">
@@ -382,7 +384,7 @@ const remoteWheel = ref(true), autoFrames = ref(true), pointerInFrame = ref(fals
 const tabVisible = ref(true), refreshMeasurement = ref({ duration: 0, delay: 1800, failures: 0 });
 let resumeFrameSync = true;
 const frameDisplayStyle = computed(() => displayScale.value === 'original'
-	? { width: `${browserSession.value?.viewport?.width || frameSize.value.width}px`, maxWidth: 'none' }
+	? { width: `${frameQueue.frame.value?.state?.viewport.width || browserSession.value?.viewport?.width || frameSize.value.width}px`, maxWidth: 'none' }
 	: { width: '100%', maxWidth: 'none' });
 const automaticAllowed = computed(() => autoFrames.value && tabVisible.value && editorStage.value === 'edit' && !!browserSession.value?.available
 	&& !pointerInFrame.value && !workbenchBusy.value && !dirty.value && !saving.value && !closing.value && !connecting.value && !syncingFrame.value && !frameQueue.busy.value);
@@ -397,6 +399,9 @@ const adaptiveFrames = createAdaptiveRefresh({
 	},
 	report: (duration, delay, failures) => { refreshMeasurement.value = { duration, delay, failures }; },
 });
+const frameProtocolStatus = computed(() => frameQueue.frame.value?.state
+	? `状态扩展已启用 · 帧 ${frameQueue.frame.value.state.frame_sequence} · ${frameQueue.frame.value.state.image?.width}×${frameQueue.frame.value.state.image?.height} 像素 · DPR ${frameQueue.frame.value.state.pixel_ratio}`
+	: browserSession.value?.state ? '等待带元数据的截图。' : '兼容模式：使用严格页面令牌；浏览器服务未提供画面元数据。');
 const automaticStatus = computed(() => !browserSession.value?.available ? '连接会话后可自动更新。' : !autoFrames.value ? '自动更新已关闭。'
 	: !tabVisible.value || editorStage.value !== 'edit' ? '画面更新已暂停。'
 	: pointerInFrame.value || workbenchBusy.value ? '操作或配置期间暂停自动更新；完成后恢复。'
@@ -408,7 +413,7 @@ function handleVisibility() { tabVisible.value = document.visibilityState !== 'h
 onMounted(() => { handleVisibility(); document.addEventListener('visibilitychange', handleVisibility); adaptiveFrames.reconcile(); });
 function handleFrameWheel(event: WheelEvent) {
 	if (!remoteWheel.value || !tabVisible.value || editorStage.value !== 'edit') return;
-	if (actionsPanel.value?.frameWheel(event, browserSession.value?.viewport?.height || 800)) {
+	if (actionsPanel.value?.frameWheel(event, frameQueue.frame.value?.state?.viewport.height || browserSession.value?.viewport?.height || 800)) {
 		event.preventDefault(); adaptiveFrames.activity();
 	}
 }
@@ -650,7 +655,7 @@ async function setBrowserSession(session: BrowserSession, capture = true) {
 		pageHighlights.value = {};
 	}
 	browserSession.value = session;
-	frameQueue.setTarget({ sessionID: session.session_id, pageStateID: session.page_state_id, url: session.frame_url, available: session.available });
+	frameQueue.setTarget({ sessionID: session.session_id, pageStateID: session.page_state_id, url: session.frame_url, available: session.available, state: session.state });
 	if (lastSessionStorageKey) sessionStorage.setItem(lastSessionStorageKey, session.session_id);
 	if (!['closed', 'expired', 'failed'].includes(session.status)) startSessionEvents(session.session_id);
 	else stopSessionEvents();

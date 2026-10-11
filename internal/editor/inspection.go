@@ -6,6 +6,7 @@ import (
 )
 
 type Inspection struct {
+	FrameSequence       int64       `json:"frame_sequence,omitempty"`
 	ExpectedRevision    int         `json:"expected_revision,omitempty"`
 	StepID              string      `json:"step_id,omitempty"`
 	Stage               string      `json:"stage,omitempty"`
@@ -34,7 +35,7 @@ func (i *Inspection) Validate(operation string) error {
 	if i.Relation == "" {
 		i.Relation = "self"
 	}
-	if i.PageStateID == "" || len(i.PageStateID) > 256 || len(i.ElementID) > 128 || len(i.PreviousFingerprint) > 128 || i.Offset < 0 || i.Offset > 10000 || i.Limit < 1 || i.Limit > 50 || i.ChildIndex < 0 || i.ChildIndex > 10000 {
+	if i.FrameSequence < 0 || i.FrameSequence > 9007199254740991 || i.PageStateID == "" || len(i.PageStateID) > 256 || len(i.ElementID) > 128 || len(i.PreviousFingerprint) > 128 || i.Offset < 0 || i.Offset > 10000 || i.Limit < 1 || i.Limit > 50 || i.ChildIndex < 0 || i.ChildIndex > 10000 {
 		return errors.New("page state, element reference or pagination is invalid")
 	}
 	if i.Mode != "record" && i.Mode != "field" || i.Relation != "self" && i.Relation != "parent" && i.Relation != "child" {

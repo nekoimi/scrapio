@@ -1,6 +1,9 @@
 package table
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // V22Collector is the first isolated persistence model for the new product.
 // It intentionally does not reference legacy workflows or datasets.
@@ -38,22 +41,24 @@ type V22IdempotencyKey struct {
 func (V22IdempotencyKey) TableName() string { return "v22_idempotency_keys" }
 
 type V22BrowserSession struct {
-	CredentialRef      string     `xorm:"credential_ref"`
-	CredentialRevision int        `xorm:"credential_revision"`
-	Id                 string     `xorm:"varchar(36) pk" json:"id"`
-	OwnerId            int64      `xorm:"owner_id" json:"owner_id"`
-	CollectorId        int64      `xorm:"collector_id" json:"collector_id"`
-	DraftRevision      int        `xorm:"draft_revision" json:"draft_revision"`
-	TargetURL          string     `xorm:"target_url" json:"target_url"`
-	Status             string     `json:"status"`
-	ExpiresAt          time.Time  `xorm:"expires_at" json:"expires_at"`
-	PageStateId        string     `xorm:"page_state_id" json:"page_state_id"`
-	CurrentURL         string     `xorm:"current_url" json:"current_url"`
-	ViewportWidth      int        `xorm:"viewport_width" json:"viewport_width"`
-	ViewportHeight     int        `xorm:"viewport_height" json:"viewport_height"`
-	CreatedAt          time.Time  `xorm:"created_at" json:"created_at"`
-	UpdatedAt          time.Time  `xorm:"updated_at" json:"updated_at"`
-	ClosedAt           *time.Time `xorm:"closed_at" json:"closed_at,omitempty"`
+	// Transient browser state, never persisted or inferred from old rows.
+	BrowserState       json.RawMessage `xorm:"-" json:"-"`
+	CredentialRef      string          `xorm:"credential_ref"`
+	CredentialRevision int             `xorm:"credential_revision"`
+	Id                 string          `xorm:"varchar(36) pk" json:"id"`
+	OwnerId            int64           `xorm:"owner_id" json:"owner_id"`
+	CollectorId        int64           `xorm:"collector_id" json:"collector_id"`
+	DraftRevision      int             `xorm:"draft_revision" json:"draft_revision"`
+	TargetURL          string          `xorm:"target_url" json:"target_url"`
+	Status             string          `json:"status"`
+	ExpiresAt          time.Time       `xorm:"expires_at" json:"expires_at"`
+	PageStateId        string          `xorm:"page_state_id" json:"page_state_id"`
+	CurrentURL         string          `xorm:"current_url" json:"current_url"`
+	ViewportWidth      int             `xorm:"viewport_width" json:"viewport_width"`
+	ViewportHeight     int             `xorm:"viewport_height" json:"viewport_height"`
+	CreatedAt          time.Time       `xorm:"created_at" json:"created_at"`
+	UpdatedAt          time.Time       `xorm:"updated_at" json:"updated_at"`
+	ClosedAt           *time.Time      `xorm:"closed_at" json:"closed_at,omitempty"`
 }
 
 func (V22BrowserSession) TableName() string { return "v22_browser_sessions" }

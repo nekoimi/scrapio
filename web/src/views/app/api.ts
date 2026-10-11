@@ -1,4 +1,5 @@
 import request from '/@/utils/request';
+import { captureBlob, type BrowserState } from './browser-state';
 import { Session } from '/@/utils/storage';
 
 export interface RepairContext {repair_id:string;source_collector_id:string;target_collector_id:string;run_id:string;version_id:string;version_number:number;current_published_version_id:string|null;current_published_version_number:number;target_revision:number;pending_draft:boolean;archived:boolean;mode:string;step_id:string;stage:string;reason:string;failed_step_id:string;failed_stage:string;document_id:string;capture_id:string;evidence_status:'available'|'missing'|'corrupt'|'too_large'|'unsupported';format:string;field_keys:string[];step_compatible:boolean}
@@ -15,6 +16,7 @@ export interface RegressionEvaluation {status:string;error_code?:string;record_c
 export interface RegressionJob {job_id:string;collector_id:string;kind:'regression'|'comparison';collector_revision:number;base_version_id:string;target_version_id:string;base_hash:string;target_hash:string;snapshot_hash:string;status:string;total:number;completed:number;error_code:string;created_at:string;finished_at:string|null;report:{verdict?:string;definition?:RegressionDiff;alignment?:string;samples?:{sample_id:string;name:string;revision:number;step_id:string;stage:string;kind:string;content_hash:string;expected_hash:string;target:RegressionEvaluation;base?:RegressionEvaluation;records?:RegressionDiff}[]}}
 export interface VersionRestore {restore_id:string;collector_id:string;version_id:string;target_collector_id:string;created_at:string}
 export interface Capabilities {
+ state_protocol?: string; supports_frame_metadata?: boolean;
  supports_schema_changes?:boolean;supports_retention_settings?:boolean;supports_operation_audit?:boolean;
  supports_credentials?:boolean;supports_browser_authorization?:boolean;
  supports_quality_policies?:boolean;
@@ -57,9 +59,10 @@ export interface OverviewRun {run_id:string;collector_id:string;version_number:n
 export interface CollectorHealth {as_of:string;collector_id:string;name:string;entry_type:string;archived:boolean;published_version_id:string|null;pending_draft:boolean;table_id:string;table_name:string;updated_at:string;active_runs:number;latest_run:OverviewRun|null;latest_terminal:OverviewRun|null;latest_effective:OverviewRun|null;schedule:{enabled:boolean;next_at:string|null;timezone:string;version_id:string;version_number:number;last_decision:string;decision_at:string|null}|null;outcome:string;issues:{issue_id?:string;status?:string;kind:string;severity:string;code:string;run_id:string}[];baseline_status:string}
 export interface HomeState {status:'empty'|'ready';as_of:string;window_start:string;baseline_status:string;counts:Record<string,string>;activity:Record<string,string>;attention:CollectorHealth[];recent_collectors:CollectorHealth[];pending_drafts:CollectorHealth[];next_schedules:CollectorHealth[];recent_tables:{table_id:string;name:string;record_count:string;last_observed_at:string|null;last_changed_at:string|null;latest_run_id:string}[];recent_runs:OverviewRun[];section_limit:number}
 export interface Collector { published_version_id?:string; id: string; name: string; entry_url: string; entry_type: 'web' | 'json'; status: string; definition: Record<string, any>; revision: number; validation_status?: 'not_validated' | 'valid' | 'invalid' | 'stale'; validation_errors?: string[]; save_summary?: { revision: number; changed_fields: string[]; saved_at: string }; updated_at: string }
-export interface BrowserSession { session_id: string; collector_id: string; draft_revision: number; status: string; expires_at: string; page_state_id: string; current_url: string; viewport: { width: number; height: number }; frame_url: string; heartbeat_interval_seconds: number; available: boolean; needs_reopen: boolean }
+export interface BrowserSession { state?: BrowserState; session_id: string; collector_id: string; draft_revision: number; status: string; expires_at: string; page_state_id: string; current_url: string; viewport: { width: number; height: number }; frame_url: string; heartbeat_interval_seconds: number; available: boolean; needs_reopen: boolean }
 
 export interface EditorAction {
+  frame_sequence?: number;
   type: string; value?: string; locator?: { strategy: 'css' | 'xpath'; expression: string };
   position?: { x: number; y: number }; timeout_ms: number; confirmed: boolean;
   page_state_id: string; expected_revision: number; record: boolean; step_id?: string;
@@ -83,16 +86,18 @@ export interface InspectedElement {
   parent_id: string; child_count: number; boundary: string;
 }
 export interface InspectionInput {
+  frame_sequence?: number;
   page_state_id: string; position?: { x: number; y: number }; element_id?: string;
   mode?: 'record' | 'field'; relation?: 'self' | 'parent' | 'child'; child_index?: number;
   expand_similar?: boolean; scope?: EditorLocator; locator?: EditorLocator; previous_fingerprint?: string;
 }
 export interface LocatorCheck {
+ state?: BrowserState;
   page_state_id: string; locator: EditorLocator; match_count: number; truncated: boolean;
   elements: InspectedElement[]; sample_values: string[]; fingerprint: string;
   comparison: 'first-check' | 'unchanged' | 'changed'; warnings: string[]; scope_match_count: number;
 }
-export interface ElementInspection { page_state_id: string; element: InspectedElement; locators: (LocatorCheck & { kind: string; warning: string })[]; warnings: string[] }
+export interface ElementInspection { state?: BrowserState; page_state_id: string; element: InspectedElement; locators: (LocatorCheck & { kind: string; warning: string })[]; warnings: string[] }
 export interface DOMChildren { page_state_id: string; root: InspectedElement; items: InspectedElement[]; next_offset: number | null; total: number; warnings: string[] }
 export interface PageHighlight { page_state_id: string; elements: InspectedElement[]; kind: 'hover' | 'selected' | 'similar' }
 export interface FieldOptions {field_key?:string;type?:'string'|'integer'|'number'|'boolean'|'date'|'datetime'|'json';required?:boolean;multiple?:boolean;clean?:'trim'|'whitespace';regex?:string;date_format?:string}
@@ -332,7 +337,7 @@ export const appApi = {
   checkpoints: (id: string) => get<{ items: EditorCheckpoint[] }>(`/api/v3/collectors/${id}/checkpoints`),
   createCheckpoint: (id: string, data: { name: string; expected_revision: number; through_step_id: string }) => request({ url: `/api/v3/collectors/${id}/checkpoints`, method: 'post', data }).then((response: any) => response.data as EditorCheckpoint),
   deleteCheckpoint: (id: string, key: string) => request({ url: `/api/v3/collectors/${id}/checkpoints/${key}`, method: 'delete' }),
-  browserFrame: (url: string, pageStateId: string) => request({ url: `${url}?page_state_id=${encodeURIComponent(pageStateId)}`, method: 'get', responseType: 'blob', localError: true, timeout: 8000 }).then((response: any) => response as Blob).catch(async (cause: any) => {
+  browserFrame: (url: string, pageStateId: string) => request({ url: `${url}?page_state_id=${encodeURIComponent(pageStateId)}`, method: 'get', responseType: 'blob', responseEnvelope: true, localError: true, timeout: 8000 }).then((response: any) => captureBlob(response.data, response.headers['x-scrapio-frame'], pageStateId)).catch(async (cause: any) => {
     const body = cause?.response?.data;
     if (body instanceof Blob && body.size <= 16384) {
       const envelope = await body.text().then(text => JSON.parse(text)).catch(() => undefined);

@@ -50,3 +50,14 @@ test('adaptive capture serializes, measures cost, idles and pauses while hidden 
   await time.advance(14400); finish(false); await tick(); assert.equal(time.next, 15000);
   refresh.dispose(); assert.equal(time.count, 0);
 });
+
+test('frame response distinguishes absent legacy metadata from broken extension responses', () => {
+  const { captureBlob, stateChange } = require('./workbench-loader.cjs');
+  const state = { protocol: 'editor.state.v1', page_state_id: 'page', document_id: 'a'.repeat(64), validation_state_id: 'b'.repeat(64), frame_state_id: 'c'.repeat(64), viewport: { width: 640, height: 400 }, scroll: { x: 0, y: 0 }, pixel_ratio: 2, image: { width: 1280, height: 800 }, frame_sequence: 1, captured_at_unix_ms: 1 };
+  const blob = new Blob(); assert.equal(captureBlob(blob, undefined, 'page'), blob);
+  assert.equal(captureBlob(blob, JSON.stringify(state), 'page').frameState.document_id, state.document_id);
+  for (const header of ['null', '{', JSON.stringify({ ...state, pixel_ratio: 0 }), JSON.stringify({ ...state, page_state_id: 'old' })]) assert.throws(() => captureBlob(blob, header, 'page'));
+  assert.equal(stateChange(state, { ...state, frame_state_id: 'd'.repeat(64) }), 'frame');
+  assert.equal(stateChange(state, { ...state, validation_state_id: 'd'.repeat(64) }), 'validation');
+  assert.equal(stateChange(state, { ...state, document_id: 'd'.repeat(64) }), 'document');
+});

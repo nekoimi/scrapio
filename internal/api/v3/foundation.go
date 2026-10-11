@@ -25,6 +25,8 @@ func Me(w http.ResponseWriter, r *http.Request) {
 func Capabilities(w http.ResponseWriter, r *http.Request) {
 	ok(w, r, map[string]any{
 		"editor_protocol":          "unavailable",
+		"state_protocol":           "legacy",
+		"supports_frame_metadata":  false,
 		"browser_ready":            false,
 		"supported_actions":        []string{},
 		"supports_live_inspection": false,
@@ -63,6 +65,10 @@ func CapabilitiesWithBrowser(browser *drission_rod.DrissionRod) http.HandlerFunc
 				cancel()
 			}
 		}
+		stateProtocol := "legacy"
+		if ready && browser.ProbeEditorState(r.Context()) {
+			stateProtocol = editor.StateProtocol
+		}
 		authorization := false
 		if ready {
 			ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
@@ -74,7 +80,7 @@ func CapabilitiesWithBrowser(browser *drission_rod.DrissionRod) http.HandlerFunc
 			reason = "editor.v1 已连接；动作能力见 supported_actions，页面创建需浏览器可用"
 		}
 		ok(w, r, map[string]any{
-			"editor_protocol": "editor.v1", "browser_ready": false, "editor_service_connected": ready,
+			"editor_protocol": "editor.v1", "state_protocol": stateProtocol, "supports_frame_metadata": stateProtocol == editor.StateProtocol, "browser_ready": false, "editor_service_connected": ready,
 			"supported_actions": actions, "supports_live_inspection": inspection,
 			"supports_record_preview": records,
 			"supports_http_capture":   true, "supports_offline_capture": true,

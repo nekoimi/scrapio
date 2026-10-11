@@ -114,6 +114,8 @@ message EditorSessionResponse {
   int32 viewport_width = 11;
   int32 viewport_height = 12;
   bytes screenshot = 13;
+  // Optional editor.state.v1 state; frame metadata belongs to these screenshot bytes.
+  string state_json = 14;
 }
 
 message EditorCommandRequest {
@@ -131,6 +133,7 @@ message EditorCommandRequest {
   bool has_position = 12;
   double x = 13;
   double y = 14;
+  int64 frame_sequence = 15; // editor.state.v1 coordinate basis; zero for legacy requests
 }
 
 message EditorCommandResponse {

@@ -148,6 +148,7 @@
 </template>
 
 <script setup lang="ts">
+import { stateChange } from './browser-state';
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import {
 	appApi,
@@ -168,6 +169,7 @@ const props = defineProps<{
 	enabled: boolean;
 	blocked: boolean;
 	revision: number;
+	frameState?: BrowserSession['state'];
 	recordScope?: EditorLocator;
 	detailPage?: boolean;
 }>();
@@ -203,10 +205,14 @@ const staleReason = ref('');
 const selectingAgain = ref(false);
 const selectionStamp = ref(''), checkStamp = ref('');
 function contextStamp() {
-	return JSON.stringify([props.session?.session_id, props.session?.page_state_id, props.target, !!props.detailPage, scope.value, props.revision]);
+	return JSON.stringify([props.session?.session_id, props.session?.page_state_id, props.session?.state?.document_id, props.session?.state?.frame_state_id, props.session?.state?.validation_state_id, props.target, !!props.detailPage, scope.value, props.revision]);
 }
-const selectionValid = computed(() => !!selection.value && selectionStamp.value === contextStamp());
-const checkValid = computed(() => !!check.value && checkStamp.value === contextStamp()
+function evidenceStateValid(result: { state?: BrowserSession['state'] }) {
+	const current = props.session?.state;
+	return !current || (!!result.state && current.document_id === result.state.document_id && current.frame_state_id === result.state.frame_state_id && current.validation_state_id === result.state.validation_state_id);
+}
+const selectionValid = computed(() => !!selection.value && evidenceStateValid(selection.value) && selectionStamp.value === contextStamp());
+const checkValid = computed(() => !!check.value && evidenceStateValid(check.value) && checkStamp.value === contextStamp()
 	&& check.value.locator.strategy === strategy.value && check.value.locator.expression === expression.value.trim());
 // Local, bounded drafts for four goals on the list/detail page. Never persisted as validated evidence.
 type PendingSelection = {
@@ -272,6 +278,7 @@ function failure(cause: any, hover = false) {
 		ELEMENT_REFERENCE_STALE: '元素已失效，请重新点选或使用当前定位规则验证。',
 		INVALID_LOCATOR: '定位规则语法无效，请检查 CSS / XPath；相对 XPath 需以点开头。',
 		INSPECTION_LIMIT: '检查超过数量限制，请缩小规则范围或重新打开会话。',
+		STALE_FRAME: '截图依据已更新，配置已保留；请更新画面后重新点选。',
 		STALE_PAGE_STATE: '页面已变化，配置已保留；请更新画面后重新验证。',
 		INSPECTION_BUSY: '页面暂时忙碌，请等待当前操作结束后重试。',
 		COMMAND_PENDING: '上一动作结果尚未确认，请先查询回执。',
@@ -279,7 +286,7 @@ function failure(cause: any, hover = false) {
 		FORBIDDEN: '当前账号没有此会话的访问权限，请检查登录账号。',
 		INVALID_ARGUMENT: '检查参数、元素或规则无效；请重新点选或核对定位规则。',
 	};
-	if (code === 'STALE_PAGE_STATE' || code === 'SESSION_GONE' || code === 'ELEMENT_REFERENCE_STALE')
+	if (code === 'STALE_FRAME' || code === 'STALE_PAGE_STATE' || code === 'SESSION_GONE' || code === 'ELEMENT_REFERENCE_STALE')
 		invalidateEvidence(hints[code]);
 	if (hover && ['NO_ELEMENT', 'OUTSIDE_RECORD_SCOPE', 'RECORD_SCOPE_EMPTY', 'ELEMENT_REFERENCE_STALE', 'INVALID_ARGUMENT'].includes(code)) return;
 	const requestID = cause?.error?.request_id || cause?.request_id;
@@ -303,6 +310,7 @@ async function inspect(input: Partial<InspectionInput>, pageState: string, hover
 	try {
 		const result = await appApi.inspectElement(session.session_id, {
 			...input,
+			...(input.position && props.frameState?.frame_sequence ? { frame_sequence: props.frameState.frame_sequence } : {}),
 			page_state_id: pageState,
 			mode: targetMode.value,
 			...(targetMode.value === 'field' && scope.value ? { scope: scope.value } : {}),
@@ -467,9 +475,19 @@ function openDOM(event: Event) {
 	if ((event.target as HTMLDetailsElement).open && !dom.value) void loadDOM();
 }
 watch(
-	() => [props.session?.session_id, props.session?.page_state_id, props.session?.available, props.revision],
-	() => {
-		invalidateEvidence('页面、会话或草稿已变化；配置已保留，请重新验证。');
+	() => [props.session?.session_id, props.session?.page_state_id, props.session?.available, props.revision, props.session?.state] as const,
+	(next, previous) => {
+		const current = props.session?.state;
+		const prior = previous?.[4];
+		if (previous && next.slice(0, 4).every((value, index) => value === previous[index])
+			&& current?.document_id === prior?.document_id && current?.frame_state_id === prior?.frame_state_id && current?.validation_state_id === prior?.validation_state_id) return;
+		const change = stateChange(prior, current);
+		const reason = current && prior
+			? change === 'document' ? '已切换网页文档，旧元素引用已停用；配置已保留，请重新点选或验证。'
+			: change === 'validation' ? '网页 DOM 已变化，旧验证证据已停用；配置已保留，请重新验证。'
+			: '网页画面或滚动位置已变化，旧坐标已停用；规则保留，请重新验证。'
+			: '页面、会话或草稿已变化；配置已保留，请重新验证。';
+		invalidateEvidence(reason);
 	},
 	{ flush: 'sync' }
 );
