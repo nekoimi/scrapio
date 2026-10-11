@@ -150,6 +150,8 @@ type AIAssistConfig struct {
 type DBConfig struct {
 	// 数据库连接配置
 	Dsn string `json:"dsn,omitempty" mapstructure:"dsn"`
+	// SQL 明细独立于业务日志等级，默认关闭。
+	ShowSQL bool `json:"show_sql" mapstructure:"show_sql"`
 }
 
 type QuickAPIConfig struct {
@@ -169,6 +171,7 @@ func Load() *Config {
 	v.SetDefault("crawler.exec_on_startup", false)
 	v.SetDefault("crawler.worker_num", 4)
 	v.SetDefault("retention.document_days", 0)
+	v.SetDefault("db.show_sql", false)
 
 	// 加载 YAML 配置文件
 	loadYamlFile(v)
@@ -184,6 +187,7 @@ func Load() *Config {
 	v.BindEnv("crawler.drission_rod_grpc_ip")
 	v.BindEnv("crawler.drission_rod_grpc_port")
 	v.BindEnv("db.dsn")
+	v.BindEnv("db.show_sql")
 	v.BindEnv("quick_api.token")
 	v.BindEnv("ai_assist.enabled")
 	v.BindEnv("ai_assist.base_url")

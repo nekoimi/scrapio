@@ -1,11 +1,14 @@
 package db
 
 import (
+	"sync/atomic"
+
 	log "github.com/sirupsen/logrus"
 	xormlog "xorm.io/xorm/log"
 )
 
 type xormLogger struct {
+	showSQL atomic.Bool
 }
 
 func newXormLogger() *xormLogger {
@@ -76,9 +79,10 @@ func (s *xormLogger) SetLevel(l xormlog.LogLevel) {
 
 // ShowSQL implement ILogger
 func (s *xormLogger) ShowSQL(show ...bool) {
+	s.showSQL.Store(len(show) == 0 || show[0])
 }
 
 // IsShowSQL implement ILogger
 func (s *xormLogger) IsShowSQL() bool {
-	return true
+	return s.showSQL.Load()
 }

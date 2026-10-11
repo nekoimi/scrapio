@@ -34,9 +34,13 @@ func TestLoadDefaultsAndEnvironmentOverrides(t *testing.T) {
 	t.Setenv("CONFIG_FILE", configPath)
 	t.Setenv("CRAWLER_WORKER_NUM", "7")
 	t.Setenv("LOG_ROTATION_MAX_SIZE_MB", "12")
+	t.Setenv("DB_SHOW_SQL", "")
 	cfg := Load()
 	if cfg.Port != 8093 {
 		t.Fatalf("default port = %d; want 8093", cfg.Port)
+	}
+	if cfg.DB == nil || cfg.DB.ShowSQL {
+		t.Fatal("SQL logging should be off by default")
 	}
 	if cfg.Download != nil || cfg.CloudDriver != nil || cfg.STRM != nil || cfg.Aria2 != nil {
 		t.Fatalf("delivery config should not be loaded by the v2 control plane: %+v", cfg)
@@ -46,5 +50,30 @@ func TestLoadDefaultsAndEnvironmentOverrides(t *testing.T) {
 	}
 	if cfg.LogRotation.MaxSizeMB != 12 || cfg.LogRotation.MaxBackups != 7 || cfg.LogRotation.MaxAgeDays != 7 || !cfg.LogRotation.Compress {
 		t.Fatalf("unexpected log rotation config: %+v", cfg.LogRotation)
+	}
+}
+
+func TestLoadSQLLoggingOverrides(t *testing.T) {
+	for _, tc := range []struct {
+		name, yamlValue, envValue string
+		want                      bool
+	}{
+		{"yaml_enabled", "true", "", true},
+		{"env_enabled", "false", "true", true},
+		{"env_disabled", "true", "false", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "config.yaml")
+			content := "log_level: error\nlog_dir: \"" + filepath.ToSlash(t.TempDir()) + "\"\ndb:\n  show_sql: " + tc.yamlValue + "\n"
+			if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			t.Setenv("CONFIG_FILE", path)
+			t.Setenv("DB_SHOW_SQL", tc.envValue)
+			cfg := Load()
+			if cfg.DB == nil || cfg.DB.ShowSQL != tc.want {
+				t.Fatalf("db.show_sql should be %t", tc.want)
+			}
+		})
 	}
 }

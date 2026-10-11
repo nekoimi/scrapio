@@ -53,6 +53,8 @@ pnpm dev
 
 配置沿用当前兼容键 `CRAWLER_DRISSION_ROD_GRPC_IP` / `CRAWLER_DRISSION_ROD_GRPC_PORT` 连接 scrapio-browser。数据库使用 `DB_DSN`，生产环境应设置 `JWT_SECRET`。其他选项参见 `config/*.yaml.example`。下载交付功能由插件承载，需要时另行配置；它不是基础部署的必需服务。
 
+SQL 明细默认关闭，避免后台任务空闲轮询刷屏。排查 SQL 时在 YAML 设置 `db.show_sql: true`，或使用环境变量 `DB_SHOW_SQL=true` 后重启；该开关独立于 `LOG_LEVEL`，关闭 SQL 明细不会关闭业务 debug、警告和错误日志。
+
 v2.2 设置页支持只写入的 HTTP/浏览器 Cookie 凭据。加密保存需设置 `SCRAPIO_CREDENTIAL_KEY`（32字节随机值的标准 Base64，可用 `openssl rand -base64 32` 生成），请在部署环境保存并备份。环境引用仅使用明确传入的 `SCRAPIO_SECRET_<NAME>`。浏览器授权需要同步升级 scrapio-browser 的 `editor.auth.v1`；旧协议不会降级为无授权采集。详见 [D04 凭据与授权会话](docs/项目文档v2.2/D04-凭据与授权会话.md)。
 
 ## 目录

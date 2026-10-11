@@ -50,8 +50,8 @@ func initialize(cfg *config.DBConfig) error {
 		}()
 
 		// 初始化设置
-		candidate.ShowSQL(true)
 		candidate.SetLogger(newXormLogger())
+		candidate.ShowSQL(cfg.ShowSQL)
 		// 连接池设置
 		candidate.SetMaxIdleConns(8)
 		// Result writers hold a task-row lock while using another connection.
