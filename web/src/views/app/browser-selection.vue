@@ -85,7 +85,7 @@
 			</ul>
 			<p v-for="warning in check.warnings" :key="warning" class="muted">{{ warning }}</p>
 		</div>
-		<div v-if="hasPending" class="locator-result">
+		<div v-if="hasPending" class="locator-result selection-confirm-footer">
 			<div class="editor-actions">
 				<template v-if="target === 'field'"
 					><label>字段名称<input v-model="fieldName" maxlength="64" placeholder="例如：电影名称；留空自动命名" /></label
@@ -121,7 +121,7 @@
 				</button>
 				<button :disabled="!available || !checkValid || !!scope || check?.match_count !== 1 || check?.truncated || busy" @click="prepareAction">准备点击动作</button>
 			</div>
-			<p class="muted">选择会填入下方记录配置，保存后才能预览；详情与下一页访问需明确确认。</p>
+			<p class="muted">选择会填入采集流程的记录配置，保存后才能预览；详情与下一页访问需明确确认。</p>
 		</div>
 		<details class="dom-browser" @toggle="openDOM">
 			<summary>DOM 层级（截图点选的替代入口）</summary>
@@ -451,7 +451,7 @@ function saveRule(target: SelectionRule['target']) {
 		...(target === 'field' ? { name: fieldName.value.trim() } : {}),
 		...(target === 'next' ? { next_kind: nextKind.value } : {}),
 	});
-	message.value = '已提交到下方记录配置，请核对后保存并预览。';
+	message.value = '已提交到采集流程的记录配置，请核对后保存并预览。';
 }
 async function loadDOM(id = '', offset = 0) {
 	const session = props.session;

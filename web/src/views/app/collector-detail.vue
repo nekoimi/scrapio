@@ -106,9 +106,7 @@
 					@workbench-busy="workbenchBusy = $event"
 					@highlight="setHighlights"
 				>
-					<template #page
-						><p class="browser-frame-status" :data-stale="!frameInteractive" role="status">{{ frameStatus }}</p>
-						<p v-if="frameError" class="app-error" role="status">{{ frameError }}</p>
+					<template #display-settings>
 						<div class="browser-display-toolbar" role="group" aria-label="画面显示设置">
 							<button :aria-pressed="displayScale === 'fit'" @click="displayScale = 'fit'">适应宽度</button>
 							<button :aria-pressed="displayScale === 'original'" @click="displayScale = 'original'">原始比例</button>
@@ -119,6 +117,10 @@
 							{{ automaticStatus }}
 							{{ frameProtocolStatus }}
 						</p>
+					</template>
+					<template #page
+						><p class="browser-frame-status" :data-stale="!frameInteractive" role="status">{{ frameStatus }}</p>
+						<p v-if="frameError" class="app-error" role="status">{{ frameError }}</p>
 						<div class="browser-web-viewport" tabindex="0" aria-label="独立网页视口" @wheel="handleFrameWheel" @mouseenter="pointerInFrame = true; adaptiveFrames.activity()" @mouseleave="pointerInFrame = false; actionsPanel?.leaveFrame()">
 						<div v-if="frameObjectUrl" class="browser-frame-stage" :style="frameDisplayStyle" :data-stale="!frameInteractive" :aria-busy="frameRefreshing" @mouseleave="actionsPanel?.leaveFrame()">
 							<img

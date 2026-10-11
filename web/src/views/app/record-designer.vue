@@ -1,214 +1,225 @@
 <template>
 	<section class="record-designer">
-		<div class="pane-heading">
-			<h3>已选规则与当前页预览</h3>
-			<span>编辑会话 · 有界检查</span>
-		</div>
-		<p class="muted">从上方网页点选内容，下方核对字段；保存后预览当前页面。详情与翻页的试访问仍需确认。</p>
-		<div class="editor-actions">
-			<button :disabled="!available || working || !!context" @click="emit('select', 'record')">从网页选记录</button
-			><button :disabled="!available || working" @click="emit('select', 'field')">从网页选字段</button
-			><button :disabled="!available || working || !!context" @click="emit('select', 'detail')">选详情入口</button
-			><button :disabled="!available || working || !!context" @click="emit('select', 'next')">选下一页</button>
-		</div>
-		<div class="editor-actions">
-			<select :value="stepID" :disabled="working || !!context" aria-label="记录步骤" @change="chooseStep(($event.target as HTMLSelectElement).value)">
-				<option value="">新记录步骤</option>
-				<option v-for="step in recordSteps" :key="step.step_id" :value="step.step_id">{{ step.step_id }}</option></select
-			><button :disabled="working || blocked" @click="reload">重新读取草稿</button>
-		</div>
-		<fieldset :disabled="working || blocked || unsupported" class="record-rule-form">
-			<div class="command-form-grid">
-				<label
-					>记录方式<select v-model="plan.mode" @change="changeMode">
-						<option value="single">整页一条记录</option>
-						<option value="repeated">重复容器，每项一条</option>
-					</select></label
-				><label>本页 / 累积列表记录上限<input v-model.number="plan.max_records" type="number" min="1" max="200" /></label>
+		<div v-show="view !== 'preview'">
+			<div class="pane-heading">
+				<h3>记录与字段配置</h3>
+				<span>编辑会话 · 有界检查</span>
 			</div>
-			<details v-if="plan.mode === 'repeated' && plan.locator" class="editor-advanced">
-				<summary>高级：记录范围定位规则</summary>
+			<p class="muted">从上方网页点选内容，下方核对字段；保存后预览当前页面。详情与翻页的试访问仍需确认。</p>
+			<div class="editor-actions">
+				<button :disabled="!available || working || !!context" @click="emit('select', 'record')">从网页选记录</button
+				><button :disabled="!available || working" @click="emit('select', 'field')">从网页选字段</button
+				><button :disabled="!available || working || !!context" @click="emit('select', 'detail')">选详情入口</button
+				><button :disabled="!available || working || !!context" @click="emit('select', 'next')">选下一页</button>
+			</div>
+			<div class="editor-actions">
+				<select
+					:value="stepID"
+					:disabled="working || !!context"
+					aria-label="记录步骤"
+					@change="chooseStep(($event.target as HTMLSelectElement).value)"
+				>
+					<option value="">新记录步骤</option>
+					<option v-for="step in recordSteps" :key="step.step_id" :value="step.step_id">{{ step.step_id }}</option></select
+				><button :disabled="working || blocked" @click="reload">重新读取草稿</button>
+			</div>
+			<fieldset :disabled="working || blocked || unsupported" class="record-rule-form">
 				<div class="command-form-grid">
 					<label
-						>容器定位<select v-model="plan.locator.strategy">
-							<option value="css">CSS</option>
-							<option value="xpath">XPath</option>
+						>记录方式<select v-model="plan.mode" @change="changeMode">
+							<option value="single">整页一条记录</option>
+							<option value="repeated">重复容器，每项一条</option>
 						</select></label
-					><label>容器规则<input v-model="plan.locator.expression" maxlength="2048" /></label>
+					><label>本页 / 累积列表记录上限<input v-model.number="plan.max_records" type="number" min="1" max="200" /></label>
 				</div>
-			</details>
-			<template v-for="group in fieldGroups" :key="group.role">
-				<div class="pane-heading">
-					<h4>{{ group.role === 'list' ? '当前页 / 每条记录的字段' : '详情页字段' }}</h4>
-					<button @click="addField(group.role)">手动添加字段</button>
-				</div>
-				<div v-for="(field, index) in group.fields" :key="index" class="record-field-rule">
-					<input v-model="field.name" aria-label="字段名" placeholder="字段名" maxlength="64" />
-					<select v-model="field.extract" aria-label="字段内容">
-						<option value="text">文本</option>
-						<option value="link">链接</option>
-						<option value="image">图片地址</option>
-						<option value="attribute">属性</option>
-					</select>
-					<input v-if="field.extract === 'attribute'" v-model="field.attribute" aria-label="属性名" placeholder="例如 data-id" />
-					<details class="editor-advanced">
-						<summary>高级定位规则</summary>
-						<template v-if="field.locator"
-							><select v-model="field.locator.strategy" aria-label="字段定位">
+				<details v-if="plan.mode === 'repeated' && plan.locator" class="editor-advanced">
+					<summary>高级：记录范围定位规则</summary>
+					<div class="command-form-grid">
+						<label
+							>容器定位<select v-model="plan.locator.strategy">
 								<option value="css">CSS</option>
-								<option value="xpath">XPath</option></select
-							><input
-								v-model="field.locator.expression"
-								aria-label="字段规则"
-								placeholder="相对容器规则，如 .title 或 .//a"
-								maxlength="2048" /></template
-						><span v-else>记录容器自身</span>
-						<button @click="field.locator = field.locator ? undefined : { strategy: 'css', expression: '' }">
-							{{ field.locator ? '改用容器自身' : '指定子元素' }}
-						</button>
-					</details>
-					<button class="danger-action" @click="group.fields.splice(index, 1)">删除</button
-					><button :disabled="index === 0" @click="moveField(group.fields, index, -1)">↑</button
-					><button :disabled="index === group.fields.length - 1" @click="moveField(group.fields, index, 1)">↓</button
-					><FieldOptions :field="field" :role="group.role" />
+								<option value="xpath">XPath</option>
+							</select></label
+						><label>容器规则<input v-model="plan.locator.expression" maxlength="2048" /></label>
+					</div>
+				</details>
+				<template v-for="group in fieldGroups" :key="group.role">
+					<div class="pane-heading">
+						<h4>{{ group.role === 'list' ? '当前页 / 每条记录的字段' : '详情页字段' }}</h4>
+						<button @click="addField(group.role)">手动添加字段</button>
+					</div>
+					<div v-for="(field, index) in group.fields" :key="index" class="record-field-rule">
+						<input v-model="field.name" aria-label="字段名" placeholder="字段名" maxlength="64" />
+						<select v-model="field.extract" aria-label="字段内容">
+							<option value="text">文本</option>
+							<option value="link">链接</option>
+							<option value="image">图片地址</option>
+							<option value="attribute">属性</option>
+						</select>
+						<input v-if="field.extract === 'attribute'" v-model="field.attribute" aria-label="属性名" placeholder="例如 data-id" />
+						<details class="editor-advanced">
+							<summary>高级定位规则</summary>
+							<template v-if="field.locator"
+								><select v-model="field.locator.strategy" aria-label="字段定位">
+									<option value="css">CSS</option>
+									<option value="xpath">XPath</option></select
+								><input
+									v-model="field.locator.expression"
+									aria-label="字段规则"
+									placeholder="相对容器规则，如 .title 或 .//a"
+									maxlength="2048" /></template
+							><span v-else>记录容器自身</span>
+							<button @click="field.locator = field.locator ? undefined : { strategy: 'css', expression: '' }">
+								{{ field.locator ? '改用容器自身' : '指定子元素' }}
+							</button>
+						</details>
+						<button class="danger-action" @click="group.fields.splice(index, 1)">删除</button
+						><button :disabled="index === 0" @click="moveField(group.fields, index, -1)">↑</button
+						><button :disabled="index === group.fields.length - 1" @click="moveField(group.fields, index, 1)">↓</button
+						><FieldOptions :field="field" :role="group.role" />
+					</div>
+				</template>
+				<div class="editor-actions">
+					<button v-if="!plan.detail" @click="enableDetail">添加详情路径</button
+					><button
+						v-else
+						@click="
+							plan.detail = undefined;
+							plan.detail_fields = [];
+						"
+						:disabled="!!context"
+					>
+						移除详情路径
+					</button>
 				</div>
-			</template>
-			<div class="editor-actions">
-				<button v-if="!plan.detail" @click="enableDetail">添加详情路径</button
-				><button
-					v-else
-					@click="
-						plan.detail = undefined;
-						plan.detail_fields = [];
-					"
-					:disabled="!!context"
-				>
-					移除详情路径
-				</button>
-			</div>
-			<details v-if="plan.detail" class="detail-path-config editor-advanced">
-				<summary>详情入口已配置 · 返回方式与高级规则</summary>
-				<h4>每条记录 → 发现详情 URL → 打开详情 → 提取详情字段 → 返回列表</h4>
-				<div class="command-form-grid">
-					<label
-						>详情链接定位<select v-model="plan.detail.locator.strategy">
-							<option value="css">CSS</option>
-							<option value="xpath">XPath</option>
-						</select></label
-					><label>相对链接规则<input v-model="plan.detail.locator.expression" maxlength="2048" /></label
-					><label
-						>返回列表<select v-model="plan.detail.return_strategy">
-							<option value="back">浏览器后退</option>
-							<option value="navigate-list">重新打开列表地址</option>
-						</select></label
-					><label>最多详情候选<input v-model.number="plan.detail.max_details" type="number" min="1" max="5" /></label>
+				<details v-if="plan.detail" class="detail-path-config editor-advanced">
+					<summary>详情入口已配置 · 返回方式与高级规则</summary>
+					<h4>每条记录 → 发现详情 URL → 打开详情 → 提取详情字段 → 返回列表</h4>
+					<div class="command-form-grid">
+						<label
+							>详情链接定位<select v-model="plan.detail.locator.strategy">
+								<option value="css">CSS</option>
+								<option value="xpath">XPath</option>
+							</select></label
+						><label>相对链接规则<input v-model="plan.detail.locator.expression" maxlength="2048" /></label
+						><label
+							>返回列表<select v-model="plan.detail.return_strategy">
+								<option value="back">浏览器后退</option>
+								<option value="navigate-list">重新打开列表地址</option>
+							</select></label
+						><label>最多详情候选<input v-model.number="plan.detail.max_details" type="number" min="1" max="5" /></label>
+					</div>
+				</details>
+				<div class="editor-actions">
+					<button
+						v-if="!plan.next_page"
+						@click="plan.next_page = { locator: { strategy: 'css', expression: '' }, kind: 'link', max_pages: 10, wait_ms: 500 }"
+					>
+						添加下一页入口</button
+					><button v-else @click="plan.next_page = undefined">移除下一页入口</button>
 				</div>
-			</details>
-			<div class="editor-actions">
-				<button
-					v-if="!plan.next_page"
-					@click="plan.next_page = { locator: { strategy: 'css', expression: '' }, kind: 'link', max_pages: 10, wait_ms: 500 }"
-				>
-					添加下一页入口</button
-				><button v-else @click="plan.next_page = undefined">移除下一页入口</button>
-			</div>
-			<details v-if="plan.next_page" class="editor-advanced">
-				<summary>下一页已配置 · 翻页方式与高级规则</summary>
-				<div class="command-form-grid">
-					<label
-						>下一页类型<select v-model="plan.next_page.kind">
-							<option value="link">链接导航</option>
-							<option value="click">翻页按钮</option>
-							<option value="load_more">加载更多（累积列表）</option>
-						</select></label
-					><label
-						>定位方式<select v-model="plan.next_page.locator.strategy">
-							<option value="css">CSS</option>
-							<option value="xpath">XPath</option>
-						</select></label
-					><label>规则<input v-model="plan.next_page.locator.expression" maxlength="2048" /></label
-					><label>最多列表轮次<input v-model.number="plan.next_page.max_pages" type="number" min="1" max="100" /></label
-					><label>动作后等待（毫秒）<input v-model.number="plan.next_page.wait_ms" type="number" min="0" max="10000" /></label>
+				<details v-if="plan.next_page" class="editor-advanced">
+					<summary>下一页已配置 · 翻页方式与高级规则</summary>
+					<div class="command-form-grid">
+						<label
+							>下一页类型<select v-model="plan.next_page.kind">
+								<option value="link">链接导航</option>
+								<option value="click">翻页按钮</option>
+								<option value="load_more">加载更多（累积列表）</option>
+							</select></label
+						><label
+							>定位方式<select v-model="plan.next_page.locator.strategy">
+								<option value="css">CSS</option>
+								<option value="xpath">XPath</option>
+							</select></label
+						><label>规则<input v-model="plan.next_page.locator.expression" maxlength="2048" /></label
+						><label>最多列表轮次<input v-model.number="plan.next_page.max_pages" type="number" min="1" max="100" /></label
+						><label>动作后等待（毫秒）<input v-model.number="plan.next_page.wait_ms" type="number" min="0" max="10000" /></label>
+					</div>
+				</details>
+				<p class="muted">
+					字段定位相对于各自记录容器；详情字段相对于整页。当前页面检查不连续运行。正式运行遵循已发布轮次上限与运行预算；加载更多的记录上限须能覆盖累积列表，超出会标记受限。重复/空页自动停止；动作后等待用于异步列表加载。
+				</p>
+				<div class="editor-actions">
+					<button class="primary-action" :disabled="!localDirty || unsupported || !available" @click="saveAndPreview">
+						{{ working ? '处理中…' : '保存并预览当前页' }}</button
+					><button :disabled="!localDirty || unsupported" @click="save">只保存规则</button
+					><button :disabled="!localDirty || working" @click="undoLocal">撤销未保存规则</button>
 				</div>
-			</details>
-			<p class="muted">
-				字段定位相对于各自记录容器；详情字段相对于整页。当前页面检查不连续运行。正式运行遵循已发布轮次上限与运行预算；加载更多的记录上限须能覆盖累积列表，超出会标记受限。重复/空页自动停止；动作后等待用于异步列表加载。
-			</p>
-			<div class="editor-actions">
-				<button class="primary-action" :disabled="!localDirty || unsupported || !available" @click="saveAndPreview">{{ working ? '处理中…' : '保存并预览当前页' }}</button
-				><button :disabled="!localDirty || unsupported" @click="save">只保存规则</button
-				><button :disabled="!localDirty || working" @click="undoLocal">撤销未保存规则</button>
-			</div>
-		</fieldset>
-		<p v-if="localDirty" class="status-warn">记录配置尚未保存；保存前不会用旧规则生成新预览。</p>
-		<p v-if="unsupported" class="status-warn">这份规则包含高级配置；请使用 JSON 编辑，当前表单不会覆盖它。</p>
-		<div class="editor-actions">
-			<button :disabled="!canPreview" @click="previewCurrent">{{ context ? '检查当前详情页字段' : '预览当前列表/单页' }}</button
-			><button v-if="context" :disabled="!available || working || context.uncertain" @click="returnToList">返回列表并重新验证</button
-			><button v-if="context" :disabled="working || blocked" @click="forgetContext">清除路径上下文</button>
+			</fieldset>
+			<p v-if="localDirty" class="status-warn">记录配置尚未保存；保存前不会用旧规则生成新预览。</p>
+			<p v-if="unsupported" class="status-warn">这份规则包含高级配置；请使用 JSON 编辑，当前表单不会覆盖它。</p>
 		</div>
-		<p v-if="context" class="selection-scope">
-			列表记录 {{ (context.recordIndex || 0) + 1 }} · 列表地址：{{ context.listURL }} · {{ context.strategy
-			}}{{ context.uncertain ? ' · 上次动作未确认，请先查询回执并检查页面' : '' }}
-		</p>
-		<section v-if="preview" class="record-preview-results">
-			<strong
-				>{{ preview.stage === 'detail' ? '详情' : '当前页' }}预览 · {{ preview.records.length }} 条{{
-					preview.truncated ? '（有界截取）' : ''
-				}}</strong
-			>
-			<p class="muted">revision {{ previewRevision }} · {{ preview.current_url }} · 正式写入 0 条</p>
-			<p v-if="previewStale" class="status-warn">页面或草稿已变化，以下是过期预览。重新检查后才可继续访问路径。</p>
-			<div class="record-preview-table">
-				<table>
-					<thead>
-						<tr>
-							<th>记录</th>
-							<th v-for="name in previewNames" :key="name">{{ name }}</th>
-						</tr>
-					</thead>
-					<tbody>
-						<tr v-for="record in preview.records" :key="record.index">
-							<td>{{ record.index + 1 }}</td>
-							<td v-for="name in previewNames" :key="name">
-								<button class="field-source" :disabled="previewStale" @click="highlightField(record.fields.find((f) => f.name === name))">
-									{{ record.values[name] || '—' }}</button
-								><small>{{ diagnostic(record.fields.find((f) => f.name === name)) }}</small>
-							</td>
-						</tr>
-					</tbody>
-				</table>
+		<div v-show="view !== 'rules'">
+			<div class="editor-actions">
+				<button :disabled="!canPreview" @click="previewCurrent">{{ context ? '检查当前详情页字段' : '预览当前列表/单页' }}</button
+				><button v-if="context" :disabled="!available || working || context.uncertain" @click="returnToList">返回列表并重新验证</button
+				><button v-if="context" :disabled="working || blocked" @click="forgetContext">清除路径上下文</button>
 			</div>
-			<h4 v-if="preview.stage === 'list' && plan.detail">详情候选（最多 {{ plan.detail.max_details }} 个）</h4>
-			<p v-if="preview.stage === 'list' && plan.detail && !preview.detail_urls.length" class="status-warn">
-				未发现详情链接，请检查每条记录内的规则。
+			<p v-if="context" class="selection-scope">
+				列表记录 {{ (context.recordIndex || 0) + 1 }} · 列表地址：{{ context.listURL }} · {{ context.strategy
+				}}{{ context.uncertain ? ' · 上次动作未确认，请先查询回执并检查页面' : '' }}
 			</p>
-			<div v-for="(link, index) in preview.detail_urls" :key="index" class="path-candidate">
-				<span>记录 {{ link.record_index + 1 }} · {{ link.url || link.raw_url || '无地址' }}</span
-				><small v-if="link.error">{{ link.error }}</small
-				><button
-					:disabled="
-						!canNavigate || !!link.error || !link.url || visited.has(link.url) || visited.size >= (plan.detail?.max_details || 0) || !!context
-					"
-					@click="openDetail(link.url!, link.record_index)"
+			<section v-if="preview" class="record-preview-results">
+				<strong
+					>{{ preview.stage === 'detail' ? '详情' : '当前页' }}预览 · {{ preview.records.length }} 条{{
+						preview.truncated ? '（有界截取）' : ''
+					}}</strong
 				>
-					{{ link.url && visited.has(link.url) ? '本轮已访问' : '打开并检查详情' }}
-				</button>
-			</div>
-			<h4 v-if="preview.stage === 'list' && plan.next_page">下一页入口（本轮仅验证一次）</h4>
-			<p v-if="preview.stage === 'list' && plan.next_page && !preview.next_pages.length" class="muted">没有下一页入口，当前范围结束。</p>
-			<div v-for="(next, index) in preview.next_pages" :key="index" class="path-candidate">
-				<span>{{ next.url || '点击按钮 / 加载更多' }}{{ next.disabled ? ' · 已禁用' : '' }}</span
-				><small v-if="next.error">{{ next.error }}</small
-				><button
-					:disabled="!canNavigate || nextVisited || !!next.error || next.disabled || !!context || preview.next_pages.length !== 1"
-					@click="openNext(next)"
-				>
-					验证下一页
-				</button>
-			</div>
-			<p v-for="warning in preview.warnings" :key="warning" class="muted">{{ warning }}</p>
-		</section>
+				<p class="muted">revision {{ previewRevision }} · {{ preview.current_url }} · 正式写入 0 条</p>
+				<p v-if="previewStale" class="status-warn">页面或草稿已变化，以下是过期预览。重新检查后才可继续访问路径。</p>
+				<div class="record-preview-table">
+					<table>
+						<thead>
+							<tr>
+								<th>记录</th>
+								<th v-for="name in previewNames" :key="name">{{ name }}</th>
+							</tr>
+						</thead>
+						<tbody>
+							<tr v-for="record in preview.records" :key="record.index">
+								<td>{{ record.index + 1 }}</td>
+								<td v-for="name in previewNames" :key="name">
+									<button class="field-source" :disabled="previewStale" @click="highlightField(record.fields.find((f) => f.name === name))">
+										{{ record.values[name] || '—' }}</button
+									><small>{{ diagnostic(record.fields.find((f) => f.name === name)) }}</small>
+								</td>
+							</tr>
+						</tbody>
+					</table>
+				</div>
+				<h4 v-if="preview.stage === 'list' && plan.detail">详情候选（最多 {{ plan.detail.max_details }} 个）</h4>
+				<p v-if="preview.stage === 'list' && plan.detail && !preview.detail_urls.length" class="status-warn">
+					未发现详情链接，请检查每条记录内的规则。
+				</p>
+				<div v-for="(link, index) in preview.detail_urls" :key="index" class="path-candidate">
+					<span>记录 {{ link.record_index + 1 }} · {{ link.url || link.raw_url || '无地址' }}</span
+					><small v-if="link.error">{{ link.error }}</small
+					><button
+						:disabled="
+							!canNavigate || !!link.error || !link.url || visited.has(link.url) || visited.size >= (plan.detail?.max_details || 0) || !!context
+						"
+						@click="openDetail(link.url!, link.record_index)"
+					>
+						{{ link.url && visited.has(link.url) ? '本轮已访问' : '打开并检查详情' }}
+					</button>
+				</div>
+				<h4 v-if="preview.stage === 'list' && plan.next_page">下一页入口（本轮仅验证一次）</h4>
+				<p v-if="preview.stage === 'list' && plan.next_page && !preview.next_pages.length" class="muted">没有下一页入口，当前范围结束。</p>
+				<div v-for="(next, index) in preview.next_pages" :key="index" class="path-candidate">
+					<span>{{ next.url || '点击按钮 / 加载更多' }}{{ next.disabled ? ' · 已禁用' : '' }}</span
+					><small v-if="next.error">{{ next.error }}</small
+					><button
+						:disabled="!canNavigate || nextVisited || !!next.error || next.disabled || !!context || preview.next_pages.length !== 1"
+						@click="openNext(next)"
+					>
+						验证下一页
+					</button>
+				</div>
+				<p v-for="warning in preview.warnings" :key="warning" class="muted">{{ warning }}</p>
+			</section>
+			<p v-if="!preview" class="muted">保存规则后，点击“预览当前列表/单页”检查提取结果。此处不写入正式数据。</p>
+		</div>
 		<p v-if="message" class="app-error" role="status">{{ message }}</p>
 	</section>
 </template>
@@ -230,6 +241,7 @@ import {
 	type PageHighlight,
 } from './api';
 const props = defineProps<{
+	view?: 'rules' | 'preview' | 'all';
 	draft: Collector;
 	session?: BrowserSession;
 	blocked: boolean;
@@ -241,6 +253,7 @@ const emit = defineEmits<{
 	(event: 'draft-saved', draft: Collector): void;
 	(event: 'highlight', value: PageHighlight): void;
 	(event: 'working', busy: boolean): void;
+	(event: 'preview-requested'): void;
 	(event: 'select', target: SelectionRule['target']): void;
 }>();
 const emptyPlan = (): RecordPlan => ({ mode: 'single', max_records: 10, fields: [], detail_fields: [] });
@@ -455,6 +468,7 @@ function undoLocal() {
 	message.value = '已撤销本地规则修改。';
 }
 async function saveAndPreview() {
+	emit('preview-requested');
 	if (await save()) {
 		await nextTick();
 		await previewCurrent();

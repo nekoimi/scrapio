@@ -32,9 +32,11 @@ function mount(overrides = {}, refresh) {
   };
   const output = ts.transpileModule(script.content, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } });
   const module = { exports: {} };
+  class FocusTarget { focus() { this.focused = true; } }
+  const origin = new FocusTarget();
   vm.runInNewContext(output.outputText, { module, exports: module.exports, require: name => ({ vue, './api': { appApi: api }, './browser-workbench': require('./workbench-loader.cjs'), './browser-selection.vue': {}, './record-designer.vue': {} })[name],
     crypto: { randomUUID: require('node:crypto').randomUUID }, window: { confirm: () => { throw new Error('scroll should not open a click confirmation'); } },
-    setTimeout, clearTimeout,
+    document: { activeElement: origin }, HTMLElement: FocusTarget, setTimeout, clearTimeout,
   });
   const component = module.exports.default;
   let state;
@@ -48,7 +50,7 @@ function mount(overrides = {}, refresh) {
     onSessionState: session => { props.session = session; }, onFrameInvalidated: () => { props.frameReady = false; },
   }) });
   app.mount(node());
-  return { props, calls, refreshed, get state() { return state; }, unmount: () => app.unmount() };
+  return { props, calls, refreshed, origin, get state() { return state; }, unmount: () => app.unmount() };
 }
 test('scroll buttons keep modes, use bounded CSS increments, and record only with explicit opt-in', async () => {
   const h = mount(); await tick();
@@ -116,5 +118,72 @@ test('wheel admission keeps zoom native and refuses stale or uncertain command c
     h.state.unknownRequest.value = { sessionId: 'session-1', key: 'original', input: {} }; await tick();
     assert.equal(h.state.frameWheel(event, 800), false);
     assert.equal(h.calls.length, 0);
+  } finally { h.unmount(); }
+});
+
+
+test('explicit webpage picks reopen the selection panel without losing configured action input', async () => {
+  const h = mount(); await tick();
+  try {
+    const s = h.state;
+    let picked;
+    s.selectionPanel.value = { framePick: (...args) => { picked = args; }, leaveFrame: () => {} };
+    s.value.value = 'unfinished value'; s.expression.value = '.saved-locator';
+    s.openPanel('history'); s.panelCollapsed.value = true;
+    s.frameClick(12, 24, 'page-1'); await tick();
+    assert.equal(s.panelTab.value, 'selection'); assert.equal(s.panelCollapsed.value, false);
+    assert.deepEqual(picked, [12, 24, 'page-1']);
+    s.openPanel('preview'); s.panelCollapsed.value = true; await tick();
+    assert.equal(s.value.value, 'unfinished value'); assert.equal(s.expression.value, '.saved-locator');
+    assert.equal(h.calls.length, 0);
+  } finally { h.unmount(); }
+});
+
+test('background receipts do not steal the active tab or reopen a collapsed panel', async () => {
+  let release;
+  const h = mount({}, () => new Promise(resolve => { release = resolve; })); await tick();
+  try {
+    const s = h.state;
+    const command = s.scrollPage(1);
+    for (let i = 0; i < 10 && !release; i++) await tick();
+    assert.equal(typeof release, 'function');
+    s.openPanel('preview'); s.panelCollapsed.value = true;
+    release(); await command; await tick();
+    assert.equal(s.last.value.status, 'succeeded');
+    assert.equal(s.panelTab.value, 'preview'); assert.equal(s.panelCollapsed.value, true);
+  } finally { h.unmount(); }
+});
+
+test('confirming a rule opens its preserved configuration; step switching refuses unsaved rules', async () => {
+  const h = mount(); await tick();
+  try {
+    const s = h.state;
+    const panel = { localDirty: true, applySelection: rule => { panel.rule = rule; } };
+    s.recordPanel.value = panel;
+    const rule = { target: 'field', name: 'title', locator: { strategy: 'css', expression: '.title' } };
+    s.applySelection(rule); await tick();
+    assert.equal(s.panelTab.value, 'flow'); assert.equal(s.recordPanel.value.rule.name, 'title');
+    h.props.draft.definition.steps = [{ type: 'navigate', step_id: 'open', config: { url: 'https://example.com' } }];
+    s.selectStep(0); assert.equal(s.selectedStep.value, -1);
+    s.recordPanel.value.localDirty = false; s.selectStep(0); await tick();
+    assert.equal(s.selectedStep.value, 0); assert.equal(s.mode.value, 'browse');
+    assert.equal(s.value.value, 'https://example.com');
+  } finally { h.unmount(); }
+});
+
+test('focus mode collapses temporarily and Escape restores the panel and focus without dispatching actions', async () => {
+  const h = mount(); await tick();
+  try {
+    const s = h.state;
+    let focused = false;
+    s.workbenchRoot.value = { focus: () => { focused = true; } };
+    s.openPanel('preview'); s.toggleFocus(); await tick();
+    assert.equal(s.focused.value, true); assert.equal(s.panelCollapsed.value, true); assert.equal(focused, true);
+    let prevented = false;
+    s.handleWorkbenchKeydown({ key: 'Escape', preventDefault: () => { prevented = true; } }); await tick();
+    assert.equal(prevented, true); assert.equal(s.focused.value, false); assert.equal(s.panelCollapsed.value, false);
+    assert.equal(s.panelTab.value, 'preview'); assert.equal(h.origin.focused, true); assert.equal(h.calls.length, 0);
+    s.toggleFocus(); await tick(); h.props.active = false; await tick();
+    assert.equal(s.focused.value, false);
   } finally { h.unmount(); }
 });

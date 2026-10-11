@@ -1,213 +1,288 @@
 <template>
-	<div class="editor-action-workspace" @focusin="enterConfiguration" @focusout="leaveConfiguration">
-		<aside class="editor-step-pane">
-			<div class="pane-heading">
-				<h3>采集步骤</h3>
-				<span>{{ steps.length }} 步</span>
-			</div>
-			<p class="muted">步骤修改只改草稿，不操作网页。</p>
-			<ol class="step-list">
-				<li v-for="(step, index) in steps" :key="step.step_id || index" :class="{ selected: selectedStep === index }">
-					<button class="step-title" @click="selectStep(index)">{{ index + 1 }}. {{ stepLabel(step) }}</button>
-					<small>{{ step.step_id }}</small>
-					<ul v-if="step.type === 'record_set'" class="record-step-outline">
-						<li>{{ step.config?.mode === 'repeated' ? '每条记录 · 有界循环' : '整页一条' }}（最多 {{ step.config?.max_records }} 条）</li>
-						<li v-for="field in step.config?.fields || []" :key="field.name">字段：{{ field.name }}</li>
-						<li v-if="step.config?.detail">
-							发现详情 → 打开 → 提取 {{ step.config?.detail_fields?.length || 0 }} 个字段 →
-							{{ step.config.detail.return_strategy === 'back' ? '后退列表' : '重开列表' }}
-						</li>
-						<li v-if="step.config?.next_page">下一页：{{ step.config.next_page.kind }}（本轮仅验证一次）</li>
-					</ul>
-					<div class="step-controls">
-						<button :disabled="!canEdit || index === 0" @click="moveStep(index, -1)" aria-label="上移步骤">↑</button>
-						<button :disabled="!canEdit || index === steps.length - 1" @click="moveStep(index, 1)" aria-label="下移步骤">↓</button>
-						<button class="danger-action" :disabled="!canEdit" @click="removeStep(index)">删除</button>
-						<button :disabled="!canExecute || !executable(step)" @click="runStep(step)">单步执行</button>
-					</div>
-				</li>
-			</ol>
-			<p v-if="!steps.length" class="muted">切换“录制操作”，成功动作将自动加入步骤。</p>
-			<button class="secondary-action" :disabled="!canEdit || !steps.length" @click="saveCheckpoint">保存检查点</button>
-			<p class="muted">保存至选中步骤，重放使用这份快照。</p>
-			<div v-for="checkpoint in checkpoints" :key="checkpoint.checkpoint_id" class="checkpoint-row">
-				<strong>{{ checkpoint.name }}</strong
-				><small>revision {{ checkpoint.draft_revision }} · {{ checkpoint.snapshot.steps.length }} 步</small>
-				<button :disabled="!canEdit || replaying || !supported.length" @click="replay(checkpoint)">从入口重放</button>
-				<button :disabled="busy || replaying" @click="removeCheckpoint(checkpoint)">删除</button>
-			</div>
-			<button v-if="replaying" class="secondary-action" @click="stopReplay = true">停止后续步骤</button>
-		</aside>
-		<section class="editor-page-pane" aria-label="采集网页">
-			<div class="selection-goals" aria-label="点选目标">
-				<button
-					v-for="goal in selectionGoals"
-					:key="goal.target"
-					:aria-pressed="selecting && selectionTarget === goal.target"
-					:disabled="busy || recordWorking || replaying"
-					@click="activateSelection(goal.target)"
-				>
-					{{ goal.label }}
-				</button>
-			</div>
-			<p class="muted">{{ selecting ? selectionHelp[selectionTarget] : '浏览或录制模式：点击网页后，在右侧确认执行。' }}</p>
-			<div class="browser-viewport-toolbar" role="group" aria-label="远端网页浏览">
-				<button class="secondary-action" :disabled="!canScroll" @click="scrollPage(-1)">向上滚动</button>
-				<button class="secondary-action" :disabled="!canScroll" @click="scrollPage(1)">向下滚动</button>
-				<button class="secondary-action" :disabled="!canRefreshFrame" @click="requestFrame">{{ updatingFrame || frameRefreshing ? '更新画面中…' : '更新画面' }}</button>
-				<label v-if="mode === 'record'" class="record-scroll-toggle"><input type="checkbox" v-model="recordScroll" :disabled="busy || replaying" />记录滚动</label>
-			</div>
-			<p class="muted viewport-help">按钮滚动远端网页，每次约 600 CSS 像素，可能触发懒加载；更新画面不会重新加载网站。{{ mode === 'record' && recordScroll ? '按钮或滚轮滚动成功后会加入步骤。' : '按钮或滚轮滚动只用于浏览，不加入步骤。' }}</p>
-			<p v-if="session?.available && !supported.includes('scroll')" class="status-warn">当前服务未支持滚动；可更新画面或检查浏览器服务版本。</p>
-			<slot name="page" />
-			<p class="muted editor-narrow-note">屏幕较窄时面板上下排列；也可在右侧 DOM 层级中选择元素。</p>
-		</section>
-		<section class="editor-command-pane">
-			<div class="editor-mode-tabs" role="tablist" aria-label="网页操作模式">
-				<button role="tab" :aria-selected="mode === 'browse'" :disabled="busy || recordWorking || replaying" @click="mode = 'browse'">
-					浏览网页
-				</button>
-				<button role="tab" :aria-selected="selecting" :disabled="busy || recordWorking || replaying" @click="activateSelection(selectionTarget)">
-					网页点选
-				</button>
-				<button role="tab" :aria-selected="mode === 'record'" :disabled="busy || recordWorking || replaying" @click="mode = 'record'">
-					录制操作
-				</button>
-			</div>
-			<p class="mode-description">
-				{{
-					selecting
-						? '选择模式：点选只检查元素，不操作网站。'
-						: mode === 'record'
-							? '录制中：成功动作加入草稿；失败动作只保留回执。点击画面准备动作，确认后执行。'
-							: '浏览模式：执行真实操作，默认不加入草稿。点击画面准备动作，确认后执行。'
-				}}
-			</p>
-			<BrowserSelection
-				v-show="selecting"
-				ref="selectionPanel"
-				:session="session"
-				:frame-state="frameState"
-				:mode="mode === 'field-select' ? 'field' : 'record'"
-				:enabled="inspectionSupported"
-				:target="selectionTarget"
-				:revision="draft.revision"
-				:blocked="busy || recordWorking || replaying || !selecting || dirty || saving || !frameReady"
-				:record-scope="recordPanel?.recordScope"
-				:detail-page="recordPanel?.detailPage"
-				@highlight="emit('highlight', $event)"
-				@working="inspectionWorking = $event"
-				@action-locator="applyLocator"
-				@rule="applySelection"
-			/>
-			<form v-show="!selecting" @submit.prevent="executeForm">
-				<div class="command-form-grid">
-					<label
-						>动作<select v-model="actionType" :disabled="busy || replaying" @change="onActionTypeChanged">
-							<option v-for="action in actions" :key="action" :value="action">{{ labels[action] }}</option>
-						</select></label
-					>
-					<label>最长等待（毫秒）<input v-model.number="timeout" type="number" min="100" max="30000" step="100" /></label>
-				</div>
-				<label v-if="['navigate', 'input', 'scroll', 'wait'].includes(actionType)"
-					>{{
-						actionType === 'navigate'
-							? '目标地址'
-							: actionType === 'input'
-								? '普通文本（不支持密码/验证码）'
-								: actionType === 'scroll'
-									? '滚动像素（负数向上）'
-									: '等待毫秒；填写定位器时改为等待元素'
-					}}<input
-						v-model="value"
-						:type="actionType === 'navigate' ? 'url' : 'text'"
-						:placeholder="actionType === 'navigate' ? draft.entry_url : ''"
-						maxlength="4096"
-				/></label>
-				<div v-if="['click', 'input', 'wait'].includes(actionType) && !position" class="command-form-grid">
-					<label
-						>定位方式<select v-model="strategy">
-							<option value="css">CSS</option>
-							<option value="xpath">XPath</option>
-						</select></label
-					>
-					<label>定位器<input v-model="expression" placeholder="例如 #load-more 或 //button[@id='more']" maxlength="2048" /></label>
-				</div>
-				<p v-if="position" class="position-notice">
-					画面点击坐标 {{ Math.round(position.x) }}, {{ Math.round(position.y) }}。<button type="button" @click="position = undefined">
-						改用定位器
+	<div
+		ref="workbenchRoot"
+		tabindex="-1"
+		class="editor-action-workspace"
+		:class="{ 'workbench-focused': focused, 'panel-is-collapsed': panelCollapsed }"
+		:style="{ '--workbench-panel-height': panelHeight + 'px' }"
+		@focusin="enterConfiguration"
+		@focusout="leaveConfiguration"
+		@keydown="handleWorkbenchKeydown"
+	>
+		<header class="workbench-toolbar">
+			<div class="workbench-mode-group">
+				<div class="editor-mode-tabs" role="tablist" aria-label="网页操作模式">
+					<button role="tab" :aria-selected="mode === 'browse'" :disabled="busy || recordWorking || replaying" @click="mode = 'browse'; openPanel('selection')">
+						浏览网页
 					</button>
+					<button role="tab" :aria-selected="selecting" :disabled="busy || recordWorking || replaying" @click="activateSelection(selectionTarget)">
+						网页点选
+					</button>
+					<button role="tab" :aria-selected="mode === 'record'" :disabled="busy || recordWorking || replaying" @click="mode = 'record'; openPanel('selection')">
+						录制操作
+					</button>
+				</div>
+				<p class="mode-description">
+					{{
+						selecting
+							? '选择模式：点选只检查元素，不操作网站。'
+							: mode === 'record'
+								? '录制中：成功动作加入草稿；失败动作只保留回执。点击画面准备动作，确认后执行。'
+								: '浏览模式：执行真实操作，默认不加入草稿。点击画面准备动作，确认后执行。'
+					}}
 				</p>
-				<div class="editor-actions">
-					<button class="primary-action" type="submit" :disabled="!canExecute || !supported.includes(actionType)">
-						{{ busy ? '等待动作回执…' : mode === 'record' ? '执行并录制' : '执行动作' }}
+			</div>
+			<div class="workbench-tools">
+				<div class="browser-viewport-toolbar" role="group" aria-label="远端网页浏览">
+					<button class="secondary-action" :disabled="!canScroll" @click="scrollPage(-1)">向上滚动</button>
+					<button class="secondary-action" :disabled="!canScroll" @click="scrollPage(1)">向下滚动</button>
+					<button class="secondary-action" :disabled="!canRefreshFrame" @click="requestFrame">
+						{{ updatingFrame || frameRefreshing ? '更新画面中…' : '更新画面' }}
 					</button>
-					<button
-						type="button"
-						class="secondary-action"
-						:disabled="!canEdit || !formValid || !!position || actionType === 'input'"
-						@click="addConfiguredStep"
+					<label v-if="mode === 'record'" class="record-scroll-toggle"
+						><input type="checkbox" v-model="recordScroll" :disabled="busy || replaying" />记录滚动</label
 					>
-						只加入步骤
-					</button>
-					<button
-						v-if="selectedStep >= 0"
-						type="button"
-						class="secondary-action"
-						:disabled="!canEdit || !formValid || !!position || actionType === 'input' || !executable(steps[selectedStep])"
-						@click="updateConfiguredStep"
-					>
-						更新选中步骤
-					</button>
-					<button
-						v-if="last?.status === 'succeeded' && last.result.recording_status !== 'recorded'"
-						type="button"
-						class="secondary-action"
-						:disabled="!canEdit || last.type === 'input'"
-						@click="addLastStep"
-					>
-						将成功动作加入步骤
-					</button>
 				</div>
-			</form>
-			<p v-if="actionType === 'input'" class="muted">
-				输入步骤须在录制模式执行成功后保存；密码与验证码输入框会被拒绝。请勿在普通文本或 JSON 草稿中填写秘密。
-			</p>
-			<p v-if="!supported.length" class="muted">动作服务尚未就绪或版本不支持；草稿编辑仍可使用。</p>
-			<p v-if="dirty" class="status-warn">有未保存修改，请先保存再执行。</p>
-			<p v-if="notice" class="app-error" role="status">{{ notice }}</p>
-			<section v-if="pending || last" class="command-receipt" aria-live="polite">
-				<h3>动作回执 · {{ statusLabel((pending || last)!.status) }}</h3>
-				<p>{{ labels[(pending || last)!.type] }} · {{ (pending || last)!.result.duration_ms || 0 }} ms</p>
-				<p v-if="(pending || last)!.result.final_url" class="muted">{{ (pending || last)!.result.final_url }}</p>
-				<p v-if="(pending || last)!.result.error">{{ (pending || last)!.result.error }}</p>
-				<p v-if="(pending || last)!.result.recording_error">{{ (pending || last)!.result.recording_error }}</p>
-				<small>前：{{ (pending || last)!.result.before_page_state_id }}<br />后：{{ (pending || last)!.result.after_page_state_id }}</small>
-				<button v-if="pending" :disabled="querying" @click="queryPending">查询回执</button>
-			</section>
-			<button v-if="unknownRequest" :disabled="querying" @click="resolveUnknown">确认上一请求（沿用请求键）</button>
-			<details class="command-history">
-				<summary>最近动作（最多 50 条）</summary>
-				<div v-for="command in history" :key="command.command_id">
-					<span>{{ labels[command.type] }} · {{ statusLabel(command.status) }}</span
-					><button @click="last = command">查看回执</button>
-				</div>
-			</details>
+				<details class="workbench-display-settings">
+					<summary>显示设置</summary>
+					<div class="workbench-settings-content">
+						<slot name="display-settings" />
+						<p class="muted">滚动按钮每次约 600 CSS 像素；更新画面不会重新加载网站。</p>
+					</div>
+				</details>
+				<button :aria-pressed="focused" @click="toggleFocus">{{ focused ? '退出专注' : '专注网页' }}</button>
+			</div>
+		</header>
+		<div v-show="selecting" class="selection-goals" aria-label="点选目标">
+			<button
+				v-for="goal in selectionGoals"
+				:key="goal.target"
+				:aria-pressed="selecting && selectionTarget === goal.target"
+				:disabled="busy || recordWorking || replaying"
+				@click="activateSelection(goal.target)"
+			>
+				{{ goal.label }}
+			</button>
+		</div>
+		<p class="muted">{{ selecting ? selectionHelp[selectionTarget] : '浏览或录制模式：点击网页后，在底部确认执行。' }}</p>
+		<section class="editor-page-pane" aria-label="采集网页">
+			<p v-if="session?.available && !supported.includes('scroll')" class="status-warn">当前服务未支持滚动；请检查浏览器服务版本。</p>
+			<slot name="page" />
 		</section>
-		<RecordDesigner
-			ref="recordPanel"
-			class="editor-record-pane"
-			@select="activateSelection"
-			:draft="draft"
-			:session="session"
-			:selected-step="steps[selectedStep]"
-			:enabled="recordsSupported"
-			:blocked="busy || replaying || dirty || saving"
-			:execute="executePathAction"
-			@working="recordWorking = $event"
-			@draft-saved="emit('draft-saved', $event)"
-			@highlight="emit('highlight', $event)"
-		/>
+		<div class="workbench-command-status" role="status" aria-live="polite">
+			<span v-if="unknownRequest">上一请求结果未确认，确认前不能执行新动作。</span>
+			<span v-else-if="pending">{{ labels[pending.type] }} · {{ statusLabel(pending.status) }}</span>
+			<span v-else-if="submitting || replaying">{{ replaying ? '正在重放步骤…' : '正在执行动作…' }}</span>
+			<span v-else-if="last"
+				>{{ labels[last.type] }} · {{ statusLabel(last.status) }}{{ last.result.error ? ' · ' + last.result.error : ''
+				}}{{ last.result.recording_error ? ' · ' + last.result.recording_error : '' }}</span
+			>
+			<span v-else>点选只检查元素；网页动作需确认后执行。</span>
+			<button v-if="replaying" @click="stopReplay = true">停止后续步骤</button>
+			<button v-if="pending" :disabled="querying" @click="queryPending">查询回执</button>
+			<button v-if="unknownRequest" :disabled="querying" @click="resolveUnknown">确认上一请求（沿用请求键）</button>
+			<button v-if="last || pending || unknownRequest" @click="openPanel('history')">查看操作记录</button>
+			<span v-if="dirty || recordPanel?.localDirty" class="status-warn">规则有未保存修改</span>
+			<p v-if="notice" class="app-error">{{ notice }}</p>
+		</div>
+		<nav class="workbench-panel-tabs" aria-label="工作台面板">
+			<button
+				v-for="item in panelTabs"
+				:key="item.key"
+				:aria-pressed="!panelCollapsed && panelTab === item.key"
+				aria-controls="workbench-bottom-panel"
+				@click="openPanel(item.key)"
+			>
+				{{ item.label }}{{ item.key === 'flow' ? '（' + steps.length + '）' : '' }}
+			</button>
+			<label class="workbench-panel-size"
+				>面板高度<input v-model.number="panelHeight" type="range" min="200" max="640" step="20" aria-label="底部面板高度"
+			/></label>
+			<button :aria-expanded="!panelCollapsed" aria-controls="workbench-bottom-panel" @click="panelCollapsed = !panelCollapsed">
+				{{ panelCollapsed ? '展开' : '收起' }}
+			</button>
+		</nav>
+		<div v-show="!panelCollapsed" id="workbench-bottom-panel" class="workbench-bottom-panel">
+			<section v-show="panelTab === 'flow'" class="editor-step-pane">
+				<div class="pane-heading">
+					<h3>采集步骤</h3>
+					<span>{{ steps.length }} 步</span>
+				</div>
+				<p class="muted">步骤修改只改草稿，不操作网页。</p>
+				<ol class="step-list">
+					<li v-for="(step, index) in steps" :key="step.step_id || index" :class="{ selected: selectedStep === index }">
+						<button class="step-title" :disabled="busy || recordWorking || replaying || !!recordPanel?.localDirty" @click="selectStep(index)">
+							{{ index + 1 }}. {{ stepLabel(step) }}
+						</button>
+						<small v-if="selectedStep === index">{{ step.step_id }}</small>
+						<ul v-if="selectedStep === index && step.type === 'record_set'" class="record-step-outline">
+							<li>{{ step.config?.mode === 'repeated' ? '每条记录 · 有界循环' : '整页一条' }}（最多 {{ step.config?.max_records }} 条）</li>
+							<li v-for="field in step.config?.fields || []" :key="field.name">字段：{{ field.name }}</li>
+							<li v-if="step.config?.detail">
+								发现详情 → 打开 → 提取 {{ step.config?.detail_fields?.length || 0 }} 个字段 →
+								{{ step.config.detail.return_strategy === 'back' ? '后退列表' : '重开列表' }}
+							</li>
+							<li v-if="step.config?.next_page">下一页：{{ step.config.next_page.kind }}（本轮仅验证一次）</li>
+						</ul>
+						<div v-if="selectedStep === index" class="step-controls">
+							<button :disabled="!canEdit || index === 0" @click="moveStep(index, -1)" aria-label="上移步骤">↑</button>
+							<button :disabled="!canEdit || index === steps.length - 1" @click="moveStep(index, 1)" aria-label="下移步骤">↓</button>
+							<button class="danger-action" :disabled="!canEdit" @click="removeStep(index)">删除</button>
+							<button :disabled="!canExecute || !executable(step)" @click="runStep(step)">单步执行</button>
+						</div>
+					</li>
+				</ol>
+				<p v-if="!steps.length" class="muted">切换“录制操作”，成功动作将自动加入步骤。</p>
+				<details class="editor-advanced">
+					<summary>检查点与重放</summary>
+					<button class="secondary-action" :disabled="!canEdit || !steps.length" @click="saveCheckpoint">保存检查点</button>
+					<p class="muted">保存至选中步骤，重放使用这份快照。</p>
+					<div v-for="checkpoint in checkpoints" :key="checkpoint.checkpoint_id" class="checkpoint-row">
+						<strong>{{ checkpoint.name }}</strong
+						><small>revision {{ checkpoint.draft_revision }} · {{ checkpoint.snapshot.steps.length }} 步</small>
+						<button :disabled="!canEdit || replaying || !supported.length" @click="replay(checkpoint)">从入口重放</button>
+						<button :disabled="busy || replaying" @click="removeCheckpoint(checkpoint)">删除</button>
+					</div>
+					<button v-if="replaying" class="secondary-action" @click="stopReplay = true">停止后续步骤</button>
+				</details>
+			</section>
+			<section
+				v-show="panelTab === 'selection' || (panelTab === 'flow' && !selecting && selectedStep >= 0 && executable(steps[selectedStep]))"
+				class="editor-command-pane"
+			>
+				<BrowserSelection
+					v-show="selecting && panelTab === 'selection'"
+					ref="selectionPanel"
+					:session="session"
+					:frame-state="frameState"
+					:mode="mode === 'field-select' ? 'field' : 'record'"
+					:enabled="inspectionSupported"
+					:target="selectionTarget"
+					:revision="draft.revision"
+					:blocked="busy || recordWorking || replaying || !selecting || dirty || saving || !frameReady"
+					:record-scope="recordPanel?.recordScope"
+					:detail-page="recordPanel?.detailPage"
+					@highlight="emit('highlight', $event)"
+					@working="inspectionWorking = $event"
+					@action-locator="applyLocator"
+					@rule="applySelection"
+				/>
+				<form
+					v-show="!selecting && (panelTab === 'selection' || (panelTab === 'flow' && selectedStep >= 0 && executable(steps[selectedStep])))"
+					@submit.prevent="executeForm"
+				>
+					<div class="command-form-grid">
+						<label
+							>动作<select v-model="actionType" :disabled="busy || replaying" @change="onActionTypeChanged">
+								<option v-for="action in actions" :key="action" :value="action">{{ labels[action] }}</option>
+							</select></label
+						>
+						<label>最长等待（毫秒）<input v-model.number="timeout" type="number" min="100" max="30000" step="100" /></label>
+					</div>
+					<label v-if="['navigate', 'input', 'scroll', 'wait'].includes(actionType)"
+						>{{
+							actionType === 'navigate'
+								? '目标地址'
+								: actionType === 'input'
+									? '普通文本（不支持密码/验证码）'
+									: actionType === 'scroll'
+										? '滚动像素（负数向上）'
+										: '等待毫秒；填写定位器时改为等待元素'
+						}}<input
+							v-model="value"
+							:type="actionType === 'navigate' ? 'url' : 'text'"
+							:placeholder="actionType === 'navigate' ? draft.entry_url : ''"
+							maxlength="4096"
+					/></label>
+					<div v-if="['click', 'input', 'wait'].includes(actionType) && !position" class="command-form-grid">
+						<label
+							>定位方式<select v-model="strategy">
+								<option value="css">CSS</option>
+								<option value="xpath">XPath</option>
+							</select></label
+						>
+						<label>定位器<input v-model="expression" placeholder="例如 #load-more 或 //button[@id='more']" maxlength="2048" /></label>
+					</div>
+					<p v-if="position" class="position-notice">
+						画面点击坐标 {{ Math.round(position.x) }}, {{ Math.round(position.y) }}。<button type="button" @click="position = undefined">
+							改用定位器
+						</button>
+					</p>
+					<div class="editor-actions workbench-confirm-actions">
+						<button class="primary-action" type="submit" :disabled="!canExecute || !supported.includes(actionType)">
+							{{ busy ? '等待动作回执…' : mode === 'record' ? '执行并录制' : '执行动作' }}
+						</button>
+						<button
+							type="button"
+							class="secondary-action"
+							:disabled="!canEdit || !formValid || !!position || actionType === 'input'"
+							@click="addConfiguredStep"
+						>
+							只加入步骤
+						</button>
+						<button
+							v-if="selectedStep >= 0"
+							type="button"
+							class="secondary-action"
+							:disabled="!canEdit || !formValid || !!position || actionType === 'input' || !executable(steps[selectedStep])"
+							@click="updateConfiguredStep"
+						>
+							更新选中步骤
+						</button>
+						<button
+							v-if="last?.status === 'succeeded' && last.result.recording_status !== 'recorded'"
+							type="button"
+							class="secondary-action"
+							:disabled="!canEdit || last.type === 'input'"
+							@click="addLastStep"
+						>
+							将成功动作加入步骤
+						</button>
+					</div>
+				</form>
+				<p v-if="actionType === 'input'" class="muted">
+					输入步骤须在录制模式执行成功后保存；密码与验证码输入框会被拒绝。请勿在普通文本或 JSON 草稿中填写秘密。
+				</p>
+				<p v-if="!supported.length" class="muted">动作服务尚未就绪或版本不支持；草稿编辑仍可使用。</p>
+				<p v-if="dirty" class="status-warn">有未保存修改，请先保存再执行。</p>
+			</section>
+			<section v-show="panelTab === 'history'" class="workbench-history-pane">
+				<section v-if="pending || last" class="command-receipt" aria-live="polite">
+					<h3>动作回执 · {{ statusLabel((pending || last)!.status) }}</h3>
+					<p>{{ labels[(pending || last)!.type] }} · {{ (pending || last)!.result.duration_ms || 0 }} ms</p>
+					<p v-if="(pending || last)!.result.final_url" class="muted">{{ (pending || last)!.result.final_url }}</p>
+					<p v-if="(pending || last)!.result.error">{{ (pending || last)!.result.error }}</p>
+					<p v-if="(pending || last)!.result.recording_error">{{ (pending || last)!.result.recording_error }}</p>
+					<small>前：{{ (pending || last)!.result.before_page_state_id }}<br />后：{{ (pending || last)!.result.after_page_state_id }}</small>
+					<button v-if="pending" :disabled="querying" @click="queryPending">查询回执</button>
+				</section>
+				<button v-if="unknownRequest" :disabled="querying" @click="resolveUnknown">确认上一请求（沿用请求键）</button>
+				<details class="command-history" open>
+					<summary>最近动作（最多 50 条）</summary>
+					<div v-for="command in history" :key="command.command_id">
+						<span>{{ labels[command.type] }} · {{ statusLabel(command.status) }}</span
+						><button @click="last = command">查看回执</button>
+					</div>
+				</details>
+			</section>
+			<RecordDesigner
+				ref="recordPanel"
+				v-show="(panelTab === 'flow' && (selectedStep < 0 || !executable(steps[selectedStep]))) || panelTab === 'preview'"
+				:view="panelTab === 'preview' ? 'preview' : 'rules'"
+				@preview-requested="openPanel('preview')"
+				class="editor-record-pane"
+				@select="activateSelection"
+				:draft="draft"
+				:session="session"
+				:selected-step="steps[selectedStep]"
+				:enabled="recordsSupported"
+				:blocked="busy || replaying || dirty || saving"
+				:execute="executePathAction"
+				@working="recordWorking = $event"
+				@draft-saved="emit('draft-saved', $event)"
+				@highlight="emit('highlight', $event)"
+			/>
+		</div>
 	</div>
 </template>
 
@@ -247,6 +322,57 @@ const labels: Record<string, string> = {
 	scroll: '滚动',
 };
 const actions = Object.keys(labels);
+type PanelTab = 'selection' | 'flow' | 'preview' | 'history';
+const panelTabs: { key: PanelTab; label: string }[] = [
+	{ key: 'selection', label: '当前选择 / 动作' },
+	{ key: 'flow', label: '采集流程' },
+	{ key: 'preview', label: '数据预览' },
+	{ key: 'history', label: '操作记录' },
+];
+const panelTab = ref<PanelTab>('selection'),
+	panelCollapsed = ref(false),
+	panelHeight = ref(360),
+	focused = ref(false);
+function openPanel(tab: PanelTab) {
+	panelTab.value = tab;
+	panelCollapsed.value = false;
+}
+const workbenchRoot = ref<HTMLElement>();
+let focusOrigin: HTMLElement | undefined;
+let previouslyCollapsed = false;
+function exitFocus() {
+	if (!focused.value) return;
+	focused.value = false;
+	panelCollapsed.value = previouslyCollapsed;
+	void nextTick(() => focusOrigin?.focus());
+}
+function handleWorkbenchKeydown(event: KeyboardEvent) {
+ if (!focused.value) return;
+ if (event.key === 'Escape') { event.preventDefault(); exitFocus(); return; }
+ if (event.key !== 'Tab') return;
+ const controls = [...(workbenchRoot.value?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), summary, a[href], [tabindex="0"]') || [])].filter(el => el.offsetParent !== null);
+ const first = controls[0], last = controls[controls.length - 1];
+ if (!first) { event.preventDefault(); return; }
+ if (event.shiftKey && (document.activeElement === first || document.activeElement === workbenchRoot.value)) { event.preventDefault(); last.focus(); }
+ else if (!event.shiftKey && (document.activeElement === last || document.activeElement === workbenchRoot.value)) { event.preventDefault(); first.focus(); }
+}
+function toggleFocus() {
+	if (focused.value) {
+		exitFocus();
+		return;
+	}
+	focusOrigin = document.activeElement instanceof HTMLElement ? document.activeElement : undefined;
+	previouslyCollapsed = panelCollapsed.value;
+	focused.value = true;
+	panelCollapsed.value = true;
+	void nextTick(() => workbenchRoot.value?.focus());
+}
+watch(
+	() => props.active,
+	(active) => {
+		if (active === false) focused.value = false;
+	}
+);
 const mode = ref<'browse' | 'record' | 'record-select' | 'field-select'>('record-select');
 const selectionTarget = ref<SelectionRule['target']>('record');
 const selectionGoals: { target: SelectionRule['target']; label: string }[] = [
@@ -257,20 +383,24 @@ const selectionGoals: { target: SelectionRule['target']; label: string }[] = [
 ];
 const selectionHelp: Record<SelectionRule['target'], string> = {
 	record: '点一条记录，扩大到记录容器并选择同类；核对高亮范围后使用。',
-	field: '在记录内点选标题、图片等字段；右侧可命名并确认提取内容。',
+	field: '在记录内点选标题、图片等字段；底部可命名并确认提取内容。',
 	detail: '在一条记录内选择详情链接；若选中文字，可扩大到带链接的父元素。',
 	next: '点选列表页的下一页或加载更多；确认采用链接导航还是按钮点击。',
 };
 async function activateSelection(target: SelectionRule['target']) {
 	if (busy.value || recordWorking.value || replaying.value) return;
 	selectionTarget.value = target;
+	openPanel('selection');
 	mode.value = target === 'field' || target === 'detail' ? 'field-select' : 'record-select';
 	await nextTick();
-	document.querySelector('.editor-page-pane')?.scrollIntoView({ block: 'nearest' });
+	workbenchRoot.value?.querySelector('.editor-page-pane')?.scrollIntoView({ block: 'nearest' });
 }
 function applySelection(rule: SelectionRule) {
 	recordPanel.value?.applySelection(rule);
+	selectedStep.value = -1;
+	openPanel('flow');
 }
+watch([panelTab, panelCollapsed], () => { configurationFocused.value = false; });
 const selecting = computed(() => mode.value === 'record-select' || mode.value === 'field-select');
 const selectionPanel = ref<InstanceType<typeof BrowserSelection>>();
 const inspectionSupported = ref(false);
@@ -375,8 +505,8 @@ function statusLabel(status: string) {
 		({ queued: '排队中', running: '执行中', succeeded: '成功', failed: '失败', uncertain: '结果未确认' } as Record<string, string>)[status] || status
 	);
 }
-function executable(step: Record<string, any>) {
-	return step.type === 'navigate' || (step.type === 'action' && actions.includes(step.config?.action));
+function executable(step?: Record<string, any>) {
+	return !!step && (step.type === 'navigate' || (step.type === 'action' && actions.includes(step.config?.action)));
 }
 function stepLabel(step: Record<string, any>) {
 	return step.type === 'record_set'
@@ -386,9 +516,12 @@ function stepLabel(step: Record<string, any>) {
 			: labels[step.config?.action] || step.type;
 }
 function selectStep(index: number) {
+	if (busy.value || recordWorking.value || replaying.value || recordPanel.value?.localDirty) return;
+	openPanel('flow');
 	selectedStep.value = index;
 	const step = steps.value[index];
 	if (!executable(step)) return;
+	mode.value = 'browse';
 	actionType.value = step.type === 'navigate' ? 'navigate' : step.config.action;
 	value.value = step.type === 'navigate' ? step.config.url : step.config.value || '';
 	expression.value = step.config.locator?.expression || '';
@@ -479,15 +612,17 @@ function frameClick(x: number, y: number, pageStateID: string) {
 	wheelQueue.clear();
 	if (!props.frameReady || props.frameRefreshing) return;
 	if (selecting.value) {
+		openPanel('selection');
 		selectionPanel.value?.framePick(x, y, pageStateID);
 		return;
 	}
 	if (!canExecute.value || !pageStateID) return;
+	openPanel('selection');
 	positionPageStateID.value = pageStateID;
 	positionFrameSequence.value = props.frameState?.frame_sequence;
 	position.value = { x, y };
 	actionType.value = 'click';
-	notice.value = '已准备点击动作，请在右侧确认执行；网页还未被点击。';
+	notice.value = '已准备点击动作，请在底部确认执行；网页还未被点击。';
 }
 function frameHover(x: number, y: number, pageStateID: string) {
 	if (!configurationFocused.value && props.frameReady && !props.frameRefreshing && selecting.value) selectionPanel.value?.frameHover(x, y, pageStateID);
@@ -496,6 +631,7 @@ function leaveFrame() {
 	selectionPanel.value?.leaveFrame();
 }
 function applyLocator(locator: EditorLocator) {
+	openPanel('selection');
 	mode.value = 'browse';
 	actionType.value = 'click';
 	position.value = undefined;
@@ -518,7 +654,10 @@ watch(() => [props.session?.page_state_id, props.frameReady], () => {
 function hasUnsavedChanges() {
 	return !!recordPanel.value?.localDirty || busy.value || recordWorking.value || replaying.value;
 }
-function focusField(stepID: string, key: string, role: string) {
+async function focusField(stepID: string, key: string, role: string) {
+	selectedStep.value = -1;
+	openPanel('flow');
+	await nextTick();
 	recordPanel.value?.focusField(stepID, key, role);
 }
 defineExpose({ frameWheel, frameClick, frameHover, leaveFrame, hasUnsavedChanges, focusField });
