@@ -540,5 +540,5 @@ onBeforeUnmount(() => {
 	generation++;
 	if (hoverTimer) clearTimeout(hoverTimer);
 });
-defineExpose({ framePick, frameHover, leaveFrame });
+defineExpose({ framePick, frameHover, leaveFrame, hasPending });
 </script>

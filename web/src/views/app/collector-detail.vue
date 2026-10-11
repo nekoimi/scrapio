@@ -111,7 +111,7 @@
 							<button :aria-pressed="displayScale === 'fit'" @click="displayScale = 'fit'">适应宽度</button>
 							<button :aria-pressed="displayScale === 'original'" @click="displayScale = 'original'">原始比例</button>
 							<label><input type="checkbox" v-model="remoteWheel" />滚轮控制远端网页</label>
-							<label><input type="checkbox" v-model="autoFrames" />自动更新画面</label>
+							<label><input type="checkbox" v-model="autoFrames" />持续观察（约每 5 秒更新）</label>
 						</div>
 						<p class="muted viewport-help">{{ remoteWheel ? '滚轮滚动远端主页面，可能触发懒加载；不支持内部滚动容器。' : '滚轮只移动本地截图，远端页面不滚动。' }} 原始比例按网页 CSS 宽度显示，可用视口滚动条本地查看。
 							{{ automaticStatus }}
@@ -119,10 +119,10 @@
 						</p>
 					</template>
 					<template #page
-						><p class="browser-frame-status" :data-stale="!frameInteractive" role="status">{{ frameStatus }}</p>
+						><div class="browser-frame-status" :data-stale="!frameRefreshing && !frameInteractive" :data-busy="frameRefreshing" :aria-busy="frameRefreshing" role="status"><span v-if="frameRefreshing" class="browser-refresh-dot" aria-hidden="true"></span><span>{{ frameStatus }}</span></div>
 						<p v-if="frameError" class="app-error" role="status">{{ frameError }}</p>
 						<div class="browser-web-viewport" tabindex="0" aria-label="独立网页视口" @wheel="handleFrameWheel" @mouseenter="pointerInFrame = true; adaptiveFrames.activity()" @mouseleave="pointerInFrame = false; actionsPanel?.leaveFrame()">
-						<div v-if="frameObjectUrl" class="browser-frame-stage" :style="frameDisplayStyle" :data-stale="!frameInteractive" :aria-busy="frameRefreshing" @mouseleave="actionsPanel?.leaveFrame()">
+						<div v-if="frameObjectUrl" class="browser-frame-stage" :style="frameDisplayStyle" :data-stale="!frameRefreshing && !frameInteractive" :aria-busy="frameRefreshing" @mouseleave="actionsPanel?.leaveFrame()">
 							<img
 								ref="frameImage"
 								class="browser-session-frame"
@@ -221,7 +221,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router';
 import BrowserActions from './browser-actions.vue';
 import { createBrowserFrame } from './browser-frame';
-import { createAdaptiveRefresh, framePoint } from './browser-workbench';
+import { createAdaptiveRefresh, createDelayedRefreshIndicator, framePoint } from './browser-workbench';
 import HttpEntry from './http-entry.vue';
 import BrowserAuthorization from './browser-authorization.vue';
 import ExtractionPreview from './extraction-preview.vue';
@@ -360,6 +360,9 @@ const framePageStateID = computed(() => frameQueue.frame.value?.pageStateID || '
 const frameError = frameQueue.error;
 const syncingFrame = ref(false);
 const frameRefreshing = computed(() => syncingFrame.value || frameQueue.busy.value);
+const slowFrameRefresh = ref(false);
+const refreshIndicator = createDelayedRefreshIndicator({ visible: value => { slowFrameRefresh.value = value; } });
+watch(frameRefreshing, value => refreshIndicator.setUpdating(value), { flush: 'sync' });
 let frameSyncRequest = 0;
 const browserMessage = ref('');
 const connecting = ref(false);
@@ -375,25 +378,28 @@ const authorizationPanel = ref<InstanceType<typeof BrowserAuthorization>>();
 const frameSize = ref({ width: 0, height: 0 });
 const frameLoaded = ref(false);
 const frameInteractive = computed(() => frameLoaded.value && !syncingFrame.value && !frameRefreshing.value && !frameQueue.stale.value && !!browserSession.value?.available && !closing.value);
-const frameStatus = computed(() => syncingFrame.value ? '正在同步页面状态，暂时不能点选…'
-	: frameRefreshing.value ? '正在更新画面，暂时不能点选…'
-	: !browserSession.value?.available ? '浏览器会话不可用；原有配置已保留。'
-	: frameQueue.stale.value ? '画面已过期或尚未就绪，请更新画面后点选。'
+const frameStatus = computed(() => !browserSession.value?.available ? '浏览器会话不可用；原有配置已保留。'
+	: frameRefreshing.value ? (!frameObjectUrl.value ? '正在加载网页画面…' : slowFrameRefresh.value ? '正在更新画面，完成后可点选…' : '')
+	: frameQueue.stale.value ? '网页已变化或画面已过期，请更新画面后重新验证；配置已保留。'
 	: !frameLoaded.value ? '画面已获取，正在显示…' : '当前画面可点选。');
 watch(frameObjectUrl, () => { frameLoaded.value = false; }, { flush: 'sync' });
 const displayScale = ref<'fit' | 'original'>('fit');
-const remoteWheel = ref(true), autoFrames = ref(true), pointerInFrame = ref(false), workbenchBusy = ref(false);
-const tabVisible = ref(true), refreshMeasurement = ref({ duration: 0, delay: 1800, failures: 0 });
+const remoteWheel = ref(true), autoFrames = ref(false), pointerInFrame = ref(false), workbenchBusy = ref(false);
+const frameDemand = ref(false);
+const tabVisible = ref(true), refreshMeasurement = ref({ duration: 0, delay: 5000, failures: 0 });
 let resumeFrameSync = true;
 const frameDisplayStyle = computed(() => displayScale.value === 'original'
 	? { width: `${frameQueue.frame.value?.state?.viewport.width || browserSession.value?.viewport?.width || frameSize.value.width}px`, maxWidth: 'none' }
 	: { width: '100%', maxWidth: 'none' });
-const automaticAllowed = computed(() => autoFrames.value && tabVisible.value && editorStage.value === 'edit' && !!browserSession.value?.available
+const automaticAllowed = computed(() => tabVisible.value && editorStage.value === 'edit' && !!browserSession.value?.available
 	&& !pointerInFrame.value && !workbenchBusy.value && !dirty.value && !saving.value && !closing.value && !connecting.value && !syncingFrame.value && !frameQueue.busy.value);
 const adaptiveFrames = createAdaptiveRefresh({
 	allowed: () => automaticAllowed.value,
+	continuous: () => autoFrames.value,
+	needed: () => frameDemand.value,
 	capture: async () => {
-		if (resumeFrameSync || frameQueue.stale.value) {
+		frameDemand.value = false;
+		if (resumeFrameSync) {
 			resumeFrameSync = false;
 			await updateBrowserFrame();
 		} else await frameQueue.refresh();
@@ -404,13 +410,21 @@ const adaptiveFrames = createAdaptiveRefresh({
 const frameProtocolStatus = computed(() => frameQueue.frame.value?.state
 	? `状态扩展已启用 · 帧 ${frameQueue.frame.value.state.frame_sequence} · ${frameQueue.frame.value.state.image?.width}×${frameQueue.frame.value.state.image?.height} 像素 · DPR ${frameQueue.frame.value.state.pixel_ratio}`
 	: browserSession.value?.state ? '等待带元数据的截图。' : '兼容模式：使用严格页面令牌；浏览器服务未提供画面元数据。');
-const automaticStatus = computed(() => !browserSession.value?.available ? '连接会话后可自动更新。' : !autoFrames.value ? '自动更新已关闭。'
+const automaticStatus = computed(() => !browserSession.value?.available ? '连接会话后按需更新。'
 	: !tabVisible.value || editorStage.value !== 'edit' ? '画面更新已暂停。'
-	: pointerInFrame.value || workbenchBusy.value ? '操作或配置期间暂停自动更新；完成后恢复。'
-	: refreshMeasurement.value.failures ? `更新失败，已退避至约 ${Math.round(refreshMeasurement.value.delay / 1000)} 秒。`
-	: `自动更新中；最近获取耗时 ${Math.round(refreshMeasurement.value.duration)}ms。`);
-watch(automaticAllowed, () => adaptiveFrames.reconcile(), { flush: 'sync' });
-watch(() => [tabVisible.value, editorStage.value, autoFrames.value], () => { resumeFrameSync = true; pointerInFrame.value = false; adaptiveFrames.reconcile(); });
+	: pointerInFrame.value || workbenchBusy.value || dirty.value || saving.value ? '点选、核对样例或编辑配置期间暂缓更新；手动更新仍可使用。'
+	: refreshMeasurement.value.failures ? (autoFrames.value ? `更新失败，已退避至约 ${Math.round(refreshMeasurement.value.delay / 1000)} 秒。` : '更新失败，请手动更新画面重试。')
+	: frameDemand.value ? '网页有变化，等待空闲后更新。'
+	: autoFrames.value ? `持续观察中，约每 5 秒更新；最近获取耗时 ${Math.round(refreshMeasurement.value.duration)}ms。` : '编辑优先：仅在网页变化、动作完成或手动请求时更新。');
+watch([automaticAllowed, frameDemand, autoFrames], () => adaptiveFrames.reconcile(), { flush: 'sync' });
+watch(() => frameQueue.stale.value, stale => {
+	if (!stale) {
+		frameDemand.value = false;
+		adaptiveFrames.captured();
+		if (refreshMeasurement.value.failures) refreshMeasurement.value = { ...refreshMeasurement.value, failures: 0 };
+	}
+}, { flush: 'sync' });
+watch(() => [tabVisible.value, editorStage.value], () => { resumeFrameSync = true; frameDemand.value = true; pointerInFrame.value = false; adaptiveFrames.reconcile(); });
 function handleVisibility() { tabVisible.value = document.visibilityState !== 'hidden'; }
 onMounted(() => { handleVisibility(); document.addEventListener('visibilitychange', handleVisibility); adaptiveFrames.reconcile(); });
 function handleFrameWheel(event: WheelEvent) {
@@ -655,6 +669,7 @@ async function setBrowserSession(session: BrowserSession, capture = true) {
 		stopHeartbeat();
 		stopSessionEvents();
 		pageHighlights.value = {};
+		frameDemand.value = false;
 	}
 	browserSession.value = session;
 	frameQueue.setTarget({ sessionID: session.session_id, pageStateID: session.page_state_id, url: session.frame_url, available: session.available, state: session.state });
@@ -664,7 +679,17 @@ async function setBrowserSession(session: BrowserSession, capture = true) {
 	if (session.available) {
 		browserMessage.value = '';
 		startHeartbeat();
-		if (capture && (autoFrames.value || !frameObjectUrl.value) && refreshMeasurement.value.failures === 0 && tabVisible.value && editorStage.value === 'edit' && !workbenchBusy.value && !pointerInFrame.value && (prior?.session_id !== session.session_id || prior?.page_state_id !== session.page_state_id || !prior?.available || (!frameObjectUrl.value && !frameError.value))) await frameQueue.refresh();
+		const changed = prior?.session_id !== session.session_id || !prior?.available || prior.page_state_id !== session.page_state_id
+			|| prior.state?.document_id !== session.state?.document_id || prior.state?.frame_state_id !== session.state?.frame_state_id
+			|| prior.state?.validation_state_id !== session.state?.validation_state_id;
+		if (capture && frameQueue.stale.value && !frameError.value && (changed || (!frameObjectUrl.value && !frameQueue.busy.value))) {
+			frameDemand.value = true;
+			// First/reconnected frames load immediately; SSE changes share the idle scheduler.
+			if ((!frameObjectUrl.value || !prior?.available) && tabVisible.value && editorStage.value === 'edit' && !workbenchBusy.value && !pointerInFrame.value) {
+				resumeFrameSync = false;
+				await frameQueue.refresh();
+			}
+		}
 	} else {
 		stopHeartbeat();
 		browserMessage.value =
@@ -681,6 +706,8 @@ async function updateBrowserFrame(state?: BrowserSession) {
 	const epoch = sessionEpoch;
 	const request = ++frameSyncRequest;
 	const priorState = prior.page_state_id;
+	frameDemand.value = false;
+	resumeFrameSync = false;
 	syncingFrame.value = true;
 	if (!state) frameQueue.invalidate();
 	try {
@@ -828,6 +855,7 @@ onBeforeUnmount(() => {
 	stopHeartbeat();
 	stopSessionEvents();
 	adaptiveFrames.dispose();
+	refreshIndicator.dispose();
 	document.removeEventListener('visibilitychange', handleVisibility);
 	frameQueue.dispose();
 });

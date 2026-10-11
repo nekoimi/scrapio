@@ -54,6 +54,7 @@ export function createBrowserFrame(options: FrameOptions) {
 		sequence = 0,
 		disposed = false;
 	let pending: { target: FrameTarget; generation: number; sequence: number } | undefined;
+	let activeJob: typeof pending;
 	let drain: Promise<void> | undefined;
 	const stale = computed(
 		() =>
@@ -106,6 +107,7 @@ export function createBrowserFrame(options: FrameOptions) {
 		for (let attempt = 0; pending && attempt < 3; attempt++) {
 			const job = pending;
 			pending = undefined;
+			activeJob = job;
 			let objectURL = '';
 			try {
 				const blob = (await options.load(job.target)) as CaptureBlob;
@@ -146,6 +148,7 @@ export function createBrowserFrame(options: FrameOptions) {
 				error.value =
 					cause?.error?.code === 'STALE_PAGE_STATE' ? '页面已变化，请更新画面后再点选。' : '画面更新失败，保留上次截图；请确认连接后更新画面。';
 			} finally {
+				if (activeJob === job) activeJob = undefined;
 				if (objectURL) revokeURL(objectURL);
 			}
 		}
@@ -171,6 +174,10 @@ export function createBrowserFrame(options: FrameOptions) {
 	}
 	function refresh(): Promise<void> {
 		if (disposed || !target.value?.available || !target.value.url) return Promise.resolve();
+		// A same-version caller can share capture/decode already in progress.
+		// Changed targets and explicit invalidation still demand a new frame.
+		const job = pending || activeJob;
+		if (drain && job?.generation === generation && job.target.sessionID === target.value.sessionID && job.target.pageStateID === target.value.pageStateID) return drain;
 		needsRefresh.value = true;
 		error.value = '';
 		pending = { target: { ...target.value }, generation, sequence: ++sequence };

@@ -37,7 +37,7 @@
 					<button class="secondary-action" :disabled="!canScroll" @click="scrollPage(-1)">向上滚动</button>
 					<button class="secondary-action" :disabled="!canScroll" @click="scrollPage(1)">向下滚动</button>
 					<button class="secondary-action" :disabled="!canRefreshFrame" @click="requestFrame">
-						{{ updatingFrame || frameRefreshing ? '更新画面中…' : '更新画面' }}
+						{{ updatingFrame ? '更新画面中…' : '更新画面' }}
 					</button>
 					<label v-if="mode === 'record'" class="record-scroll-toggle"
 						><input type="checkbox" v-model="recordScroll" :disabled="busy || replaying" />记录滚动</label
@@ -445,7 +445,8 @@ const canEdit = computed(
 );
 const canExecute = computed(() => props.active !== false && canEdit.value && !!props.session?.available && props.frameReady && !props.frameRefreshing && !updatingFrame.value);
 const inspectionWorking = ref(false), configurationFocused = ref(false);
-const workbenchBusy = computed(() => busy.value || inspectionWorking.value || configurationFocused.value || recordWorking.value || replaying.value || updatingFrame.value || !!recordPanel.value?.localDirty || !!position.value);
+const reviewing = computed(() => !panelCollapsed.value && ((selecting.value && panelTab.value === 'selection' && !!selectionPanel.value?.hasPending) || panelTab.value === 'preview'));
+const workbenchBusy = computed(() => busy.value || reviewing.value || inspectionWorking.value || configurationFocused.value || recordWorking.value || replaying.value || updatingFrame.value || !!recordPanel.value?.localDirty || !!position.value);
 watch(workbenchBusy, value => emit('workbench-busy', value), { flush: 'sync', immediate: true });
 function enterConfiguration(event: FocusEvent) {
 	configurationFocused.value = !!(event.target as HTMLElement).closest('.editor-command-pane, .editor-record-pane');

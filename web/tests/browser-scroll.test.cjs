@@ -187,3 +187,18 @@ test('focus mode collapses temporarily and Escape restores the panel and focus w
     assert.equal(s.focused.value, false);
   } finally { h.unmount(); }
 });
+
+
+test('reviewing an element or data preview reserves automatic updates without disabling explicit refresh', async () => {
+  const h = mount(); await tick();
+  try {
+    const s = h.state;
+    s.selectionPanel.value = { hasPending: true, leaveFrame: () => {} }; await tick();
+    assert.equal(s.reviewing.value, true); assert.equal(s.workbenchBusy.value, true);
+    assert.equal(s.canRefreshFrame.value, true);
+    s.panelCollapsed.value = true; await tick(); assert.equal(s.reviewing.value, false);
+    s.openPanel('preview'); await tick(); assert.equal(s.reviewing.value, true);
+    s.openPanel('history'); await tick(); assert.equal(s.reviewing.value, false);
+    assert.equal(h.calls.length, 0);
+  } finally { h.unmount(); }
+});

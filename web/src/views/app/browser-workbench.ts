@@ -74,6 +74,8 @@ export function createWheelQueue(options: { ready: () => boolean; dispatch: (dis
 export function createAdaptiveRefresh(options: {
 	allowed: () => boolean;
 	capture: () => Promise<boolean>;
+	continuous?: () => boolean;
+	needed?: () => boolean;
 	clock?: WorkbenchClock;
 	report?: (duration: number, delay: number, failures: number) => void;
 }) {
@@ -81,25 +83,30 @@ export function createAdaptiveRefresh(options: {
 	let timer: any,
 		running = false,
 		disposed = false,
-		activeUntil = 0,
+		quietUntil = 0,
+		lastStart = -Infinity,
 		duration = 0,
 		failures = 0;
 	function delay() {
-		return Math.min(15000, Math.max(time.now() < activeUntil ? 400 : 1800, duration) * 2 ** failures);
+		const base = options.needed?.() ? 600 : 5000;
+		const retry = failures ? 5000 * 2 ** failures : base;
+		return Math.min(15000, Math.max(retry, duration, quietUntil - time.now(), lastStart + 3000 - time.now()));
 	}
+	function wanted() { return (options.continuous?.() ?? true) || !!options.needed?.(); }
 	function schedule() {
 		time.cancel(timer);
 		timer = undefined;
-		if (!disposed && !running && options.allowed())
+		if (!disposed && !running && options.allowed() && wanted())
 			timer = time.later(() => {
 				timer = undefined;
 				void run();
 			}, delay());
 	}
 	async function run() {
-		if (disposed || running || !options.allowed()) return;
+		if (disposed || running || !options.allowed() || !wanted()) return;
 		running = true;
 		const start = time.now();
+		lastStart = start;
 		try {
 			failures = (await options.capture()) ? 0 : Math.min(4, failures + 1);
 		} catch {
@@ -115,13 +122,32 @@ export function createAdaptiveRefresh(options: {
 	}
 	return {
 		reconcile: schedule,
+		captured() { failures = 0; lastStart = time.now(); },
 		activity() {
-			activeUntil = time.now() + 2500;
+			// User activity reserves an idle window; it never accelerates screenshots.
+			quietUntil = time.now() + 1000;
 			schedule();
 		},
 		dispose() {
 			disposed = true;
 			time.cancel(timer);
 		},
+	};
+}
+
+// Brief captures should not flash a loading sentence in the workbench.
+export function createDelayedRefreshIndicator(options: { visible: (value: boolean) => void; clock?: WorkbenchClock }) {
+	const time = options.clock || clock;
+	let timer: any, updating = false, disposed = false;
+	return {
+		setUpdating(value: boolean) {
+			if (disposed || value === updating) return;
+			updating = value;
+			time.cancel(timer);
+			timer = undefined;
+			options.visible(false);
+			if (value) timer = time.later(() => { timer = undefined; if (!disposed && updating) options.visible(true); }, 800);
+		},
+		dispose() { disposed = true; time.cancel(timer); options.visible(false); },
 	};
 }

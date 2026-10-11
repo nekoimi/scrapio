@@ -38,6 +38,25 @@ test('old image stays visible through capture and decode; release only after rep
   assert.deepEqual(h.revoked, ['image-1']); h.queue.dispose();
   assert.deepEqual(h.revoked, ['image-1', 'image-2']);
 });
+test('same-version requests share both capture and decode without discarding the in-flight image', async () => {
+  const decode = deferred(); const h = harness({ decode: () => decode.promise });
+  const first = h.queue.refresh(); await tick();
+  const second = h.queue.refresh(); assert.equal(first, second);
+  h.requests[0].resolve({ id: 'shared' }); await tick();
+  const third = h.queue.refresh(); assert.equal(first, third); assert.equal(h.requests.length, 1);
+  decode.resolve({ width: 1280, height: 800 }); await first;
+  assert.equal(h.requests.length, 1); assert.equal(h.queue.frame.value.objectURL, 'image-shared'); assert.equal(h.queue.stale.value, false);
+  h.queue.dispose();
+});
+
+test('explicit invalidation still replaces a same-page capture and rejects its late result', async () => {
+  const h = harness(); const first = h.queue.refresh(); await tick();
+  h.queue.invalidate(); h.queue.refresh(); h.requests[0].resolve({ id: 'invalidated' }); await tick();
+  assert.equal(h.requests.length, 2); assert.equal(h.queue.frame.value, undefined);
+  h.requests[1].resolve({ id: 'fresh' }); await first;
+  assert.equal(h.queue.frame.value.objectURL, 'image-fresh'); h.queue.dispose();
+});
+
 test('repeated demand is coalesced and late captures cannot replace newer state', async () => {
   const h = harness(); const task = h.queue.refresh(); await tick();
   h.queue.setTarget(target('page-2')); h.queue.refresh(); h.queue.refresh(); h.queue.refresh();
@@ -80,7 +99,7 @@ test('continuous changes have bounded capture attempts and stop with recovery gu
   assert.match(h.queue.error.value, /持续更新/); h.queue.dispose();
 });
 
-function mountEditor(apiOverrides = {}) {
+function mountEditor(apiOverrides = {}, time) {
   const { parse, compileScript, compileTemplate } = require('@vue/compiler-sfc');
   const filename = path.join(__dirname, '../src/views/app/collector-detail.vue');
   const { descriptor } = parse(fs.readFileSync(filename, 'utf8'), { filename });
@@ -96,7 +115,7 @@ function mountEditor(apiOverrides = {}) {
   vm.runInNewContext(output, { module, exports: module.exports,
     require: name => name === 'vue' ? vue : name === './api' ? { appApi: api }
       : name === './browser-frame' ? { createBrowserFrame: options => createBrowserFrame({ ...options, decode: async () => ({ width: 1280, height: 800 }), createURL: blob => `image-${blob.id}`, revokeURL: () => {} }) }
-        : name === './browser-workbench' ? require('./workbench-loader.cjs') : name === 'vue-router' ? { useRoute: () => ({ params: { id: 'collector-1' }, query: {} }), onBeforeRouteLeave: () => {}, onBeforeRouteUpdate: () => {} } : {},
+        : name === './browser-workbench' ? { ...require('./workbench-loader.cjs'), createAdaptiveRefresh: options => require('./workbench-loader.cjs').createAdaptiveRefresh({ ...options, clock: time }), createDelayedRefreshIndicator: options => require('./workbench-loader.cjs').createDelayedRefreshIndicator({ ...options, clock: time }) } : name === 'vue-router' ? { useRoute: () => ({ params: { id: 'collector-1' }, query: {} }), onBeforeRouteLeave: () => {}, onBeforeRouteUpdate: () => {} } : {},
     sessionStorage: { getItem: () => null, setItem: () => {}, removeItem: () => {} },
     document: { visibilityState: 'visible', addEventListener() {}, removeEventListener() {} }, AbortController, queueMicrotask, setTimeout, clearTimeout, setInterval: () => 1, clearInterval: () => {},
   });
@@ -169,4 +188,47 @@ test('negotiated capture requires matching metadata and decoded pixel dimensions
   }
   task = h.queue.refresh(); await tick(); h.requests.at(-1).resolve({ id: 'next', frameState: metadata({ frame_sequence: 2 }) }); await task;
   assert.equal(h.queue.stale.value, false); h.queue.dispose();
+});
+
+
+function fakeClock() {
+  let now = 0, id = 0; const jobs = new Map();
+  return { now: () => now, later(fn, delay) { jobs.set(++id, { fn, due: now + delay }); return id; }, cancel: id => jobs.delete(id),
+    async advance(ms) { now += ms; for (const [id, job] of [...jobs]) if (job.due <= now) { jobs.delete(id); job.fn(); }
+      for (let i = 0; i < 15; i++) await tick(); }, get count() { return jobs.size; } };
+}
+
+test('editor defaults to demand refresh; repeated SSE is silent, page changes wait for idle and action capture consumes demand', async () => {
+  const time = fakeClock(); let captures = 0;
+  const h = mountEditor({ browserFrame: async () => ({ id: ++captures }) }, time); await tick();
+  try {
+    const s = h.state;
+    assert.equal(s.autoFrames.value, false); s.dirty.value = false; await s.setBrowserSession(session('page-1'));
+    await time.advance(60000); assert.equal(captures, 1);
+    await s.setBrowserSession(session('page-1')); await time.advance(60000); assert.equal(captures, 1);
+    s.workbenchBusy.value = true; await s.setBrowserSession(session('page-2'));
+    assert.equal(s.frameQueue.stale.value, true); assert.equal(s.frameDemand.value, true);
+    await time.advance(10000); assert.equal(captures, 1); assert.match(s.frameStatus.value, /配置已保留/);
+    s.workbenchBusy.value = false; await tick(); await time.advance(600); assert.equal(captures, 2);
+    await s.setBrowserSession(session('page-3')); await s.updateBrowserFrame(session('page-3'));
+    const afterAction = captures; await time.advance(60000);
+    assert.equal(captures, afterAction); assert.equal(s.frameDemand.value, false);
+  } finally { h.unmount(); }
+  assert.equal(time.count, 0);
+});
+
+test('editor keeps refreshing frames non-interactive while delaying the loading sentence', async () => {
+  const time = fakeClock(); const response = deferred(); let slow = false;
+  const h = mountEditor({ browserFrame: async () => slow ? response.promise : { id: 'first' } }, time); await tick();
+  try {
+    const s = h.state; await s.setBrowserSession(session('page-1'));
+    s.frameLoaded.value = true; assert.equal(s.frameInteractive.value, true);
+    s.refreshMeasurement.value = { duration: 0, delay: 10000, failures: 1 };
+    slow = true; const request = s.frameQueue.refresh(); await tick();
+    assert.equal(s.frameInteractive.value, false); assert.equal(s.frameStatus.value, '');
+    await time.advance(799); assert.equal(s.frameStatus.value, '');
+    await time.advance(1); assert.match(s.frameStatus.value, /正在更新画面/);
+    response.resolve({ id: 'second' }); await request; assert.equal(s.slowFrameRefresh.value, false); assert.equal(s.refreshMeasurement.value.failures, 0);
+  } finally { h.unmount(); }
+  assert.equal(time.count, 0);
 });
