@@ -175,6 +175,7 @@ const emit = defineEmits<{
 	(event: 'highlight', value: PageHighlight): void;
 	(event: 'action-locator', value: EditorLocator): void;
 	(event: 'rule', value: SelectionRule): void;
+	(event: 'working', value: boolean): void;
 }>();
 const targetLabels: Record<SelectionRule['target'], string> = {
 	record: '选择记录范围',
@@ -193,6 +194,7 @@ const strategy = ref<'css' | 'xpath'>('css');
 const expression = ref('');
 const childIndex = ref(1);
 const busy = ref(false);
+watch(busy, value => emit('working', value), { flush: 'sync' });
 const message = ref('');
 const available = computed(() => props.enabled && !!props.session?.available && !props.blocked);
 const targetMode = computed(() => props.target === 'field' || props.target === 'detail' ? 'field' : 'record');

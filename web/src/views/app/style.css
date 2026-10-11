@@ -219,6 +219,13 @@
 .collector-editor-page .editor-action-workspace { grid-template-columns: 190px minmax(0, 1fr) 300px; gap: 16px; align-items: start; }
 .editor-page-pane, .editor-command-pane, .editor-record-pane { min-width: 0; }
 .editor-page-pane { position: relative; }
+.browser-web-viewport { height: clamp(300px, 62vh, 760px); overflow: auto; overscroll-behavior: contain; min-width: 0; background: #eef2f7; border: 1px solid #dfe3eb; border-radius: 8px; scrollbar-gutter: stable; }
+.editor-page-pane .browser-web-viewport .browser-frame-stage { margin-top: 0; border: 0; }
+.browser-web-viewport .browser-session-frame { display: block; max-width: none; }
+.browser-display-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.browser-display-toolbar label { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; }
+.browser-display-toolbar button[aria-pressed="true"] { color: #315ab4; border-color: #809bd2; background: #edf2ff; }
+.collector-editor-page .editor-step-pane, .collector-editor-page .editor-command-pane { max-height: calc(62vh + 250px); overflow-y: auto; overscroll-behavior: contain; padding-right: 6px; scrollbar-gutter: stable; }
 .editor-page-pane .browser-frame-stage { margin-top: 14px; }
 .editor-page-empty { border: 1px dashed #c4d0e4; border-radius: 10px; background: #f7f9fc; padding: 50px 24px; min-height: 300px; }
 .editor-page-empty p { color: #647086; line-height: 1.8; margin-top: 12px; }

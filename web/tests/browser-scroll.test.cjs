@@ -32,7 +32,7 @@ function mount(overrides = {}, refresh) {
   };
   const output = ts.transpileModule(script.content, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } });
   const module = { exports: {} };
-  vm.runInNewContext(output.outputText, { module, exports: module.exports, require: name => ({ vue, './api': { appApi: api }, './browser-selection.vue': {}, './record-designer.vue': {} })[name],
+  vm.runInNewContext(output.outputText, { module, exports: module.exports, require: name => ({ vue, './api': { appApi: api }, './browser-workbench': require('./workbench-loader.cjs'), './browser-selection.vue': {}, './record-designer.vue': {} })[name],
     crypto: { randomUUID: require('node:crypto').randomUUID }, window: { confirm: () => { throw new Error('scroll should not open a click confirmation'); } },
     setTimeout, clearTimeout,
   });
@@ -101,5 +101,20 @@ test('stale frame blocks coordinates and scroll; refresh is a read-only request'
     assert.equal(h.state.position.value, undefined); assert.equal(h.calls.length, 0);
     await h.state.requestFrame();
     assert.equal(h.calls.length, 0); assert.equal(h.refreshed.length, 1);
+  } finally { h.unmount(); }
+});
+
+test('wheel admission keeps zoom native and refuses stale or uncertain command context', async () => {
+  const h = mount(); await tick();
+  try {
+    const event = { deltaY: 100, deltaMode: 0 };
+    assert.equal(h.state.frameWheel({ ...event, ctrlKey: true }, 800), false);
+    h.props.frameReady = false; await tick();
+    assert.equal(h.state.frameWheel(event, 800), false);
+    h.props.frameReady = true; await tick();
+    assert.equal(h.state.frameWheel(event, 800), true);
+    h.state.unknownRequest.value = { sessionId: 'session-1', key: 'original', input: {} }; await tick();
+    assert.equal(h.state.frameWheel(event, 800), false);
+    assert.equal(h.calls.length, 0);
   } finally { h.unmount(); }
 });

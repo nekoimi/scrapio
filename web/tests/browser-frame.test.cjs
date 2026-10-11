@@ -96,9 +96,9 @@ function mountEditor(apiOverrides = {}) {
   vm.runInNewContext(output, { module, exports: module.exports,
     require: name => name === 'vue' ? vue : name === './api' ? { appApi: api }
       : name === './browser-frame' ? { createBrowserFrame: options => createBrowserFrame({ ...options, decode: async () => ({ width: 1280, height: 800 }), createURL: blob => `image-${blob.id}`, revokeURL: () => {} }) }
-        : name === 'vue-router' ? { useRoute: () => ({ params: { id: 'collector-1' }, query: {} }), onBeforeRouteLeave: () => {}, onBeforeRouteUpdate: () => {} } : {},
+        : name === './browser-workbench' ? require('./workbench-loader.cjs') : name === 'vue-router' ? { useRoute: () => ({ params: { id: 'collector-1' }, query: {} }), onBeforeRouteLeave: () => {}, onBeforeRouteUpdate: () => {} } : {},
     sessionStorage: { getItem: () => null, setItem: () => {}, removeItem: () => {} },
-    AbortController, queueMicrotask, setTimeout, clearTimeout, setInterval: () => 1, clearInterval: () => {},
+    document: { visibilityState: 'visible', addEventListener() {}, removeEventListener() {} }, AbortController, queueMicrotask, setTimeout, clearTimeout, setInterval: () => 1, clearInterval: () => {},
   });
   const component = module.exports.default; let state;
   const setup = component.setup; component.setup = (props, context) => { state = setup(props, context); return state; }; component.render = () => vue.h('div');
@@ -113,7 +113,7 @@ test('editor refuses image coordinates while stale or updating and retains same-
   const h = mountEditor(); await tick();
   try {
     const s = h.state; await s.setBrowserSession(session('page-1'));
-    s.frameImage.value = { naturalWidth: 1280, naturalHeight: 800, currentSrc: s.frameObjectUrl.value, getBoundingClientRect: () => ({ left: 0, top: 0 }), clientLeft: 0, clientTop: 0, clientWidth: 1280, clientHeight: 800 };
+    s.frameImage.value = { naturalWidth: 1280, naturalHeight: 800, currentSrc: s.frameObjectUrl.value, getBoundingClientRect: () => ({ left: 0, top: 0, width: 1280, height: 800 }), clientLeft: 0, clientTop: 0, clientWidth: 1280, clientHeight: 800 };
     s.updateFrameSize(); let clicked = 0;
     s.actionsPanel.value = { frameClick: () => clicked++, frameHover: () => clicked++ };
     const event = { currentTarget: s.frameImage.value, clientX: 5, clientY: 5 };
@@ -135,5 +135,25 @@ test('late state read for manual refresh cannot roll back a newer SSE state', as
     await s.setBrowserSession(session('page-2')); response.resolve(session('page-1')); await pending;
     assert.equal(s.browserSession.value.page_state_id, 'page-2'); assert.equal(s.framePageStateID.value, 'page-2');
     assert.equal(captures.at(-1), 'page-2'); assert.equal(s.syncingFrame.value, false);
+  } finally { h.unmount(); }
+});
+
+test('editor reserves inspection and hidden stages from SSE captures; remote wheel is opt-in', async () => {
+  let captures = 0;
+  const h = mountEditor({ browserFrame: async () => { captures++; return { id: captures }; } }); await tick();
+  try {
+    const s = h.state; await s.setBrowserSession(session('page-1'));
+    s.workbenchBusy.value = true;
+    await s.setBrowserSession(session('page-2')); assert.equal(captures, 1);
+    s.workbenchBusy.value = false; s.tabVisible.value = false;
+    await s.setBrowserSession(session('page-3')); assert.equal(captures, 1);
+    s.tabVisible.value = true; s.pointerInFrame.value = true;
+    await s.setBrowserSession(session('page-4')); assert.equal(captures, 1);
+    let consumed = 0, prevent = 0;
+    s.actionsPanel.value = { frameWheel: () => { consumed++; return true; } };
+    const event = { preventDefault: () => prevent++ };
+    s.remoteWheel.value = false; s.handleFrameWheel(event); assert.equal(consumed, 0);
+    s.remoteWheel.value = true; s.handleFrameWheel(event); assert.equal(prevent, 1);
+    s.editorStage.value = 'preview'; s.handleFrameWheel(event); assert.equal(consumed, 1);
   } finally { h.unmount(); }
 });

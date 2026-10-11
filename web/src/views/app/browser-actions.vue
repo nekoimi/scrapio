@@ -1,5 +1,5 @@
 <template>
-	<div class="editor-action-workspace">
+	<div class="editor-action-workspace" @focusin="enterConfiguration" @focusout="leaveConfiguration">
 		<aside class="editor-step-pane">
 			<div class="pane-heading">
 				<h3>采集步骤</h3>
@@ -57,7 +57,7 @@
 				<button class="secondary-action" :disabled="!canRefreshFrame" @click="requestFrame">{{ updatingFrame || frameRefreshing ? '更新画面中…' : '更新画面' }}</button>
 				<label v-if="mode === 'record'" class="record-scroll-toggle"><input type="checkbox" v-model="recordScroll" :disabled="busy || replaying" />记录滚动</label>
 			</div>
-			<p class="muted viewport-help">按钮滚动远端网页，每次约 600 CSS 像素，可能触发懒加载；更新画面不会重新加载网站。{{ mode === 'record' && recordScroll ? '按钮滚动成功后会加入步骤。' : '按钮滚动只用于浏览，不加入步骤。' }}</p>
+			<p class="muted viewport-help">按钮滚动远端网页，每次约 600 CSS 像素，可能触发懒加载；更新画面不会重新加载网站。{{ mode === 'record' && recordScroll ? '按钮或滚轮滚动成功后会加入步骤。' : '按钮或滚轮滚动只用于浏览，不加入步骤。' }}</p>
 			<p v-if="session?.available && !supported.includes('scroll')" class="status-warn">当前服务未支持滚动；可更新画面或检查浏览器服务版本。</p>
 			<slot name="page" />
 			<p class="muted editor-narrow-note">屏幕较窄时面板上下排列；也可在右侧 DOM 层级中选择元素。</p>
@@ -95,6 +95,7 @@
 				:record-scope="recordPanel?.recordScope"
 				:detail-page="recordPanel?.detailPage"
 				@highlight="emit('highlight', $event)"
+				@working="inspectionWorking = $event"
 				@action-locator="applyLocator"
 				@rule="applySelection"
 			/>
@@ -223,14 +224,16 @@ import {
 	type SelectionRule,
 } from './api';
 import BrowserSelection from './browser-selection.vue';
+import { createWheelQueue, wheelPixels } from './browser-workbench';
 import RecordDesigner from './record-designer.vue';
 
-const props = defineProps<{ draft: Collector; session?: BrowserSession; dirty: boolean; saving: boolean; frameReady: boolean; frameRefreshing: boolean; refreshFrame: (state?: BrowserSession) => Promise<void> }>();
+const props = withDefaults(defineProps<{ draft: Collector; session?: BrowserSession; dirty: boolean; saving: boolean; frameReady: boolean; frameRefreshing: boolean; frameFailed?: boolean; active?: boolean; wheelEnabled?: boolean; refreshFrame: (state?: BrowserSession) => Promise<void> }>(), { active: true, wheelEnabled: true });
 const emit = defineEmits<{
 	(event: 'draft-saved', draft: Collector): void;
 	(event: 'session-state', session: BrowserSession): void;
 	(event: 'highlight', value: PageHighlight): void;
 	(event: 'frame-invalidated'): void;
+	(event: 'workbench-busy', busy: boolean): void;
 }>();
 const labels: Record<string, string> = {
 	navigate: '打开网址',
@@ -308,10 +311,30 @@ const canEdit = computed(
 		!replaying.value &&
 		!recordPanel.value?.localDirty
 );
-const canExecute = computed(() => canEdit.value && !!props.session?.available && props.frameReady && !props.frameRefreshing && !updatingFrame.value);
-const canScroll = computed(() => canExecute.value && supported.value.includes('scroll'));
+const canExecute = computed(() => props.active !== false && canEdit.value && !!props.session?.available && props.frameReady && !props.frameRefreshing && !updatingFrame.value);
+const inspectionWorking = ref(false), configurationFocused = ref(false);
+const workbenchBusy = computed(() => busy.value || inspectionWorking.value || configurationFocused.value || recordWorking.value || replaying.value || updatingFrame.value || !!recordPanel.value?.localDirty || !!position.value);
+watch(workbenchBusy, value => emit('workbench-busy', value), { flush: 'sync', immediate: true });
+function enterConfiguration(event: FocusEvent) {
+	configurationFocused.value = !!(event.target as HTMLElement).closest('.editor-command-pane, .editor-record-pane');
+	if (configurationFocused.value) leaveFrame();
+}
+function leaveConfiguration(event: FocusEvent) {
+	configurationFocused.value = event.relatedTarget instanceof Element && !!event.relatedTarget.closest('.editor-command-pane, .editor-record-pane');
+}
+const canScroll = computed(() => canExecute.value && !inspectionWorking.value && supported.value.includes('scroll'));
+const wheelQueue = createWheelQueue({ ready: () => canScroll.value, dispatch: scrollPixels });
+watch(() => props.frameFailed, failed => { if (failed) wheelQueue.clear(); });
+watch(canScroll, ready => { if (ready) void wheelQueue.pump(); });
+watch(() => [props.session?.session_id, mode.value, recordScroll.value, props.active, props.wheelEnabled, props.dirty, props.saving, props.session?.available], () => wheelQueue.clear());
+function frameWheel(event: WheelEvent, height: number) {
+	const delta = wheelPixels(event, height);
+	if (props.wheelEnabled === false || props.active === false || props.frameFailed || !delta || (!canScroll.value && !wheelQueue.running) || unknownRequest.value || pending.value?.status === 'uncertain') return false;
+	return wheelQueue.add(delta);
+}
 const canRefreshFrame = computed(() => !!props.session?.available && !busy.value && !recordWorking.value && !replaying.value && !props.frameRefreshing && !updatingFrame.value);
 async function requestFrame() {
+	wheelQueue.clear();
 	if (!canRefreshFrame.value) return;
 	updatingFrame.value = true;
 	selectionPanel.value?.leaveFrame();
@@ -320,15 +343,21 @@ async function requestFrame() {
 	finally { updatingFrame.value = false; }
 }
 async function scrollPage(direction: -1 | 1) {
-	if (!canScroll.value || (direction !== -1 && direction !== 1)) return;
+	wheelQueue.clear();
+	if (direction === -1 || direction === 1) await scrollPixels(direction * 600);
+}
+async function scrollPixels(distance: number): Promise<boolean> {
+	if (!canScroll.value || !Number.isFinite(distance)) return false;
 	const record = mode.value === 'record' && recordScroll.value;
 	submitting.value = true;
 	notice.value = '';
 	selectionPanel.value?.leaveFrame();
 	try {
-		await send({ type: 'scroll', value: String(direction * 600), timeout_ms: 10000, page_state_id: props.session!.page_state_id }, record);
+		const result = await send({ type: 'scroll', value: String(Math.round(Math.max(-1200, Math.min(1200, distance)))), timeout_ms: 10000, page_state_id: props.session!.page_state_id }, record);
+		return result.status === 'succeeded' && !props.frameFailed && !unknownRequest.value;
 	} catch (cause: any) {
 		notice.value = cause?.error?.message || cause?.message || '滚动结果尚未确认，请查询原回执；不会自动重发。';
+		return false;
 	} finally { submitting.value = false; }
 }
 const formValid = computed(
@@ -444,6 +473,7 @@ async function addLastStep() {
 	await saveSteps([...steps.value, actionStep(action)]);
 }
 function frameClick(x: number, y: number, pageStateID: string) {
+	wheelQueue.clear();
 	if (!props.frameReady || props.frameRefreshing) return;
 	if (selecting.value) {
 		selectionPanel.value?.framePick(x, y, pageStateID);
@@ -456,7 +486,7 @@ function frameClick(x: number, y: number, pageStateID: string) {
 	notice.value = '已准备点击动作，请在右侧确认执行；网页还未被点击。';
 }
 function frameHover(x: number, y: number, pageStateID: string) {
-	if (props.frameReady && !props.frameRefreshing && selecting.value) selectionPanel.value?.frameHover(x, y, pageStateID);
+	if (!configurationFocused.value && props.frameReady && !props.frameRefreshing && selecting.value) selectionPanel.value?.frameHover(x, y, pageStateID);
 }
 function leaveFrame() {
 	selectionPanel.value?.leaveFrame();
@@ -487,7 +517,7 @@ function hasUnsavedChanges() {
 function focusField(stepID: string, key: string, role: string) {
 	recordPanel.value?.focusField(stepID, key, role);
 }
-defineExpose({ frameClick, frameHover, leaveFrame, hasUnsavedChanges, focusField });
+defineExpose({ frameWheel, frameClick, frameHover, leaveFrame, hasUnsavedChanges, focusField });
 
 async function refreshHistory(id = props.session?.session_id) {
 	if (!id) {
@@ -547,6 +577,7 @@ async function poll(command: EditorCommand, epoch: number): Promise<EditorComman
 	return current;
 }
 async function send(action: Partial<EditorAction>, record: boolean, confirmed = false): Promise<EditorCommand> {
+	if (action.type !== 'scroll') wheelQueue.clear();
 	const session = props.session;
 	if (!session?.available || props.dirty || props.saving || pending.value || unknownRequest.value)
 		throw new Error('会话不可用、草稿未同步或上一动作尚未确认');
@@ -725,6 +756,7 @@ onMounted(async () => {
 });
 onBeforeUnmount(() => {
 	disposed = true;
+	wheelQueue.dispose();
 	generation++;
 	stopReplay.value = true;
 });

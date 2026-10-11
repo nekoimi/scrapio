@@ -95,16 +95,30 @@
 					:saving="saving"
 					:frame-ready="frameInteractive"
 					:frame-refreshing="frameRefreshing"
+					:frame-failed="!!frameError"
+					:wheel-enabled="remoteWheel"
+					:active="tabVisible && editorStage === 'edit'"
 					:refresh-frame="updateBrowserFrame"
 					@draft-saved="applyActionDraft"
 					@session-state="setActionBrowserSession"
-					@frame-invalidated="frameQueue.invalidate()"
+					@frame-invalidated="frameQueue.invalidate(); adaptiveFrames.activity()"
+					@workbench-busy="workbenchBusy = $event"
 					@highlight="setHighlights"
 				>
 					<template #page
 						><p class="browser-frame-status" :data-stale="!frameInteractive" role="status">{{ frameStatus }}</p>
 						<p v-if="frameError" class="app-error" role="status">{{ frameError }}</p>
-						<div v-if="frameObjectUrl" class="browser-frame-stage" :data-stale="!frameInteractive" :aria-busy="frameRefreshing" @mouseleave="actionsPanel?.leaveFrame()">
+						<div class="browser-display-toolbar" role="group" aria-label="画面显示设置">
+							<button :aria-pressed="displayScale === 'fit'" @click="displayScale = 'fit'">适应宽度</button>
+							<button :aria-pressed="displayScale === 'original'" @click="displayScale = 'original'">原始比例</button>
+							<label><input type="checkbox" v-model="remoteWheel" />滚轮控制远端网页</label>
+							<label><input type="checkbox" v-model="autoFrames" />自动更新画面</label>
+						</div>
+						<p class="muted viewport-help">{{ remoteWheel ? '滚轮滚动远端主页面，可能触发懒加载；不支持内部滚动容器。' : '滚轮只移动本地截图，远端页面不滚动。' }} 原始比例按网页 CSS 宽度显示，可用视口滚动条本地查看。
+							{{ automaticStatus }}
+						</p>
+						<div class="browser-web-viewport" tabindex="0" aria-label="独立网页视口" @wheel="handleFrameWheel" @mouseenter="pointerInFrame = true; adaptiveFrames.activity()" @mouseleave="pointerInFrame = false; actionsPanel?.leaveFrame()">
+						<div v-if="frameObjectUrl" class="browser-frame-stage" :style="frameDisplayStyle" :data-stale="!frameInteractive" :aria-busy="frameRefreshing" @mouseleave="actionsPanel?.leaveFrame()">
 							<img
 								ref="frameImage"
 								class="browser-session-frame"
@@ -126,7 +140,7 @@
 							<h3>从网页上选择采集内容</h3>
 							<p>打开浏览器会话后，先选一条记录，再选择字段、详情入口和下一页。</p>
 							<p>需要登录的网站，请先在“入口与授权”配置凭据。</p>
-						</div></template
+						</div></div></template
 					>
 				</BrowserActions>
 			</section>
@@ -203,6 +217,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router';
 import BrowserActions from './browser-actions.vue';
 import { createBrowserFrame } from './browser-frame';
+import { createAdaptiveRefresh, framePoint } from './browser-workbench';
 import HttpEntry from './http-entry.vue';
 import BrowserAuthorization from './browser-authorization.vue';
 import ExtractionPreview from './extraction-preview.vue';
@@ -362,6 +377,41 @@ const frameStatus = computed(() => syncingFrame.value ? '正在同步页面状�
 	: frameQueue.stale.value ? '画面已过期或尚未就绪，请更新画面后点选。'
 	: !frameLoaded.value ? '画面已获取，正在显示…' : '当前画面可点选。');
 watch(frameObjectUrl, () => { frameLoaded.value = false; }, { flush: 'sync' });
+const displayScale = ref<'fit' | 'original'>('fit');
+const remoteWheel = ref(true), autoFrames = ref(true), pointerInFrame = ref(false), workbenchBusy = ref(false);
+const tabVisible = ref(true), refreshMeasurement = ref({ duration: 0, delay: 1800, failures: 0 });
+let resumeFrameSync = true;
+const frameDisplayStyle = computed(() => displayScale.value === 'original'
+	? { width: `${browserSession.value?.viewport?.width || frameSize.value.width}px`, maxWidth: 'none' }
+	: { width: '100%', maxWidth: 'none' });
+const automaticAllowed = computed(() => autoFrames.value && tabVisible.value && editorStage.value === 'edit' && !!browserSession.value?.available
+	&& !pointerInFrame.value && !workbenchBusy.value && !dirty.value && !saving.value && !closing.value && !connecting.value && !syncingFrame.value && !frameQueue.busy.value);
+const adaptiveFrames = createAdaptiveRefresh({
+	allowed: () => automaticAllowed.value,
+	capture: async () => {
+		if (resumeFrameSync || frameQueue.stale.value) {
+			resumeFrameSync = false;
+			await updateBrowserFrame();
+		} else await frameQueue.refresh();
+		return !frameQueue.stale.value && !frameError.value;
+	},
+	report: (duration, delay, failures) => { refreshMeasurement.value = { duration, delay, failures }; },
+});
+const automaticStatus = computed(() => !browserSession.value?.available ? '连接会话后可自动更新。' : !autoFrames.value ? '自动更新已关闭。'
+	: !tabVisible.value || editorStage.value !== 'edit' ? '画面更新已暂停。'
+	: pointerInFrame.value || workbenchBusy.value ? '操作或配置期间暂停自动更新；完成后恢复。'
+	: refreshMeasurement.value.failures ? `更新失败，已退避至约 ${Math.round(refreshMeasurement.value.delay / 1000)} 秒。`
+	: `自动更新中；最近获取耗时 ${Math.round(refreshMeasurement.value.duration)}ms。`);
+watch(automaticAllowed, () => adaptiveFrames.reconcile(), { flush: 'sync' });
+watch(() => [tabVisible.value, editorStage.value, autoFrames.value], () => { resumeFrameSync = true; pointerInFrame.value = false; adaptiveFrames.reconcile(); });
+function handleVisibility() { tabVisible.value = document.visibilityState !== 'hidden'; }
+onMounted(() => { handleVisibility(); document.addEventListener('visibilitychange', handleVisibility); adaptiveFrames.reconcile(); });
+function handleFrameWheel(event: WheelEvent) {
+	if (!remoteWheel.value || !tabVisible.value || editorStage.value !== 'edit') return;
+	if (actionsPanel.value?.frameWheel(event, browserSession.value?.viewport?.height || 800)) {
+		event.preventDefault(); adaptiveFrames.activity();
+	}
+}
 const pageHighlights = ref<Partial<Record<PageHighlight['kind'], PageHighlight>>>({});
 const highlightBoxes = computed(() =>
 	Object.values(pageHighlights.value).flatMap((group) => {
@@ -404,14 +454,10 @@ function setHighlights(group: PageHighlight) {
 	pageHighlights.value = { ...pageHighlights.value, [group.kind]: group };
 }
 function prepareFrameHover(event: MouseEvent) {
-	const img = event.currentTarget as HTMLImageElement,
-		box = img.getBoundingClientRect();
-	if (!frameInteractive.value || !img.naturalWidth) return;
-	actionsPanel.value?.frameHover(
-		((event.clientX - box.left - img.clientLeft) / img.clientWidth) * img.naturalWidth,
-		((event.clientY - box.top - img.clientTop) / img.clientHeight) * img.naturalHeight,
-		framePageStateID.value
-	);
+	const img = event.currentTarget as HTMLImageElement;
+	if (!frameInteractive.value) return;
+	const point = framePoint(event.clientX, event.clientY, img.getBoundingClientRect(), img.naturalWidth, img.naturalHeight);
+	if (point) actionsPanel.value?.frameHover(point.x, point.y, framePageStateID.value);
 }
 function applyActionDraft(latest: Collector) {
 	if (dirty.value || saving.value) {
@@ -432,11 +478,9 @@ function applyActionDraft(latest: Collector) {
 }
 function prepareFrameClick(event: MouseEvent) {
 	const img = event.currentTarget as HTMLImageElement;
-	if (!frameInteractive.value || !img.naturalWidth) return;
-	const box = img.getBoundingClientRect();
-	const x = ((event.clientX - box.left - img.clientLeft) / img.clientWidth) * img.naturalWidth;
-	const y = ((event.clientY - box.top - img.clientTop) / img.clientHeight) * img.naturalHeight;
-	actionsPanel.value?.frameClick(x, y, framePageStateID.value);
+	if (!frameInteractive.value) return;
+	const point = framePoint(event.clientX, event.clientY, img.getBoundingClientRect(), img.naturalWidth, img.naturalHeight);
+	if (point) actionsPanel.value?.frameClick(point.x, point.y, framePageStateID.value);
 }
 function formatDefinition(value: Collector['definition']) {
 	return JSON.stringify(value, null, 2);
@@ -613,7 +657,7 @@ async function setBrowserSession(session: BrowserSession, capture = true) {
 	if (session.available) {
 		browserMessage.value = '';
 		startHeartbeat();
-		if (capture && (prior?.session_id !== session.session_id || prior?.page_state_id !== session.page_state_id || !prior?.available || (!frameObjectUrl.value && !frameError.value))) await frameQueue.refresh();
+		if (capture && (autoFrames.value || !frameObjectUrl.value) && refreshMeasurement.value.failures === 0 && tabVisible.value && editorStage.value === 'edit' && !workbenchBusy.value && !pointerInFrame.value && (prior?.session_id !== session.session_id || prior?.page_state_id !== session.page_state_id || !prior?.available || (!frameObjectUrl.value && !frameError.value))) await frameQueue.refresh();
 	} else {
 		stopHeartbeat();
 		browserMessage.value =
@@ -776,6 +820,8 @@ onBeforeUnmount(() => {
 	if (saveTimer) clearTimeout(saveTimer);
 	stopHeartbeat();
 	stopSessionEvents();
+	adaptiveFrames.dispose();
+	document.removeEventListener('visibilitychange', handleVisibility);
 	frameQueue.dispose();
 });
 </script>
