@@ -93,18 +93,26 @@
 					:session="browserSession"
 					:dirty="dirty"
 					:saving="saving"
+					:frame-ready="frameInteractive"
+					:frame-refreshing="frameRefreshing"
+					:refresh-frame="updateBrowserFrame"
 					@draft-saved="applyActionDraft"
-					@session-state="setBrowserSession"
+					@session-state="setActionBrowserSession"
+					@frame-invalidated="frameQueue.invalidate()"
 					@highlight="setHighlights"
 				>
 					<template #page
-						><div v-if="frameObjectUrl" class="browser-frame-stage" @mouseleave="actionsPanel?.leaveFrame()">
+						><p class="browser-frame-status" :data-stale="!frameInteractive" role="status">{{ frameStatus }}</p>
+						<p v-if="frameError" class="app-error" role="status">{{ frameError }}</p>
+						<div v-if="frameObjectUrl" class="browser-frame-stage" :data-stale="!frameInteractive" :aria-busy="frameRefreshing" @mouseleave="actionsPanel?.leaveFrame()">
 							<img
 								ref="frameImage"
 								class="browser-session-frame"
 								:src="frameObjectUrl"
 								alt="当前网页截图；选择模式只检查元素，浏览模式准备待确认动作"
+								:aria-disabled="!frameInteractive"
 								@load="updateFrameSize"
+								@error="handleFrameError"
 								@click="prepareFrameClick"
 								@mousemove="prepareFrameHover"
 							/>
@@ -194,6 +202,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router';
 import BrowserActions from './browser-actions.vue';
+import { createBrowserFrame } from './browser-frame';
 import HttpEntry from './http-entry.vue';
 import BrowserAuthorization from './browser-authorization.vue';
 import ExtractionPreview from './extraction-preview.vue';
@@ -326,8 +335,13 @@ const browserStatus = computed(
 );
 const changedFieldLabels: Record<string, string> = { name: '名称', entry_url: '入口地址', definition: '采集定义' };
 const browserSession = ref<BrowserSession>();
-const frameObjectUrl = ref('');
-const framePageStateID = ref('');
+const frameQueue = createBrowserFrame({ load: target => appApi.browserFrame(target.url, target.pageStateID) });
+const frameObjectUrl = computed(() => frameQueue.frame.value?.objectURL || '');
+const framePageStateID = computed(() => frameQueue.frame.value?.pageStateID || '');
+const frameError = frameQueue.error;
+const syncingFrame = ref(false);
+const frameRefreshing = computed(() => syncingFrame.value || frameQueue.busy.value);
+let frameSyncRequest = 0;
 const browserMessage = ref('');
 const connecting = ref(false);
 const closing = ref(false);
@@ -341,10 +355,17 @@ const frameImage = ref<HTMLImageElement>();
 const authorizationPanel = ref<InstanceType<typeof BrowserAuthorization>>();
 const frameSize = ref({ width: 0, height: 0 });
 const frameLoaded = ref(false);
+const frameInteractive = computed(() => frameLoaded.value && !syncingFrame.value && !frameRefreshing.value && !frameQueue.stale.value && !!browserSession.value?.available && !closing.value);
+const frameStatus = computed(() => syncingFrame.value ? '正在同步页面状态，暂时不能点选…'
+	: frameRefreshing.value ? '正在更新画面，暂时不能点选…'
+	: !browserSession.value?.available ? '浏览器会话不可用；原有配置已保留。'
+	: frameQueue.stale.value ? '画面已过期或尚未就绪，请更新画面后点选。'
+	: !frameLoaded.value ? '画面已获取，正在显示…' : '当前画面可点选。');
+watch(frameObjectUrl, () => { frameLoaded.value = false; }, { flush: 'sync' });
 const pageHighlights = ref<Partial<Record<PageHighlight['kind'], PageHighlight>>>({});
 const highlightBoxes = computed(() =>
 	Object.values(pageHighlights.value).flatMap((group) => {
-		if (!frameLoaded.value || !group || group.page_state_id !== framePageStateID.value || group.page_state_id !== browserSession.value?.page_state_id)
+		if (!frameInteractive.value || !group || group.page_state_id !== framePageStateID.value || group.page_state_id !== browserSession.value?.page_state_id)
 			return [];
 		const { width, height } = frameSize.value;
 		if (!width || !height) return [];
@@ -370,8 +391,14 @@ const highlightBoxes = computed(() =>
 	})
 );
 function updateFrameSize() {
-	frameLoaded.value = !!frameImage.value?.naturalWidth && frameImage.value.currentSrc === frameObjectUrl.value;
+	frameLoaded.value = !!frameImage.value?.naturalWidth && frameImage.value.currentSrc === frameObjectUrl.value
+		&& frameImage.value.naturalWidth === frameQueue.frame.value?.width && frameImage.value.naturalHeight === frameQueue.frame.value?.height;
 	frameSize.value = { width: frameImage.value?.naturalWidth || 0, height: frameImage.value?.naturalHeight || 0 };
+}
+function handleFrameError() {
+	frameLoaded.value = false;
+	frameQueue.invalidate();
+	frameError.value = '画面显示失败，请更新画面后再操作。';
 }
 function setHighlights(group: PageHighlight) {
 	pageHighlights.value = { ...pageHighlights.value, [group.kind]: group };
@@ -379,7 +406,7 @@ function setHighlights(group: PageHighlight) {
 function prepareFrameHover(event: MouseEvent) {
 	const img = event.currentTarget as HTMLImageElement,
 		box = img.getBoundingClientRect();
-	if (!frameLoaded.value || !img.naturalWidth || !browserSession.value?.available) return;
+	if (!frameInteractive.value || !img.naturalWidth) return;
 	actionsPanel.value?.frameHover(
 		((event.clientX - box.left - img.clientLeft) / img.clientWidth) * img.naturalWidth,
 		((event.clientY - box.top - img.clientTop) / img.clientHeight) * img.naturalHeight,
@@ -405,7 +432,7 @@ function applyActionDraft(latest: Collector) {
 }
 function prepareFrameClick(event: MouseEvent) {
 	const img = event.currentTarget as HTMLImageElement;
-	if (!frameLoaded.value || !img.naturalWidth || !browserSession.value?.available) return;
+	if (!frameInteractive.value || !img.naturalWidth) return;
 	const box = img.getBoundingClientRect();
 	const x = ((event.clientX - box.left - img.clientLeft) / img.clientWidth) * img.naturalWidth;
 	const y = ((event.clientY - box.top - img.clientTop) / img.clientHeight) * img.naturalHeight;
@@ -504,14 +531,14 @@ async function validate() {
 	}
 }
 function clearFrame() {
-	if (frameObjectUrl.value) URL.revokeObjectURL(frameObjectUrl.value);
-	frameObjectUrl.value = '';
-	framePageStateID.value = '';
+	frameQueue.setTarget(undefined);
 	frameLoaded.value = false;
 	pageHighlights.value = {};
 }
 function clearSession() {
 	sessionEpoch++;
+	frameSyncRequest++;
+	syncingFrame.value = false;
 	stopHeartbeat();
 	stopSessionEvents();
 	clearFrame();
@@ -564,19 +591,31 @@ async function resumeBrowserSession() {
 async function reopenBrowserSession() {
 	if (await closeBrowserSession()) await openBrowserSession();
 }
-async function setBrowserSession(session: BrowserSession) {
+async function setActionBrowserSession(session: BrowserSession) {
+	await setBrowserSession(session, false);
+}
+async function setBrowserSession(session: BrowserSession, capture = true) {
 	if (disposed) return;
 	const prior = browserSession.value;
-	const epoch = sessionEpoch;
+	if (prior?.session_id !== session.session_id) {
+		sessionEpoch++;
+		frameSyncRequest++;
+		syncingFrame.value = false;
+		stopHeartbeat();
+		stopSessionEvents();
+		pageHighlights.value = {};
+	}
 	browserSession.value = session;
+	frameQueue.setTarget({ sessionID: session.session_id, pageStateID: session.page_state_id, url: session.frame_url, available: session.available });
 	if (lastSessionStorageKey) sessionStorage.setItem(lastSessionStorageKey, session.session_id);
+	if (!['closed', 'expired', 'failed'].includes(session.status)) startSessionEvents(session.session_id);
+	else stopSessionEvents();
 	if (session.available) {
 		browserMessage.value = '';
 		startHeartbeat();
-		if (!frameObjectUrl.value || prior?.page_state_id !== session.page_state_id) await refreshFrame(session);
+		if (capture && (prior?.session_id !== session.session_id || prior?.page_state_id !== session.page_state_id || !prior?.available || (!frameObjectUrl.value && !frameError.value))) await frameQueue.refresh();
 	} else {
 		stopHeartbeat();
-		clearFrame();
 		browserMessage.value =
 			session.status === 'disconnected'
 				? '浏览器暂时断开；可尝试恢复，原页面丢失后需要重新打开。'
@@ -584,21 +623,26 @@ async function setBrowserSession(session: BrowserSession) {
 					? '会话已结束，请重新打开入口页面。'
 					: '';
 	}
-	if (!isCurrent(session, epoch) || browserSession.value?.page_state_id !== session.page_state_id || browserSession.value.status !== session.status)
-		return;
-	if (!['closed', 'expired', 'failed'].includes(session.status)) startSessionEvents(session.session_id);
-	else stopSessionEvents();
 }
-async function refreshFrame(session: BrowserSession) {
+async function updateBrowserFrame(state?: BrowserSession) {
+	const prior = browserSession.value;
+	if (!prior?.available || disposed || closing.value) return;
 	const epoch = sessionEpoch;
+	const request = ++frameSyncRequest;
+	const priorState = prior.page_state_id;
+	syncingFrame.value = true;
+	if (!state) frameQueue.invalidate();
 	try {
-		const blob = await appApi.browserFrame(session.frame_url, session.page_state_id);
-		if (!isCurrent(session, epoch) || browserSession.value?.page_state_id !== session.page_state_id || !browserSession.value.available) return;
-		clearFrame();
-		frameObjectUrl.value = URL.createObjectURL(blob);
-		framePageStateID.value = session.page_state_id;
-	} catch {
-		if (isCurrent(session, epoch)) browserMessage.value = '页面画面已变化或暂时不可用，请恢复会话状态。';
+		let session = state || await appApi.browserSession(prior.session_id, true);
+		if (!isCurrent(prior, epoch) || session.session_id !== prior.session_id) return;
+		// SSE may have advanced while the state request was in flight. Never roll it back.
+		if (state || browserSession.value?.page_state_id !== priorState) session = browserSession.value!;
+		await setBrowserSession(session, false);
+		await frameQueue.refresh();
+	} catch (cause: any) {
+		if (isCurrent(prior, epoch)) frameError.value = cause?.error?.message || '页面状态同步失败；上次截图已停用，请重试更新画面。';
+	} finally {
+		if (request === frameSyncRequest && epoch === sessionEpoch && !disposed) syncingFrame.value = false;
 	}
 }
 function startHeartbeat() {
@@ -614,9 +658,9 @@ function startHeartbeat() {
 			} catch (cause: any) {
 				if (!isCurrent(prior, epoch)) return;
 				stopHeartbeat();
-				clearFrame();
 				browserMessage.value = cause?.error?.message || '浏览器会话已断开；可尝试恢复或重新打开。';
 				browserSession.value = { ...prior, status: ended(cause) ? 'expired' : 'disconnected', available: false, needs_reopen: true };
+				frameQueue.setTarget({ sessionID: prior.session_id, pageStateID: prior.page_state_id, url: prior.frame_url, available: false });
 				if (ended(cause)) stopSessionEvents();
 			}
 		},
@@ -654,8 +698,10 @@ function startSessionEvents(id: string) {
 				if (cause?.terminal || ++attempts >= 5) {
 					stopHeartbeat();
 					stopSessionEvents();
-					clearFrame();
-					if (browserSession.value) browserSession.value = { ...browserSession.value, status: 'disconnected', available: false, needs_reopen: true };
+					if (browserSession.value) {
+						browserSession.value = { ...browserSession.value, status: 'disconnected', available: false, needs_reopen: true };
+						frameQueue.setTarget({ sessionID: id, pageStateID: browserSession.value.page_state_id, url: browserSession.value.frame_url, available: false });
+					}
 					browserMessage.value = '状态连接已停止，请检查登录与服务状态后尝试恢复。';
 					return;
 				}
@@ -672,9 +718,11 @@ async function closeBrowserSession(): Promise<boolean> {
 	if (closing.value) return false;
 	closing.value = true;
 	sessionEpoch++;
+	frameSyncRequest++;
+	syncingFrame.value = false;
 	stopHeartbeat();
 	stopSessionEvents();
-	clearFrame();
+	frameQueue.invalidate();
 	try {
 		await appApi.closeBrowserSession(session.session_id);
 		if (!disposed) {
@@ -685,6 +733,7 @@ async function closeBrowserSession(): Promise<boolean> {
 	} catch (cause: any) {
 		if (!disposed) {
 			browserSession.value = { ...session, status: 'disconnected', available: false, needs_reopen: true };
+			frameQueue.setTarget({ sessionID: session.session_id, pageStateID: session.page_state_id, url: session.frame_url, available: false });
 			browserMessage.value = cause?.error?.message || '关闭未确认，请重试关闭；原会话信息已保留。';
 		}
 		return false;
@@ -727,6 +776,6 @@ onBeforeUnmount(() => {
 	if (saveTimer) clearTimeout(saveTimer);
 	stopHeartbeat();
 	stopSessionEvents();
-	if (frameObjectUrl.value) URL.revokeObjectURL(frameObjectUrl.value);
+	frameQueue.dispose();
 });
 </script>

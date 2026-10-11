@@ -51,6 +51,14 @@
 				</button>
 			</div>
 			<p class="muted">{{ selecting ? selectionHelp[selectionTarget] : '浏览或录制模式：点击网页后，在右侧确认执行。' }}</p>
+			<div class="browser-viewport-toolbar" role="group" aria-label="远端网页浏览">
+				<button class="secondary-action" :disabled="!canScroll" @click="scrollPage(-1)">向上滚动</button>
+				<button class="secondary-action" :disabled="!canScroll" @click="scrollPage(1)">向下滚动</button>
+				<button class="secondary-action" :disabled="!canRefreshFrame" @click="requestFrame">{{ updatingFrame || frameRefreshing ? '更新画面中…' : '更新画面' }}</button>
+				<label v-if="mode === 'record'" class="record-scroll-toggle"><input type="checkbox" v-model="recordScroll" :disabled="busy || replaying" />记录滚动</label>
+			</div>
+			<p class="muted viewport-help">按钮滚动远端网页，每次约 600 CSS 像素，可能触发懒加载；更新画面不会重新加载网站。{{ mode === 'record' && recordScroll ? '按钮滚动成功后会加入步骤。' : '按钮滚动只用于浏览，不加入步骤。' }}</p>
+			<p v-if="session?.available && !supported.includes('scroll')" class="status-warn">当前服务未支持滚动；可更新画面或检查浏览器服务版本。</p>
 			<slot name="page" />
 			<p class="muted editor-narrow-note">屏幕较窄时面板上下排列；也可在右侧 DOM 层级中选择元素。</p>
 		</section>
@@ -83,7 +91,7 @@
 				:enabled="inspectionSupported"
 				:target="selectionTarget"
 				:revision="draft.revision"
-				:blocked="busy || recordWorking || replaying || !selecting || dirty || saving"
+				:blocked="busy || recordWorking || replaying || !selecting || dirty || saving || !frameReady"
 				:record-scope="recordPanel?.recordScope"
 				:detail-page="recordPanel?.detailPage"
 				@highlight="emit('highlight', $event)"
@@ -217,11 +225,12 @@ import {
 import BrowserSelection from './browser-selection.vue';
 import RecordDesigner from './record-designer.vue';
 
-const props = defineProps<{ draft: Collector; session?: BrowserSession; dirty: boolean; saving: boolean }>();
+const props = defineProps<{ draft: Collector; session?: BrowserSession; dirty: boolean; saving: boolean; frameReady: boolean; frameRefreshing: boolean; refreshFrame: (state?: BrowserSession) => Promise<void> }>();
 const emit = defineEmits<{
 	(event: 'draft-saved', draft: Collector): void;
 	(event: 'session-state', session: BrowserSession): void;
 	(event: 'highlight', value: PageHighlight): void;
+	(event: 'frame-invalidated'): void;
 }>();
 const labels: Record<string, string> = {
 	navigate: '打开网址',
@@ -284,6 +293,7 @@ const replaying = ref(false);
 const stopReplay = ref(false);
 const notice = ref('');
 const unknownRequest = ref<{ sessionId: string; key: string; input: EditorAction }>();
+const recordScroll = ref(false), updatingFrame = ref(false);
 let disposed = false;
 let generation = 0;
 const steps = computed<Record<string, any>[]>(() => (Array.isArray(props.draft.definition.steps) ? props.draft.definition.steps : []));
@@ -298,7 +308,29 @@ const canEdit = computed(
 		!replaying.value &&
 		!recordPanel.value?.localDirty
 );
-const canExecute = computed(() => canEdit.value && !!props.session?.available);
+const canExecute = computed(() => canEdit.value && !!props.session?.available && props.frameReady && !props.frameRefreshing && !updatingFrame.value);
+const canScroll = computed(() => canExecute.value && supported.value.includes('scroll'));
+const canRefreshFrame = computed(() => !!props.session?.available && !busy.value && !recordWorking.value && !replaying.value && !props.frameRefreshing && !updatingFrame.value);
+async function requestFrame() {
+	if (!canRefreshFrame.value) return;
+	updatingFrame.value = true;
+	selectionPanel.value?.leaveFrame();
+	try { await props.refreshFrame(); }
+	catch { notice.value = '画面更新失败，请确认服务连接后重试。'; }
+	finally { updatingFrame.value = false; }
+}
+async function scrollPage(direction: -1 | 1) {
+	if (!canScroll.value || (direction !== -1 && direction !== 1)) return;
+	const record = mode.value === 'record' && recordScroll.value;
+	submitting.value = true;
+	notice.value = '';
+	selectionPanel.value?.leaveFrame();
+	try {
+		await send({ type: 'scroll', value: String(direction * 600), timeout_ms: 10000, page_state_id: props.session!.page_state_id }, record);
+	} catch (cause: any) {
+		notice.value = cause?.error?.message || cause?.message || '滚动结果尚未确认，请查询原回执；不会自动重发。';
+	} finally { submitting.value = false; }
+}
 const formValid = computed(
 	() =>
 		Number.isInteger(timeout.value) &&
@@ -412,6 +444,7 @@ async function addLastStep() {
 	await saveSteps([...steps.value, actionStep(action)]);
 }
 function frameClick(x: number, y: number, pageStateID: string) {
+	if (!props.frameReady || props.frameRefreshing) return;
 	if (selecting.value) {
 		selectionPanel.value?.framePick(x, y, pageStateID);
 		return;
@@ -423,7 +456,7 @@ function frameClick(x: number, y: number, pageStateID: string) {
 	notice.value = '已准备点击动作，请在右侧确认执行；网页还未被点击。';
 }
 function frameHover(x: number, y: number, pageStateID: string) {
-	if (selecting.value) selectionPanel.value?.frameHover(x, y, pageStateID);
+	if (props.frameReady && !props.frameRefreshing && selecting.value) selectionPanel.value?.frameHover(x, y, pageStateID);
 }
 function leaveFrame() {
 	selectionPanel.value?.leaveFrame();
@@ -437,8 +470,16 @@ function applyLocator(locator: EditorLocator) {
 	notice.value = '已填入验证过的定位器；执行前仍需确认。';
 }
 watch(mode, () => {
+	recordScroll.value = false;
 	selectionPanel.value?.leaveFrame();
 	emit('highlight', { elements: [], page_state_id: props.session?.page_state_id || '', kind: 'selected' });
+});
+watch(() => [props.session?.page_state_id, props.frameReady], () => {
+	if (!props.frameReady || positionPageStateID.value !== props.session?.page_state_id) {
+		position.value = undefined;
+		positionPageStateID.value = '';
+	}
+	selectionPanel.value?.leaveFrame();
 });
 function hasUnsavedChanges() {
 	return !!recordPanel.value?.localDirty || busy.value || recordWorking.value || replaying.value;
@@ -487,7 +528,7 @@ async function settle(command: EditorCommand) {
 		const latest = await appApi.collector(props.draft.id);
 		if (!disposed) emit('draft-saved', latest);
 	}
-	await refreshState(command.session_id).catch(() => {
+	await refreshState(command.session_id).then(state => props.refreshFrame(state)).catch(() => {
 		notice.value = '动作回执已保存；页面状态暂时无法更新。';
 	});
 	await refreshHistory(command.session_id);
@@ -531,6 +572,7 @@ async function send(action: Partial<EditorAction>, record: boolean, confirmed = 
 		...(record ? { step_id: `step-${crypto.randomUUID()}` } : {}),
 	};
 	const key = crypto.randomUUID();
+	emit('frame-invalidated');
 	let command: EditorCommand;
 	try {
 		command = await appApi.createBrowserCommand(session.session_id, input, key);

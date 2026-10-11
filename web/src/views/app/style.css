@@ -107,6 +107,14 @@
 .browser-session-frame { min-height: 0; max-height: none; height: auto; cursor: crosshair; }
 .browser-frame-stage { position: relative; width: min(100%, 1280px); overflow: hidden; border: 1px solid #dfe3eb; }
 .browser-frame-stage .browser-session-frame { width: 100%; border: 0; }
+.browser-viewport-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 12px 0 6px; }
+.browser-viewport-toolbar .record-scroll-toggle { display: inline-flex; align-items: center; gap: 6px; margin: 0; font-size: 12px; }
+.browser-viewport-toolbar .record-scroll-toggle input { width: auto; margin: 0; }
+.viewport-help, .browser-frame-status { font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.browser-frame-status { color: #475569; background: #f1f5fa; padding: 8px 12px; border-radius: 6px; }
+.browser-frame-status[data-stale="true"] { color: #92400e; background: #fffbeb; }
+.browser-frame-stage[data-stale="true"] { border-color: #d6ae5c; }
+.browser-frame-stage[data-stale="true"] .browser-session-frame { cursor: not-allowed; }
 .frame-highlights { position: absolute; inset: 0; pointer-events: none; }
 .frame-highlight { position: absolute; box-sizing: border-box; border: 2px solid #2563eb; background: #2563eb14; }
 .frame-highlight[data-kind="hover"] { border: 2px dashed #475569; background: transparent; z-index: 2; }
