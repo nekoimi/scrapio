@@ -333,8 +333,10 @@
 }
 
 // Shared confirmations use template colors and controls, with readable URLs.
-.scrapio-dialog {
-	max-width: calc(100vw - 32px);
+.el-message-box.scrapio-dialog {
+	// MessageBox uses width: 100% and relies on its max-width for sizing.
+	// Keep the component's cap as well as the viewport margin.
+	max-width: min(var(--el-messagebox-width, 420px), calc(100vw - 32px));
 	.el-message-box__message p {
 		white-space: pre-line;
 		overflow-wrap: anywhere;
