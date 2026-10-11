@@ -12,6 +12,7 @@
 		<Credentials v-if="tab === 'credentials'" />
 		<Retention v-else-if="tab === 'retention'" />
 		<Operations v-else-if="tab === 'operations'" />
+		<Environment v-else-if="tab === 'environment'" />
 		<section v-else class="app-page">
 			<div class="eyebrow">SCRAPIO / SETTINGS / IDENTITY</div>
 			<h1>身份与成员</h1>
@@ -33,10 +34,12 @@ import { useRoute } from 'vue-router';
 import Credentials from './credentials.vue';
 import Retention from './retention.vue';
 import Operations from './operations.vue';
+import Environment from './environment.vue';
 import { appApi, type Identity } from './api';
 import { readError } from './data-read';
 const route = useRoute(),
 	tabs = [
+		{ key: 'environment', name: '浏览器连接' },
 		{ key: 'credentials', name: '凭据与授权' },
 		{ key: 'retention', name: '容量与保留' },
 		{ key: 'members', name: '身份与成员' },
