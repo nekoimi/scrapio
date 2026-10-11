@@ -11,6 +11,7 @@ import (
 	"github.com/nekoimi/scrapio/internal/pkg/request"
 	"github.com/nekoimi/scrapio/internal/repo/v22_collector_repo"
 	"github.com/nekoimi/scrapio/internal/repo/v22_command_repo"
+	log "github.com/sirupsen/logrus"
 )
 
 // All inspection operations authorize the owned session, read only, and require
@@ -110,18 +111,47 @@ func InspectBrowserPage(browser *drission_rod.DrissionRod, operation string) htt
 		result, err := browser.InspectEditorPage(r.Context(), session.Id, w.Header().Get("X-Request-ID"), operation, input)
 		if err != nil {
 			code := browserCode(err)
-			status := 503
-			switch code {
-			case "STALE_PAGE_STATE", "INSPECTION_BUSY":
-				status = 409
-			case "INVALID_ARGUMENT", "INSPECTION_FAILED":
-				status = 400
-			case "SESSION_GONE":
-				status = 410
+			status, message := inspectionFailure(code)
+			entry := log.WithFields(log.Fields{"request_id": w.Header().Get("X-Request-ID"), "operation": operation, "error_code": code})
+			if status >= 500 {
+				entry.Warn("editor inspection unavailable")
+			} else {
+				entry.Debug("editor inspection rejected")
 			}
-			fail(w, r, status, code, err.Error(), status == 503, "inspect", "")
+			fail(w, r, status, code, message, status == 503, "inspect", "")
 			return
 		}
 		ok(w, r, result)
+	}
+}
+
+// Keep recovery hints stable and never expose a remote exception or locator text.
+// Older browser services returning INVALID_ARGUMENT remain compatible.
+func inspectionFailure(code string) (int, string) {
+	switch code {
+	case "NO_ELEMENT":
+		return 400, "此位置没有可选元素，请选择可见内容"
+	case "OUTSIDE_RECORD_SCOPE":
+		return 400, "请选择记录范围内部的字段，或调整记录范围"
+	case "RECORD_SCOPE_EMPTY":
+		return 400, "记录范围没有匹配元素，请重新选择记录范围"
+	case "INVALID_LOCATOR":
+		return 400, "CSS / XPath 语法无效，请修正规则；相对 XPath 需以点开头"
+	case "ELEMENT_REFERENCE_STALE":
+		return 409, "元素已失效，请重新点选或按当前规则验证"
+	case "INSPECTION_LIMIT":
+		return 400, "检查超过数量限制，请缩小规则范围或重新打开会话"
+	case "STALE_PAGE_STATE":
+		return 409, "页面已变化，请更新画面后重新验证；当前配置可保留"
+	case "INSPECTION_BUSY":
+		return 409, "页面暂时忙碌，请等待当前操作结束后重试"
+	case "SESSION_GONE":
+		return 410, "会话已结束，请恢复或重新打开后重新验证"
+	case "INVALID_ARGUMENT":
+		return 400, "检查参数、元素或定位规则无效，请重新点选或核对规则"
+	case "INSPECTION_FAILED":
+		return 503, "页面检查失败，请更新画面或确认服务连接后重试"
+	default:
+		return 503, "检查服务暂时不可用，请确认连接后重试"
 	}
 }

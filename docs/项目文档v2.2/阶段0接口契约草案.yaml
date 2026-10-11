@@ -1024,8 +1024,12 @@ paths:
           $ref: '#/components/responses/Error'
         '503':
           $ref: '#/components/responses/Error'
-      x-implementation-status: planned
-      description: owner 校验与 ready 会话；只读，绝不触发网页动作。旧页面版本返回 409，未确认动作返回 COMMAND_PENDING；不穿透 iframe/Shadow DOM。定位器无效返回 400；暂时忙返回 409。
+      x-implementation-status: implemented
+      description: >-
+        owner 校验与 ready 会话；只读，绝不触发网页动作；不穿透 iframe/Shadow DOM。
+        400 区分 NO_ELEMENT、OUTSIDE_RECORD_SCOPE、RECORD_SCOPE_EMPTY、INVALID_LOCATOR、INSPECTION_LIMIT；旧服务 INVALID_ARGUMENT 保持兼容。
+        409 为 STALE_PAGE_STATE、ELEMENT_REFERENCE_STALE、INSPECTION_BUSY 或 COMMAND_PENDING；410 为 SESSION_GONE。
+        INSPECTION_FAILED 和服务不可用返回 503。错误包含 request_id 与恢复提示，不返回浏览器异常原文。
     x-implementation-status: implemented
   /browser-sessions/{session_id}/locator-checks:
     parameters:
@@ -1062,8 +1066,12 @@ paths:
           $ref: '#/components/responses/Error'
         '503':
           $ref: '#/components/responses/Error'
-      x-implementation-status: planned
-      description: owner 校验与 ready 会话；只读，绝不触发网页动作。旧页面版本返回 409，未确认动作返回 COMMAND_PENDING；不穿透 iframe/Shadow DOM。定位器无效返回 400；暂时忙返回 409。
+      x-implementation-status: implemented
+      description: >-
+        owner 校验与 ready 会话；只读，绝不触发网页动作；不穿透 iframe/Shadow DOM。
+        400 区分 INVALID_LOCATOR、RECORD_SCOPE_EMPTY、INSPECTION_LIMIT；旧服务 INVALID_ARGUMENT 保持兼容。
+        409 为 STALE_PAGE_STATE、INSPECTION_BUSY 或 COMMAND_PENDING；410 为 SESSION_GONE。
+        INSPECTION_FAILED 和服务不可用返回 503。错误包含 request_id 与恢复提示；页面变化保留本地规则，必须重新检查当前命中才能确认。
     x-implementation-status: implemented
   /browser-sessions/{session_id}/commands:
     parameters:

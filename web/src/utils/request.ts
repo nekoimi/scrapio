@@ -3,6 +3,13 @@ import {ElMessage, ElMessageBox} from 'element-plus';
 import {Session} from '/@/utils/storage';
 import qs from 'qs';
 
+declare module 'axios' {
+    interface AxiosRequestConfig {
+        // The caller renders failures locally. Authentication still uses the global flow.
+        localError?: boolean;
+    }
+}
+
 // 配置新建一个 axios 实例
 const service: AxiosInstance = axios.create({
     baseURL: import.meta.env.VITE_API_URL,
@@ -64,15 +71,22 @@ service.interceptors.response.use(
                     .catch(() => {});
                 return Promise.reject(error.response.data);
             }
-            ElMessage.error(apiError.message || '请求失败');
+            if (!error.config?.localError) ElMessage.error(apiError.message || '请求失败');
             return Promise.reject(error.response.data);
         }
+        if (error.response?.status === 401) {
+            ElMessageBox.alert('认证已失效，请重新登录', '提示', {})
+                .then(() => { Session.clear(); window.location.href = '/#/login'; })
+                .catch(() => {});
+            return Promise.reject(error);
+        }
+        if (error.config?.localError && ![401, 20401].includes(error.response?.data?.code)) return Promise.reject(error);
         if (error.message.indexOf('timeout') != -1) {
             ElMessage.error('网络超时');
         } else if (error.message == 'Network Error') {
             ElMessage.error('网络连接错误');
         } else {
-            if (error.response.data) {
+            if (error.response?.data) {
                 if (error.response.data.msg) {
                     let errCode = error.response.data.code
                     if (errCode && errCode != 0) {

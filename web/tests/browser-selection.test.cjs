@@ -1,0 +1,159 @@
+// Short, offline checks against the real Vue setup and request interceptor.
+// Run: node --test tests/browser-selection.test.cjs
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+const vue = require('vue');
+const ts = require('typescript');
+const { parse, compileScript, compileTemplate } = require('@vue/compiler-sfc');
+
+function evaluate(source, imports, globals = {}) {
+  const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } });
+  const module = { exports: {} };
+  vm.runInNewContext(output.outputText, { module, exports: module.exports, require: name => imports[name], ...globals });
+  return module.exports.default;
+}
+
+function mount(api = {}) {
+  const filename = path.join(__dirname, '../src/views/app/browser-selection.vue');
+  const { descriptor, errors } = parse(fs.readFileSync(filename, 'utf8'), { filename });
+  assert.equal(errors.length, 0);
+  const script = compileScript(descriptor, { id: 'selection-test' });
+  const template = compileTemplate({ source: descriptor.template.content, filename, id: 'selection-test', compilerOptions: { bindingMetadata: script.bindings } });
+  assert.equal(template.errors.length, 0);
+  const timers = new Set();
+  const component = evaluate(script.content, { vue, './api': { appApi: api } }, {
+    setTimeout: fn => { timers.add(fn); return fn; }, clearTimeout: fn => timers.delete(fn),
+  });
+  let state;
+  const setup = component.setup;
+  component.setup = (props, context) => { state = setup(props, context); return state; };
+  component.render = () => vue.h('div');
+  const events = [];
+  const props = vue.reactive({ session: { session_id: 'session-1', page_state_id: 'page-1', available: true }, target: 'field', mode: 'field', enabled: true, blocked: false, revision: 1 });
+  const node = () => ({ children: [] });
+  const renderer = vue.createRenderer({
+    createElement: node, createText: node, createComment: node, insert: (child, parent) => parent.children.push(child),
+    remove: () => {}, setElementText: () => {}, setText: () => {}, patchProp: () => {}, parentNode: () => null, nextSibling: () => null,
+  });
+  const app = renderer.createApp({ render: () => vue.h(component, { ...props, onRule: rule => events.push(['rule', rule]), onActionLocator: locator => events.push(['action', locator]), onHighlight: group => events.push(['highlight', group]) }) });
+  app.mount(node());
+  return { props, get state() { return state; }, events, unmount: () => app.unmount(), fireHover: () => { for (const fn of [...timers]) { timers.delete(fn); fn(); } } };
+}
+
+function locatorResult(input) {
+  return { page_state_id: input.page_state_id, locator: input.locator, fingerprint: 'evidence', elements: [], sample_values: ['电影'], match_count: 1, truncated: false, comparison: 'changed', warnings: [] };
+}
+const settle = async () => { await Promise.resolve(); await vue.nextTick(); await Promise.resolve(); };
+
+test('save blocking preserves inputs; page changes require new evidence before rule/action confirmation', async () => {
+  const editor = mount({ checkLocator: async (_, input) => locatorResult(input) });
+  try {
+    const s = editor.state;
+    s.expression.value = '.title'; s.fieldName.value = '电影名称'; s.extractKind.value = 'link';
+    await s.validateLocator();
+    assert.equal(s.checkValid.value, true);
+    editor.props.blocked = true; await settle();
+    s.saveRule('field'); s.prepareAction();
+    assert.equal(editor.events.filter(e => e[0] !== 'highlight').length, 0);
+    editor.props.blocked = false; await settle();
+    assert.equal(s.checkValid.value, true);
+    editor.props.session.page_state_id = 'page-2'; await settle();
+    assert.equal(s.checkValid.value, false);
+    assert.equal(s.fieldName.value, '电影名称'); assert.equal(s.expression.value, '.title'); assert.equal(s.extractKind.value, 'link');
+    assert.equal(s.check.value.match_count, 1); // Last evidence is visible, but unusable.
+    s.saveRule('field'); s.prepareAction();
+    assert.equal(editor.events.filter(e => e[0] !== 'highlight').length, 0);
+    await s.validateLocator(); s.saveRule('field');
+    assert.equal(editor.events.filter(e => e[0] === 'rule').length, 1);
+    editor.props.revision++; await settle();
+    assert.equal(s.checkValid.value, false);
+    editor.props.session.available = false; await settle();
+    assert.equal(s.fieldName.value, '电影名称');
+  } finally { editor.unmount(); }
+});
+
+test('target and browse-mode changes retain independent pending configurations', async () => {
+  const editor = mount({ checkLocator: async (_, input) => locatorResult(input) });
+  try {
+    const s = editor.state;
+    s.expression.value = '.title'; s.fieldName.value = '标题';
+    await s.validateLocator();
+    editor.props.mode = 'record'; editor.props.blocked = true; await settle();
+    editor.props.mode = 'field'; editor.props.blocked = false; await settle();
+    assert.equal(s.fieldName.value, '标题');
+    editor.props.target = 'next'; await settle();
+    s.expression.value = '.next'; s.nextKind.value = 'load_more';
+    editor.props.target = 'field'; await settle();
+    assert.equal(s.expression.value, '.title'); assert.equal(s.fieldName.value, '标题'); assert.equal(s.checkValid.value, false);
+    editor.props.target = 'next'; await settle();
+    assert.equal(s.expression.value, '.next'); assert.equal(s.nextKind.value, 'load_more');
+    s.cancelSelection();
+    assert.equal(s.hasPending.value, false);
+  } finally { editor.unmount(); }
+});
+
+test('late validation cannot overwrite a changed rule or a replacement session', async () => {
+  let finish;
+  const editor = mount({ checkLocator: (_, input) => new Promise(resolve => { finish = () => resolve(locatorResult(input)); }) });
+  try {
+    const s = editor.state;
+    s.expression.value = '.old'; s.fieldName.value = '保留';
+    const pending = s.validateLocator();
+    s.expression.value = '.new'; editor.props.session = { session_id: 'session-2', page_state_id: 'page-2', available: true }; await settle();
+    finish(); await pending;
+    assert.equal(s.check.value, undefined); assert.equal(s.checkValid.value, false);
+    assert.equal(s.expression.value, '.new'); assert.equal(s.fieldName.value, '保留');
+  } finally { editor.unmount(); }
+});
+
+test('hover misses stay quiet, service failures stay visible, and editing suspends hover', async () => {
+  let code = 'NO_ELEMENT', calls = 0;
+  const editor = mount({ inspectElement: async () => { calls++; throw { error: { code }, request_id: 'request-1' }; } });
+  try {
+    const s = editor.state;
+    s.frameHover(1, 1, 'page-1'); editor.fireHover(); await settle();
+    assert.equal(s.message.value, '');
+    code = 'BROWSER_UNAVAILABLE'; s.frameHover(1, 1, 'page-1'); editor.fireHover(); await settle();
+    assert.match(s.message.value, /服务暂时不可用/); assert.match(s.message.value, /request-1/);
+    s.fieldName.value = '正在命名'; const before = calls;
+    s.frameHover(1, 1, 'page-1'); editor.fireHover(); await settle(); assert.equal(calls, before);
+    code = 'OUTSIDE_RECORD_SCOPE'; s.framePick(1, 1, 'page-1'); await settle();
+    assert.match(s.message.value, /记录范围内部/); assert.equal(s.fieldName.value, '正在命名');
+  } finally { editor.unmount(); }
+});
+
+test('local request failures suppress duplicate toast but authentication still uses the global flow', async () => {
+  let reject, toasts = 0, authAlerts = 0;
+  const axios = { create: () => ({ interceptors: { request: { use: () => {} }, response: { use: (_, error) => { reject = error; } } } }) };
+  evaluate(fs.readFileSync(path.join(__dirname, '../src/utils/request.ts'), 'utf8').replace('import.meta.env.VITE_API_URL', "''"), {
+    axios, 'element-plus': { ElMessage: { error: () => toasts++ }, ElMessageBox: { alert: () => { authAlerts++; return Promise.reject(); } } },
+    '/@/utils/storage': { Session: { get: () => '', clear: () => {} } }, qs: {},
+  });
+  const failure = (code, localError = true, status = 400) => ({ config: { localError }, response: { status, data: { error: { code, message: '检查失败' } } } });
+  await assert.rejects(reject(failure('NO_ELEMENT'))); assert.equal(toasts, 0);
+  await assert.rejects(reject({ config: { localError: true }, message: 'Network Error' })); assert.equal(toasts, 0);
+  await assert.rejects(reject(failure('NO_ELEMENT', false))); assert.equal(toasts, 1);
+  await assert.rejects(reject(failure('UNAUTHENTICATED', true, 401))); assert.equal(authAlerts, 1);
+  await Promise.resolve();
+});
+
+test('explicit click supersedes an in-flight hover and keeps unfinished field preferences', async () => {
+  const requests = [];
+  const editor = mount({ inspectElement: (_, input) => new Promise(resolve => requests.push({ input, resolve })) });
+  try {
+    const s = editor.state;
+    s.frameHover(1, 1, 'page-1'); editor.fireHover();
+    s.framePick(20, 20, 'page-1');
+    const result = id => ({ page_state_id: 'page-1', element: { element_id: id, tag: 'img', attributes: {}, text: id }, locators: [] });
+    requests[0].resolve(result('hover')); await settle();
+    assert.equal(requests.length, 2); assert.equal(s.selection.value, undefined);
+    assert.equal(editor.events.some(e => e[0] === 'highlight' && e[1].kind === 'hover' && e[1].elements.length), false);
+    s.fieldName.value = '正在编辑的标题'; s.extractKind.value = 'link';
+    requests[1].resolve(result('selected')); await settle();
+    assert.equal(s.selection.value.element.element_id, 'selected');
+    assert.equal(s.fieldName.value, '正在编辑的标题'); assert.equal(s.extractKind.value, 'link');
+  } finally { editor.unmount(); }
+});

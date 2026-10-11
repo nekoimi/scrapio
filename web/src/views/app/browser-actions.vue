@@ -82,6 +82,7 @@
 				:mode="mode === 'field-select' ? 'field' : 'record'"
 				:enabled="inspectionSupported"
 				:target="selectionTarget"
+				:revision="draft.revision"
 				:blocked="busy || recordWorking || replaying || !selecting || dirty || saving"
 				:record-scope="recordPanel?.recordScope"
 				:detail-page="recordPanel?.detailPage"
