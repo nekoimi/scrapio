@@ -1,159 +1,61 @@
 <template>
 	<section class="record-designer">
 		<div v-show="view !== 'preview'">
-			<div class="pane-heading">
-				<h3>记录与字段配置</h3>
-				<span>编辑会话 · 有界检查</span>
-			</div>
-			<p class="muted">从上方网页点选内容，下方核对字段；保存后预览当前页面。详情与翻页的试访问仍需确认。</p>
-			<div class="editor-actions">
-				<button :disabled="!available || working || !!context" @click="emit('select', 'record')">从网页选记录</button
-				><button :disabled="!available || working" @click="emit('select', 'field')">从网页选字段</button
-				><button :disabled="!available || working || !!context" @click="emit('select', 'detail')">选详情入口</button
-				><button :disabled="!available || working || !!context" @click="emit('select', 'next')">选下一页</button>
-			</div>
-			<div class="editor-actions">
-				<select
-					:value="stepID"
-					:disabled="working || !!context"
-					aria-label="记录步骤"
-					@change="chooseStep(($event.target as HTMLSelectElement).value)"
+			<div class="record-source-toolbar">
+				<label
+					>当前采集步骤<select
+						:value="stepID"
+						:disabled="working || !!context || localDirty"
+						@change="chooseStep(($event.target as HTMLSelectElement).value)"
+					>
+						<option value="">新采集步骤</option>
+						<option v-for="(step, index) in recordSteps" :key="step.step_id" :value="step.step_id">
+							采集步骤 {{ index + 1 }} · {{ step.config?.fields?.length || 0 }} 个列表字段
+						</option>
+					</select></label
 				>
-					<option value="">新记录步骤</option>
-					<option v-for="step in recordSteps" :key="step.step_id" :value="step.step_id">{{ step.step_id }}</option></select
-				><button :disabled="working || blocked" @click="reload">重新读取草稿</button>
+				<details class="editor-advanced">
+					<summary>草稿工具</summary>
+					<button :disabled="working || blocked" @click="reload">重新读取草稿</button>
+				</details>
 			</div>
-			<fieldset :disabled="working || blocked || unsupported" class="record-rule-form">
-				<div class="command-form-grid">
-					<label
-						>记录方式<select v-model="plan.mode" @change="changeMode">
-							<option value="single">整页一条记录</option>
-							<option value="repeated">重复容器，每项一条</option>
-						</select></label
-					><label>本页 / 累积列表记录上限<input v-model.number="plan.max_records" type="number" min="1" max="200" /></label>
-				</div>
-				<details v-if="plan.mode === 'repeated' && plan.locator" class="editor-advanced">
-					<summary>高级：记录范围定位规则</summary>
-					<div class="command-form-grid">
-						<label
-							>容器定位<select v-model="plan.locator.strategy">
-								<option value="css">CSS</option>
-								<option value="xpath">XPath</option>
-							</select></label
-						><label>容器规则<input v-model="plan.locator.expression" maxlength="2048" /></label>
-					</div>
-				</details>
-				<template v-for="group in fieldGroups" :key="group.role">
-					<div class="pane-heading">
-						<h4>{{ group.role === 'list' ? '当前页 / 每条记录的字段' : '详情页字段' }}</h4>
-						<button @click="addField(group.role)">手动添加字段</button>
-					</div>
-					<div v-for="(field, index) in group.fields" :key="index" class="record-field-rule">
-						<input v-model="field.name" aria-label="字段名" placeholder="字段名" maxlength="64" />
-						<select v-model="field.extract" aria-label="字段内容">
-							<option value="text">文本</option>
-							<option value="link">链接</option>
-							<option value="image">图片地址</option>
-							<option value="attribute">属性</option>
-						</select>
-						<input v-if="field.extract === 'attribute'" v-model="field.attribute" aria-label="属性名" placeholder="例如 data-id" />
-						<details class="editor-advanced">
-							<summary>高级定位规则</summary>
-							<template v-if="field.locator"
-								><select v-model="field.locator.strategy" aria-label="字段定位">
-									<option value="css">CSS</option>
-									<option value="xpath">XPath</option></select
-								><input
-									v-model="field.locator.expression"
-									aria-label="字段规则"
-									placeholder="相对容器规则，如 .title 或 .//a"
-									maxlength="2048" /></template
-							><span v-else>记录容器自身</span>
-							<button @click="field.locator = field.locator ? undefined : { strategy: 'css', expression: '' }">
-								{{ field.locator ? '改用容器自身' : '指定子元素' }}
-							</button>
-						</details>
-						<button class="danger-action" @click="group.fields.splice(index, 1)">删除</button
-						><button :disabled="index === 0" @click="moveField(group.fields, index, -1)">↑</button
-						><button :disabled="index === group.fields.length - 1" @click="moveField(group.fields, index, 1)">↓</button
-						><FieldOptions :field="field" :role="group.role" />
-					</div>
-				</template>
+			<RecordRuleEditor
+				ref="ruleEditor"
+				:plan="plan"
+				:available="available"
+				:disabled="working || blocked || unsupported"
+				:detail-page="!!context"
+				:can-preview="canPreview"
+				:can-return="available && !working && !context?.uncertain && !localDirty"
+				:preview="preview"
+				:preview-stale="previewStale"
+				@select="beginSelection"
+				@inspect-path="inspectPath"
+				@return-list="returnToList"
+			/>
+			<div class="record-save-bar">
+				<span>{{ localDirty ? '有未保存修改' : stepID ? '规则已保存 · 页面检查另行核对' : '尚未保存采集步骤' }}</span>
 				<div class="editor-actions">
-					<button v-if="!plan.detail" @click="enableDetail">添加详情路径</button
-					><button
-						v-else
-						@click="
-							plan.detail = undefined;
-							plan.detail_fields = [];
-						"
-						:disabled="!!context"
-					>
-						移除详情路径
-					</button>
-				</div>
-				<details v-if="plan.detail" class="detail-path-config editor-advanced">
-					<summary>详情入口已配置 · 返回方式与高级规则</summary>
-					<h4>每条记录 → 发现详情 URL → 打开详情 → 提取详情字段 → 返回列表</h4>
-					<div class="command-form-grid">
-						<label
-							>详情链接定位<select v-model="plan.detail.locator.strategy">
-								<option value="css">CSS</option>
-								<option value="xpath">XPath</option>
-							</select></label
-						><label>相对链接规则<input v-model="plan.detail.locator.expression" maxlength="2048" /></label
-						><label
-							>返回列表<select v-model="plan.detail.return_strategy">
-								<option value="back">浏览器后退</option>
-								<option value="navigate-list">重新打开列表地址</option>
-							</select></label
-						><label>最多详情候选<input v-model.number="plan.detail.max_details" type="number" min="1" max="5" /></label>
-					</div>
-				</details>
-				<div class="editor-actions">
+					<button :disabled="working || blocked || !localDirty || unsupported" @click="save">保存修改</button>
 					<button
-						v-if="!plan.next_page"
-						@click="plan.next_page = { locator: { strategy: 'css', expression: '' }, kind: 'link', max_pages: 10, wait_ms: 500 }"
+						class="primary-action"
+						:disabled="working || blocked || unsupported || !available || (!localDirty && !canPreview)"
+						@click="saveAndPreview"
 					>
-						添加下一页入口</button
-					><button v-else @click="plan.next_page = undefined">移除下一页入口</button>
+						{{ working ? '处理中…' : localDirty ? '保存并查看数据' : '查看当前页数据' }}
+					</button>
+					<button :disabled="!localDirty || working || blocked" @click="undoLocal">撤销修改</button>
 				</div>
-				<details v-if="plan.next_page" class="editor-advanced">
-					<summary>下一页已配置 · 翻页方式与高级规则</summary>
-					<div class="command-form-grid">
-						<label
-							>下一页类型<select v-model="plan.next_page.kind">
-								<option value="link">链接导航</option>
-								<option value="click">翻页按钮</option>
-								<option value="load_more">加载更多（累积列表）</option>
-							</select></label
-						><label
-							>定位方式<select v-model="plan.next_page.locator.strategy">
-								<option value="css">CSS</option>
-								<option value="xpath">XPath</option>
-							</select></label
-						><label>规则<input v-model="plan.next_page.locator.expression" maxlength="2048" /></label
-						><label>最多列表轮次<input v-model.number="plan.next_page.max_pages" type="number" min="1" max="100" /></label
-						><label>动作后等待（毫秒）<input v-model.number="plan.next_page.wait_ms" type="number" min="0" max="10000" /></label>
-					</div>
-				</details>
-				<p class="muted">
-					字段定位相对于各自记录容器；详情字段相对于整页。当前页面检查不连续运行。正式运行遵循已发布轮次上限与运行预算；加载更多的记录上限须能覆盖累积列表，超出会标记受限。重复/空页自动停止；动作后等待用于异步列表加载。
-				</p>
-				<div class="editor-actions">
-					<button class="primary-action" :disabled="!localDirty || unsupported || !available" @click="saveAndPreview">
-						{{ working ? '处理中…' : '保存并预览当前页' }}</button
-					><button :disabled="!localDirty || unsupported" @click="save">只保存规则</button
-					><button :disabled="!localDirty || working" @click="undoLocal">撤销未保存规则</button>
-				</div>
-			</fieldset>
-			<p v-if="localDirty" class="status-warn">记录配置尚未保存；保存前不会用旧规则生成新预览。</p>
+			</div>
+			<p v-if="selectionNotice" class="record-selection-notice" role="status">
+				{{ selectionNotice }}<button :disabled="!available || working" @click="beginSelection('field')">继续选字段</button>
+			</p>
 			<p v-if="unsupported" class="status-warn">这份规则包含高级配置；请使用 JSON 编辑，当前表单不会覆盖它。</p>
 		</div>
 		<div v-show="view !== 'rules'">
 			<div class="editor-actions">
 				<button :disabled="!canPreview" @click="previewCurrent">{{ context ? '检查当前详情页字段' : '预览当前列表/单页' }}</button
-				><button v-if="context" :disabled="!available || working || context.uncertain" @click="returnToList">返回列表并重新验证</button
+				><button v-if="context" :disabled="!available || working || localDirty || context.uncertain" @click="returnToList">返回列表并重新验证</button
 				><button v-if="context" :disabled="working || blocked" @click="forgetContext">清除路径上下文</button>
 			</div>
 			<p v-if="context" class="selection-scope">
@@ -226,7 +128,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import FieldOptions from './field-options.vue';
+import RecordRuleEditor from './record-rule-editor.vue';
 import {
 	appApi,
 	type BrowserSession,
@@ -254,7 +156,7 @@ const emit = defineEmits<{
 	(event: 'highlight', value: PageHighlight): void;
 	(event: 'working', busy: boolean): void;
 	(event: 'preview-requested'): void;
-	(event: 'select', target: SelectionRule['target']): void;
+	(event: 'select', target: SelectionRule['target'], field?: FieldRule): void;
 }>();
 const emptyPlan = (): RecordPlan => ({ mode: 'single', max_records: 10, fields: [], detail_fields: [] });
 const plan = ref<RecordPlan>(emptyPlan()),
@@ -277,6 +179,15 @@ type PathContext = {
 	uncertain: boolean;
 };
 const context = ref<PathContext>();
+const ruleEditor = ref<InstanceType<typeof RecordRuleEditor>>();
+const selectionNotice = ref('');
+let fieldToReplace: { field: FieldRule; role: 'list' | 'detail' } | undefined;
+const summary = computed(() => ({
+	record: plan.value.mode === 'single' ? '整页一条' : plan.value.locator?.expression ? '重复容器 · 已配置' : '待配置范围',
+	field: `列表 ${plan.value.fields.length} 个${plan.value.detail ? ` · 详情 ${plan.value.detail_fields?.length || 0} 个` : ''}`,
+	detail: plan.value.detail ? '已配置 · 可检查路径' : '未启用 · 可选',
+	next: plan.value.next_page ? '已配置 · 可检查入口' : '未启用 · 可选',
+}));
 let disposed = false,
 	epoch = 0;
 const recordSteps = computed<Record<string, any>[]>(() =>
@@ -304,10 +215,6 @@ const previewStale = computed(
 );
 const canNavigate = computed(() => canPreview.value && !previewStale.value);
 const previewNames = computed(() => Array.from(new Set(preview.value?.records.flatMap((row) => row.fields.map((field) => field.name)) || [])));
-const fieldGroups = computed(() => [
-	{ role: 'list' as const, fields: plan.value.fields },
-	...(plan.value.detail ? [{ role: 'detail' as const, fields: plan.value.detail_fields || [] }] : []),
-]);
 const unsupported = computed(
 	() =>
 		malformed.value ||
@@ -360,6 +267,8 @@ function restoreContext() {
 	}
 }
 function loadPlan(step?: Record<string, any>) {
+	fieldToReplace = undefined;
+	selectionNotice.value = '';
 	const value = step?.config;
 	malformed.value =
 		!!step &&
@@ -384,6 +293,7 @@ function chooseStep(id: string) {
 	if (working.value || context.value) return;
 	if (localDirty.value && !window.confirm('切换步骤将丢弃未保存修改，确认？')) return;
 	stepID.value = id;
+	ruleEditor.value?.resetNode();
 	const step = recordSteps.value.find((step) => step.step_id === id);
 	loadPlan(step);
 	saved.value = id ? JSON.stringify(plan.value) : '';
@@ -391,50 +301,57 @@ function chooseStep(id: string) {
 	preview.value = undefined;
 	epoch++;
 }
-function changeMode() {
-	plan.value.locator = plan.value.mode === 'repeated' ? plan.value.locator || { strategy: 'css', expression: '' } : undefined;
-}
-function addField(role: 'list' | 'detail') {
-	const fields = role === 'detail' ? plan.value.detail_fields || (plan.value.detail_fields = []) : plan.value.fields;
-	fields.push({ name: `field_${fields.length + 1}`, extract: 'text', locator: { strategy: 'css', expression: '' } });
-}
 function enableDetail() {
 	plan.value.detail = { locator: { strategy: 'css', expression: 'a' }, return_strategy: 'back', max_details: 3 };
 	plan.value.detail_fields = plan.value.detail_fields || [];
 }
 function applySelection(rule: SelectionRule) {
-	if (working.value || props.blocked || unsupported.value) return;
+	if (working.value || props.blocked || unsupported.value || (context.value && rule.target !== 'field')) return false;
 	if (rule.target === 'record') {
 		plan.value.mode = 'repeated';
 		plan.value.locator = { ...rule.locator };
 	} else if (rule.target === 'field') {
+		const role = context.value ? 'detail' : 'list';
+		if (fieldToReplace && fieldToReplace.role !== role) {
+			message.value = '字段所属页面已变化，请返回原页面重新点选。';
+			return false;
+		}
 		if (rule.scope) {
 			if (plan.value.mode !== 'repeated' || JSON.stringify(plan.value.locator) !== JSON.stringify(rule.scope)) {
-				message.value = '字段范围与记录配置不同，请先保存正确的记录范围。';
-				return;
+				message.value = '字段范围与记录配置不同，请先使用正确的记录范围。';
+				return false;
 			}
 		} else if (plan.value.mode === 'repeated' && !context.value) {
 			message.value = '重复记录字段必须在记录范围内点选，或手填相对定位器。';
-			return;
+			return false;
 		}
 		const fields = context.value ? plan.value.detail_fields || (plan.value.detail_fields = []) : plan.value.fields;
+		const replacing = fieldToReplace?.field;
+		if (replacing && !fields.includes(replacing)) {
+			message.value = '原字段已变化，请重新选择要编辑的字段。';
+			return false;
+		}
 		let suffix = fields.length + 1;
 		while (fields.some((field) => field.name === `field_${suffix}`)) suffix++;
-		const name = rule.name || `field_${suffix}`;
-		if (fields.some((field) => field.name === name)) {
+		const name = replacing?.name || rule.name || `field_${suffix}`;
+		if (fields.some((field) => field !== replacing && field.name === name)) {
 			message.value = '字段名称已存在，请修改名称后重新加入。';
-			return;
+			return false;
 		}
-		fields.push({
+		const field: FieldRule = {
 			name,
 			extract: rule.extract || 'text',
 			locator: { ...rule.locator },
 			...(rule.extract === 'attribute' ? { attribute: 'data-id' } : {}),
-		});
+		};
+		if (replacing) replacing.locator = field.locator;
+		else fields.push(field);
+		selectionNotice.value = `已${replacing ? '更新定位' : '添加字段'}“${name}” · 尚未保存`;
+		ruleEditor.value?.focusSelection('field', replacing || fields[fields.length - 1]);
 	} else if (rule.target === 'detail') {
 		if (plan.value.mode === 'repeated' && JSON.stringify(plan.value.locator) !== JSON.stringify(rule.scope)) {
 			message.value = '详情链接须在同一记录范围内点选。';
-			return;
+			return false;
 		}
 		if (!plan.value.detail) enableDetail();
 		plan.value.detail!.locator = { ...rule.locator };
@@ -446,7 +363,26 @@ function applySelection(rule: SelectionRule) {
 			locator: { ...rule.locator },
 			kind: rule.next_kind || plan.value.next_page?.kind || 'link',
 		};
-	message.value = '已填入点选规则，检查后保存记录步骤。';
+	fieldToReplace = undefined;
+	if (rule.target !== 'field') {
+		selectionNotice.value = `已更新${({ record: '记录范围', detail: '详情入口', next: '翻页入口' } as const)[rule.target]} · 尚未保存`;
+		ruleEditor.value?.focusSelection(rule.target);
+	}
+	message.value = '';
+	return true;
+}
+function beginSelection(target: SelectionRule['target'], field?: FieldRule) {
+	if (working.value || props.blocked || unsupported.value || !available.value || (context.value && target !== 'field')) return;
+	prepareSelection(target, field);
+	emit('select', target, field);
+}
+function prepareSelection(target: SelectionRule['target'], field?: FieldRule) {
+	fieldToReplace = target === 'field' && field ? { field, role: context.value ? 'detail' : 'list' } : undefined;
+}
+async function inspectPath(_target: 'detail' | 'next') {
+	if (!canPreview.value) return;
+	emit('preview-requested');
+	await previewCurrent();
 }
 function validate() {
 	const names = (fields: FieldRule[]) =>
@@ -464,12 +400,15 @@ function validate() {
 function undoLocal() {
 	if (working.value || props.blocked || !localDirty.value) return;
 	plan.value = saved.value ? JSON.parse(saved.value) : emptyPlan();
+	selectionNotice.value = '';
+	fieldToReplace = undefined;
 	preview.value = undefined;
 	message.value = '已撤销本地规则修改。';
 }
 async function saveAndPreview() {
-	emit('preview-requested');
-	if (await save()) {
+	if (working.value || props.blocked || unsupported.value || !available.value) return;
+	if (!localDirty.value || (await save())) {
+		emit('preview-requested');
 		await nextTick();
 		await previewCurrent();
 	}
@@ -503,6 +442,7 @@ async function save() {
 		saved.value = JSON.stringify(plan.value);
 		emit('draft-saved', draft);
 		message.value = '记录步骤已保存；请重新检查当前页面。';
+		selectionNotice.value = '';
 		return true;
 	} catch (cause: any) {
 		message.value = cause?.error?.message || '保存失败，本地配置已保留。';
@@ -594,7 +534,7 @@ async function openDetail(url: string, recordIndex = 0) {
 	}
 }
 async function returnToList() {
-	if (!context.value || !available.value || working.value || context.value.uncertain) return;
+	if (!context.value || !available.value || working.value || localDirty.value || context.value.uncertain) return;
 	const path = { ...context.value },
 		pageState = props.session!.page_state_id;
 	if (!window.confirm(`按 ${path.strategy} 返回列表并重新验证记录范围，确认？`)) return;
@@ -681,21 +621,13 @@ onBeforeUnmount(() => {
 	disposed = true;
 	epoch++;
 });
-function moveField(fields: FieldRule[], index: number, offset: number) {
-	const next = index + offset;
-	if (next < 0 || next >= fields.length) return;
-	[fields[index], fields[next]] = [fields[next], fields[index]];
-}
 async function focusField(id: string, key: string, role: string) {
 	if (id !== stepID.value) {
 		chooseStep(id);
 		await nextTick();
 	}
-	const el = document.getElementById(`v22-field-${role}-${key}`) as HTMLDetailsElement | null;
-	if (el) {
-		el.open = true;
-		el.scrollIntoView({ block: 'center', behavior: 'smooth' });
-	}
+	if (id !== stepID.value) return;
+	await ruleEditor.value?.focusField(key, role);
 }
-defineExpose({ applySelection, localDirty, recordScope, detailPage, focusField });
+defineExpose({ applySelection, localDirty, recordScope, detailPage, focusField, summary, prepareSelection, selectionError: message });
 </script>

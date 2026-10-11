@@ -48,6 +48,15 @@ function locatorResult(input) {
 }
 const settle = async () => { await Promise.resolve(); await vue.nextTick(); await Promise.resolve(); };
 
+test('reselecting an existing field starts fresh evidence while preserving its name and extraction kind',async()=>{
+ const h=mount({inspectElement:async()=>({page_state_id:'page-1',element:{element_id:'node',tag:'img',attributes:{},text:''},locators:[]})});
+ try{
+  h.props.replacingField=true;await settle();h.state.prepareField({name:'电影链接',extract:'link'});
+  h.props.frameState={frame_sequence:7};await settle();h.state.framePick(1,1,'page-1');await settle();
+  assert.equal(h.state.fieldName.value,'电影链接');assert.equal(h.state.extractKind.value,'link');assert.equal(h.state.selection.value.element.tag,'img');assert.equal(h.state.checkValid.value,false);
+ }finally{h.unmount();}
+});
+
 test('same-document background recheck preserves fields and refreshes only locator evidence', async () => {
   const current = {protocol:'editor.state.v1', document_id:'a'.repeat(64), frame_state_id:'frame', validation_state_id:'dom', page_state_id:'page-1'};
   let requests = [];

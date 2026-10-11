@@ -95,9 +95,9 @@
 		<div v-if="hasPending" class="locator-result selection-confirm-footer">
 			<div class="editor-actions">
 				<template v-if="target === 'field'"
-					><label>字段名称<input v-model="fieldName" maxlength="64" placeholder="例如：电影名称；留空自动命名" /></label
+					><label>字段名称<input v-model="fieldName" :readonly="replacingField" maxlength="64" placeholder="例如：电影名称；留空自动命名" /></label
 					><label
-						>提取内容<select v-model="extractKind">
+						>提取内容<select v-model="extractKind" :disabled="replacingField">
 							<option value="text">文本</option>
 							<option value="link">链接</option>
 							<option value="image">图片地址</option>
@@ -124,7 +124,7 @@
 					"
 					@click="saveRule(target)"
 				>
-					{{ target === 'field' ? '加入字段' : target === 'record' ? '使用记录范围' : target === 'detail' ? '使用详情入口' : '使用下一页入口' }}
+					{{ target === 'field' ? replacingField ? '更新此字段定位' : detailPage ? '添加到详情字段' : '添加到列表字段' : target === 'record' ? '使用记录范围' : target === 'detail' ? '使用详情入口' : '使用下一页入口' }}
 				</button>
 				<button :disabled="!available || !checkValid || !!scope || check?.match_count !== 1 || check?.truncated || busy" @click="prepareAction">准备点击动作</button>
 			</div>
@@ -177,6 +177,7 @@ const props = defineProps<{
 	blocked: boolean;
 	revision: number;
 	recheckEnabled?: boolean;
+	replacingField?: boolean;
 	recheckBlocked?: boolean;
 	frameState?: BrowserSession['state'];
 	recordScope?: EditorLocator;
@@ -457,7 +458,7 @@ async function inspect(input: Partial<InspectionInput>, pageState: string, hover
 				(props.target === 'record' || input.expand_similar
 					? result.locators.find((item) => item.kind === 'similar' && item.match_count > 1 && !item.truncated)
 					: undefined) || result.locators.find((item) => item.match_count > 0 && !item.truncated);
-			if (firstSelection && props.target === 'field') {
+			if (firstSelection && props.target === 'field' && !props.replacingField) {
 				extractKind.value = result.element.tag.toLowerCase() === 'img' ? 'image' : 'text';
 			}
 			if (firstSelection && props.target === 'next') nextKind.value = result.element.attributes.href ? 'link' : 'click';
@@ -675,5 +676,11 @@ onBeforeUnmount(() => {
 	generation++;
 	if (hoverTimer) clearTimeout(hoverTimer);
 });
-defineExpose({ framePick, frameHover, leaveFrame, hasPending });
+function prepareField(field: FieldRule) {
+	cancelSelection();
+	fieldName.value = field.name;
+	extractKind.value = field.extract;
+	message.value = '请重新点选此字段；名称、提取方式和高级设置保持原配置。';
+}
+defineExpose({ framePick, frameHover, leaveFrame, hasPending, prepareField });
 </script>

@@ -306,3 +306,49 @@
 .selection-comparison { margin: 12px 0; padding: 14px; border: 1px solid #d8c391; border-radius: 8px; background: #fffaf0; color: #6d5525; overflow-wrap: anywhere; }
 .selection-comparison p { margin: 8px 0; }
 .browser-frame-status > button { margin-left: auto; flex-shrink: 0; }
+
+/* Flow overview and one active record configuration keep the webpage unobstructed. */
+.selection-goals { display: flex; flex-wrap: wrap; gap: 8px; }
+.selection-goals > button { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 145px; text-align: left; }
+.selection-goals small { color: #647086; font-size: 12px; font-weight: 400; }
+.selection-goals button[aria-pressed="true"] small { color: #e4ecff; }
+.flow-edit-heading, .record-node-heading, .record-source-toolbar, .record-save-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; }
+.flow-edit-heading { padding: 10px 0; border-bottom: 1px solid #dfe3eb; color: #647086; font-size: 13px; }
+.record-node-heading { margin: 12px 0; }
+.record-node-heading h3 { margin: 0; }
+.record-node-heading p { margin: 6px 0 0; font-size: 12px; }
+.record-source-toolbar { padding: 10px 0; }
+.record-source-toolbar label { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.record-source-toolbar .editor-advanced { margin: 0; }
+.record-node-nav { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 12px 0 18px; }
+.record-node-nav button { display: flex; flex-direction: column; align-items: flex-start; text-align: left; gap: 5px; min-width: 0; padding: 12px; }
+.record-node-nav small { color: #647086; font-weight: 400; overflow-wrap: anywhere; }
+.record-node-nav button[aria-pressed="true"] { color: #315ab4; border-color: #809bd2; background: #edf2ff; }
+.record-node-config { border: 0; padding: 0; margin: 0; min-width: 0; }
+.record-node-config > label { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 12px 0; }
+.record-node-config > label select { min-width: 220px; }
+.record-node-overview { padding: 16px; background: #f6f8fc; border: 1px solid #e1e6ef; border-radius: 8px; }
+.record-fields-table { overflow-x: auto; border: 1px solid #e1e6ef; border-radius: 8px; }
+.record-fields-table table { width: 100%; border-collapse: collapse; min-width: 560px; font-size: 13px; }
+.record-fields-table th { text-align: left; background: #f6f8fc; color: #647086; font-weight: 500; }
+.record-fields-table td, .record-fields-table th { padding: 10px 12px; border-bottom: 1px solid #e6eaf1; }
+.record-fields-table tbody tr:last-child td { border-bottom: 0; }
+.record-fields-table .field-is-editing { background: #f0f4ff; }
+.record-fields-table .field-sample { max-width: 280px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.record-fields-table button.field-title { border: 0; background: transparent; padding: 0; color: #315ab4; text-align: left; overflow-wrap: anywhere; }
+.record-field-editor { margin: 14px 0; padding: 16px; border: 1px solid #ccd8ec; border-radius: 8px; background: #fbfcff; }
+.record-empty-state { padding: 18px; color: #647086; background: #f6f8fc; border-radius: 8px; }
+.record-save-bar { position: sticky; bottom: -16px; z-index: 3; padding: 12px; margin-top: 16px; border: 1px solid #dfe3eb; border-radius: 8px; background: #fff; box-shadow: 0 -4px 12px #18243a0a; }
+.record-save-bar > span { color: #647086; font-size: 12px; }
+.record-selection-notice { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; color: #315ab4; font-size: 13px; }
+.record-step-outline { color: #647086; font-size: 12px; padding-left: 20px; }
+.step-controls > summary { color: #647086; cursor: pointer; font-size: 12px; }
+.step-controls { display: block; }
+.step-controls[open] > button { margin: 8px 6px 0 0; }
+@media (max-width: 760px) {
+ .record-node-nav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+ .record-source-toolbar label { width: 100%; }
+ .record-source-toolbar select { flex: 1; min-width: 0; }
+ .record-save-bar { align-items: flex-start; }
+ .record-node-config > label select { min-width: 0; max-width: 100%; }
+}

@@ -58,10 +58,10 @@
 				v-for="goal in selectionGoals"
 				:key="goal.target"
 				:aria-pressed="selecting && selectionTarget === goal.target"
-				:disabled="busy || recordWorking || replaying"
+				:disabled="busy || recordWorking || replaying || (!!recordPanel?.detailPage && goal.target !== 'field')"
 				@click="activateSelection(goal.target)"
 			>
-				{{ goal.label }}
+				<strong>{{ goal.label }}</strong><small>{{ recordPanel?.summary?.[goal.target] || goal.empty }}</small>
 			</button>
 		</div>
 		<p class="muted">{{ selecting ? selectionHelp[selectionTarget] : '浏览或录制模式：点击网页后，在底部确认执行。' }}</p>
@@ -103,38 +103,42 @@
 			</button>
 		</nav>
 		<div v-show="!panelCollapsed" id="workbench-bottom-panel" class="workbench-bottom-panel">
-			<section v-show="panelTab === 'flow'" class="editor-step-pane">
+			<div v-show="panelTab === 'flow' && flowEditing" class="flow-edit-heading">
+				<button @click="flowEditing = false">返回流程总览</button>
+				<span>{{ selectedStep >= 0 ? stepLabel(steps[selectedStep]) : '当前采集规则' }} · {{ recordPanel?.localDirty ? '有未保存修改' : '草稿配置' }}</span>
+			</div>
+			<section v-show="panelTab === 'flow' && !flowEditing" class="editor-step-pane">
 				<div class="pane-heading">
 					<h3>采集步骤</h3>
 					<span>{{ steps.length }} 步</span>
 				</div>
-				<p class="muted">步骤修改只改草稿，不操作网页。</p>
+				<p class="muted">查看执行顺序，选中一项再配置；字段、详情与翻页归属于对应采集步骤。</p>
+				<button :disabled="busy || recordWorking || replaying" @click="flowEditing = true; selectedStep = -1">{{ recordPanel?.localDirty ? '继续编辑未保存规则' : '配置采集规则' }}</button>
 				<ol class="step-list">
 					<li v-for="(step, index) in steps" :key="step.step_id || index" :class="{ selected: selectedStep === index }">
-						<button class="step-title" :disabled="busy || recordWorking || replaying || !!recordPanel?.localDirty" @click="selectStep(index)">
+						<button class="step-title" :disabled="busy || recordWorking || replaying || !!recordPanel?.localDirty || !!recordPanel?.detailPage" @click="selectStep(index)">
 							{{ index + 1 }}. {{ stepLabel(step) }}
 						</button>
-						<small v-if="selectedStep === index">{{ step.step_id }}</small>
-						<ul v-if="selectedStep === index && step.type === 'record_set'" class="record-step-outline">
-							<li>{{ step.config?.mode === 'repeated' ? '每条记录 · 有界循环' : '整页一条' }}（最多 {{ step.config?.max_records }} 条）</li>
-							<li v-for="field in step.config?.fields || []" :key="field.name">字段：{{ field.name }}</li>
+						<small>{{ stepSummary(step) }}</small>
+						<ul v-if="step.type === 'record_set'" class="record-step-outline">
+							<li>{{ step.config?.fields?.length || 0 }} 个列表字段{{ step.config?.fields?.length ? '：' + step.config.fields.slice(0, 3).map((field: FieldRule) => field.name).join('、') + (step.config.fields.length > 3 ? '…' : '') : '' }}</li>
 							<li v-if="step.config?.detail">
 								发现详情 → 打开 → 提取 {{ step.config?.detail_fields?.length || 0 }} 个字段 →
 								{{ step.config.detail.return_strategy === 'back' ? '后退列表' : '重开列表' }}
 							</li>
-							<li v-if="step.config?.next_page">下一页：{{ step.config.next_page.kind }}（本轮仅验证一次）</li>
+							<li v-if="step.config?.next_page">{{ nextLabels[step.config.next_page.kind] || '翻页' }} · 最多 {{ step.config.next_page.max_pages }} 轮</li>
 						</ul>
-						<div v-if="selectedStep === index" class="step-controls">
-							<button :disabled="!canEdit || index === 0" @click="moveStep(index, -1)" aria-label="上移步骤">↑</button>
-							<button :disabled="!canEdit || index === steps.length - 1" @click="moveStep(index, 1)" aria-label="下移步骤">↓</button>
-							<button class="danger-action" :disabled="!canEdit" @click="removeStep(index)">删除</button>
+						<details class="step-controls"><summary>更多操作</summary>
+							<button :disabled="!canEdit || !!recordPanel?.detailPage || index === 0" @click="moveStep(index, -1)" aria-label="上移步骤">↑</button>
+							<button :disabled="!canEdit || !!recordPanel?.detailPage || index === steps.length - 1" @click="moveStep(index, 1)" aria-label="下移步骤">↓</button>
+							<button class="danger-action" :disabled="!canEdit || !!recordPanel?.detailPage" @click="removeStep(index)">删除</button>
 							<button :disabled="!canExecute || !executable(step)" @click="runStep(step)">单步执行</button>
-						</div>
+						</details>
 					</li>
 				</ol>
-				<p v-if="!steps.length" class="muted">切换“录制操作”，成功动作将自动加入步骤。</p>
+				<p v-if="!steps.length" class="record-empty-state">尚未配置流程。从网页选记录或字段开始；单页可以直接选字段。需要点击或输入准备网页时，再使用录制操作。</p>
 				<details class="editor-advanced">
-					<summary>检查点与重放</summary>
+					<summary>调试工具 · 检查点与重放</summary>
 					<button class="secondary-action" :disabled="!canEdit || !steps.length" @click="saveCheckpoint">保存检查点</button>
 					<p class="muted">保存至选中步骤，重放使用这份快照。</p>
 					<div v-for="checkpoint in checkpoints" :key="checkpoint.checkpoint_id" class="checkpoint-row">
@@ -147,7 +151,7 @@
 				</details>
 			</section>
 			<section
-				v-show="panelTab === 'selection' || (panelTab === 'flow' && !selecting && selectedStep >= 0 && executable(steps[selectedStep]))"
+				v-show="panelTab === 'selection' || (panelTab === 'flow' && flowEditing && !selecting && selectedStep >= 0 && executable(steps[selectedStep]))"
 				class="editor-command-pane"
 			>
 				<BrowserSelection
@@ -161,6 +165,7 @@
 					:recheck-blocked="busy || recordWorking || replaying || !selecting || dirty || saving"
 					@verified-state="emit('verified-state', $event)"
 					:target="selectionTarget"
+					:replacing-field="replacingField"
 					:revision="draft.revision"
 					:blocked="busy || recordWorking || replaying || !selecting || dirty || saving || !frameReady"
 					:record-scope="recordPanel?.recordScope"
@@ -270,7 +275,7 @@
 			</section>
 			<RecordDesigner
 				ref="recordPanel"
-				v-show="(panelTab === 'flow' && (selectedStep < 0 || !executable(steps[selectedStep]))) || panelTab === 'preview'"
+				v-show="(panelTab === 'flow' && flowEditing && (selectedStep < 0 || steps[selectedStep]?.type === 'record_set')) || panelTab === 'preview'"
 				:view="panelTab === 'preview' ? 'preview' : 'rules'"
 				@preview-requested="openPanel('preview')"
 				class="editor-record-pane"
@@ -285,6 +290,7 @@
 				@draft-saved="emit('draft-saved', $event)"
 				@highlight="emit('highlight', $event)"
 			/>
+			<p v-if="panelTab === 'flow' && flowEditing && selectedStep >= 0 && steps[selectedStep]?.type !== 'record_set' && !executable(steps[selectedStep])" class="status-warn">当前步骤使用高级配置，请在方案的高级定义中编辑；当前表单不会覆盖它。</p>
 		</div>
 	</div>
 </template>
@@ -300,6 +306,7 @@ import {
 	type EditorCommand,
 	type EditorLocator,
 	type PageHighlight,
+	type FieldRule,
 	type SelectionRule,
 } from './api';
 import BrowserSelection from './browser-selection.vue';
@@ -339,6 +346,7 @@ const panelTab = ref<PanelTab>('selection'),
 	panelCollapsed = ref(false),
 	panelHeight = ref(360),
 	focused = ref(false);
+const flowEditing = ref(false), replacingField = ref(false);
 function openPanel(tab: PanelTab) {
 	panelTab.value = tab;
 	panelCollapsed.value = false;
@@ -382,11 +390,11 @@ watch(
 const mode = ref<'browse' | 'record' | 'record-select' | 'field-select'>('browse');
 watch(mode, value => emit('view-mode', value === 'browse' ? 'browse' : 'configure'), { immediate: true, flush: 'sync' });
 const selectionTarget = ref<SelectionRule['target']>('record');
-const selectionGoals: { target: SelectionRule['target']; label: string }[] = [
-	{ target: 'record', label: '① 选记录' },
-	{ target: 'field', label: '② 选字段' },
-	{ target: 'detail', label: '③ 选详情入口' },
-	{ target: 'next', label: '④ 选下一页' },
+const selectionGoals: { target: SelectionRule['target']; label: string; empty: string }[] = [
+	{ target: 'record', label: '记录范围', empty: '整页一条 / 重复容器' },
+	{ target: 'field', label: '提取字段', empty: '从网页添加字段' },
+	{ target: 'detail', label: '详情入口', empty: '未启用 · 可选' },
+	{ target: 'next', label: '翻页方式', empty: '未启用 · 可选' },
 ];
 const selectionHelp: Record<SelectionRule['target'], string> = {
 	record: '点一条记录，扩大到记录容器并选择同类；核对高亮范围后使用。',
@@ -394,17 +402,27 @@ const selectionHelp: Record<SelectionRule['target'], string> = {
 	detail: '在一条记录内选择详情链接；若选中文字，可扩大到带链接的父元素。',
 	next: '点选列表页的下一页或加载更多；确认采用链接导航还是按钮点击。',
 };
-async function activateSelection(target: SelectionRule['target']) {
+async function activateSelection(target: SelectionRule['target'], field?: FieldRule) {
 	if (busy.value || recordWorking.value || replaying.value) return;
+	if (recordPanel.value?.detailPage && target !== 'field') return;
+	recordPanel.value?.prepareSelection(target, field);
+	replacingField.value = !!field;
 	selectionTarget.value = target;
 	openPanel('selection');
 	mode.value = target === 'field' || target === 'detail' ? 'field-select' : 'record-select';
 	await nextTick();
+	if (field) selectionPanel.value?.prepareField(field);
 	workbenchRoot.value?.querySelector('.editor-page-pane')?.scrollIntoView({ block: 'nearest' });
 }
 function applySelection(rule: SelectionRule) {
-	recordPanel.value?.applySelection(rule);
+	if (!recordPanel.value?.applySelection(rule)) {
+		notice.value = recordPanel.value?.selectionError || '当前规则无法采用，请检查页面、记录范围和字段名称。';
+		return;
+	}
+	notice.value = '';
+	replacingField.value = false;
 	selectedStep.value = -1;
+	flowEditing.value = true;
 	openPanel('flow');
 }
 watch([panelTab, panelCollapsed], () => { configurationFocused.value = false; });
@@ -516,17 +534,24 @@ function statusLabel(status: string) {
 function executable(step?: Record<string, any>) {
 	return !!step && (step.type === 'navigate' || (step.type === 'action' && actions.includes(step.config?.action)));
 }
-function stepLabel(step: Record<string, any>) {
+function stepLabel(step?: Record<string, any>) {
+	if (!step) return '当前采集规则';
 	return step.type === 'record_set'
-		? '记录与详情路径'
+		? '采集记录'
 		: step.type === 'navigate'
 			? `打开 ${step.config?.url || '网址'}`
 			: labels[step.config?.action] || step.type;
 }
+const nextLabels: Record<string, string> = { link: '下一页链接', click: '下一页按钮', load_more: '加载更多' };
+function stepSummary(step: Record<string, any>) {
+	return step.type === 'record_set' ? `${step.config?.mode === 'repeated' ? '重复记录' : '整页一条'} · 规则已配置，页面检查另行核对`
+		: step.type === 'navigate' ? '打开网址' : '网页动作 · 按流程顺序执行';
+}
 function selectStep(index: number) {
-	if (busy.value || recordWorking.value || replaying.value || recordPanel.value?.localDirty) return;
+	if (busy.value || recordWorking.value || replaying.value || recordPanel.value?.localDirty || recordPanel.value?.detailPage) return;
 	openPanel('flow');
 	selectedStep.value = index;
+	flowEditing.value = true;
 	const step = steps.value[index];
 	if (!executable(step)) return;
 	mode.value = 'browse';
@@ -593,12 +618,15 @@ async function saveSteps(next: Record<string, any>[]) {
 	}
 }
 async function moveStep(index: number, offset: number) {
+	if (!canEdit.value || recordPanel.value?.detailPage || index + offset < 0 || index + offset >= steps.value.length) return;
 	const next = [...steps.value];
 	[next[index], next[index + offset]] = [next[index + offset], next[index]];
 	await saveSteps(next);
 	selectedStep.value = index + offset;
 }
 async function removeStep(index: number) {
+	if (!canEdit.value || recordPanel.value?.detailPage || index < 0 || index >= steps.value.length) return;
+	if (!window.confirm(`删除“${stepLabel(steps.value[index])}”及其关联配置？保存到草稿后生效。`)) return;
 	await saveSteps(steps.value.filter((_, i) => i !== index));
 	selectedStep.value = -1;
 }
@@ -665,6 +693,7 @@ function hasUnsavedChanges() {
 async function focusField(stepID: string, key: string, role: string) {
 	selectedStep.value = -1;
 	openPanel('flow');
+	flowEditing.value = true;
 	await nextTick();
 	recordPanel.value?.focusField(stepID, key, role);
 }

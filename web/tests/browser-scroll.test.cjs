@@ -159,17 +159,26 @@ test('confirming a rule opens its preserved configuration; step switching refuse
   const h = mount(); await tick();
   try {
     const s = h.state;
-    const panel = { localDirty: true, applySelection: rule => { panel.rule = rule; } };
+    const panel = { localDirty: true, applySelection: rule => { panel.rule = rule; return true; } };
     s.recordPanel.value = panel;
     const rule = { target: 'field', name: 'title', locator: { strategy: 'css', expression: '.title' } };
     s.applySelection(rule); await tick();
-    assert.equal(s.panelTab.value, 'flow'); assert.equal(s.recordPanel.value.rule.name, 'title');
+    assert.equal(s.panelTab.value, 'flow'); assert.equal(s.flowEditing.value, true); assert.equal(s.recordPanel.value.rule.name, 'title');
     h.props.draft.definition.steps = [{ type: 'navigate', step_id: 'open', config: { url: 'https://example.com' } }];
     s.selectStep(0); assert.equal(s.selectedStep.value, -1);
     s.recordPanel.value.localDirty = false; s.selectStep(0); await tick();
     assert.equal(s.selectedStep.value, 0); assert.equal(s.mode.value, 'browse');
     assert.equal(s.value.value, 'https://example.com');
   } finally { h.unmount(); }
+});
+
+test('rejected selection stays in the selection panel and reports the actual reason', async () => {
+  const h=mount(); await tick();
+  try {
+    h.state.recordPanel.value={localDirty:false,applySelection:()=>false,selectionError:'字段范围与记录配置不同'};
+    h.state.applySelection({target:'field',name:'title',locator:{strategy:'css',expression:'.title'}});
+    assert.equal(h.state.panelTab.value,'selection'); assert.equal(h.state.flowEditing.value,false); assert.match(h.state.notice.value,/范围/);
+  } finally {h.unmount();}
 });
 
 test('focus mode collapses temporarily and Escape restores the panel and focus without dispatching actions', async () => {
