@@ -14,8 +14,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// All inspection operations authorize the owned session, read only, and require
-// the displayed frame version. They never refresh a stale token behind the user.
+// Inspection is owned and read-only. Coordinate/ref requests require the displayed
+// frame version; locator-recheck verifies a new token only within the same document.
 func InspectBrowserPage(browser *drission_rod.DrissionRod, operation string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		admin, session, loaded := loadOwnedSession(w, r)
@@ -89,7 +89,7 @@ func InspectBrowserPage(browser *drission_rod.DrissionRod, operation string) htt
 			fail(w, r, 410, "SESSION_GONE", "会话不可用，请恢复或重新打开", false, "inspect", "")
 			return
 		}
-		if session.PageStateId != input.PageStateID {
+		if operation != "locator-recheck" && session.PageStateId != input.PageStateID {
 			fail(w, r, 409, "STALE_PAGE_STATE", "画面已变化，请刷新后重新选择", false, "inspect", "page_state_id")
 			return
 		}

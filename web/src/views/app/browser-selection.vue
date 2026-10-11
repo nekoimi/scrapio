@@ -7,8 +7,15 @@
 		<p class="muted">点选后自动检查推荐规则。核对高亮和样例，再确认使用。</p>
 		<p v-if="!session?.available" class="status-warn">请先打开或恢复浏览器会话。</p>
 		<p v-if="!enabled" class="status-warn">当前服务不支持元素检查，请同步升级浏览器服务。</p>
-		<p v-if="blocked" class="muted" role="status">当前操作尚未结束，选择配置已保留，暂时不能检查或确认。</p>
-		<p v-if="hasPending && !checkValid" class="status-warn" role="status">{{ staleReason || '规则尚未通过当前页面验证；配置已保留，请重新验证后核对样例。' }}</p>
+		<p v-if="blocked" class="muted" role="status">{{ canConfirm ? '点选画面已过期；规则使用当前复核结果。重新点选或操作网页前，请更新画面。' : '当前操作尚未结束，选择配置已保留，暂时不能检查或确认。' }}</p>
+		<p v-if="rechecking" class="muted" role="status">正在后台复核当前规则，字段配置保持不变…</p>
+		<p v-if="hasPending && !checkValid && !rechecking" class="status-warn" role="status">{{ staleReason || '规则尚未通过当前页面验证；配置已保留，请重新验证后核对样例。' }}</p>
+		<section v-if="pendingComparison" class="selection-comparison">
+			<strong>规则命中需要确认</strong>
+			<p>上次样例：{{ comparisonBefore.join(' / ') || '无样例' }}</p>
+			<p>当前样例：{{ pendingComparison.sample_values.join(' / ') || '无匹配' }}</p>
+			<button :disabled="!recheckAvailable() || !evidenceStateValid(pendingComparison) || !pendingComparison.match_count || pendingComparison.truncated" @click="acceptComparison">确认新的命中</button>
+		</section>
 		<div v-if="hasPending" class="editor-actions">
 			<button :disabled="!available || busy || !expression.trim()" @click="validateLocator">重新验证</button>
 			<button :disabled="!available || busy" @click="reselect">重新点选</button>
@@ -107,7 +114,7 @@
 				>
 				<button class="primary-action"
 					:disabled="
-						!available ||
+						!canConfirm ||
 						!checkValid ||
 						!check?.match_count ||
 						check?.truncated ||
@@ -149,7 +156,7 @@
 
 <script setup lang="ts">
 import { stateChange } from './browser-state';
-import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import {
 	appApi,
 	type BrowserSession,
@@ -169,11 +176,14 @@ const props = defineProps<{
 	enabled: boolean;
 	blocked: boolean;
 	revision: number;
+	recheckEnabled?: boolean;
+	recheckBlocked?: boolean;
 	frameState?: BrowserSession['state'];
 	recordScope?: EditorLocator;
 	detailPage?: boolean;
 }>();
 const emit = defineEmits<{
+	(event: 'verified-state', state: NonNullable<BrowserSession['state']>): void;
 	(event: 'highlight', value: PageHighlight): void;
 	(event: 'action-locator', value: EditorLocator): void;
 	(event: 'rule', value: SelectionRule): void;
@@ -198,9 +208,13 @@ const childIndex = ref(1);
 const busy = ref(false);
 watch(busy, value => emit('working', value), { flush: 'sync' });
 const message = ref('');
+const canConfirm = computed(() => props.recheckEnabled ? !!props.session?.available && !props.recheckBlocked : available.value);
 const available = computed(() => props.enabled && !!props.session?.available && !props.blocked);
 const targetMode = computed(() => props.target === 'field' || props.target === 'detail' ? 'field' : 'record');
 const hasPending = computed(() => !!selection.value || !!check.value || !!expression.value || !!fieldName.value);
+const rechecking = ref(false), pendingComparison = ref<LocatorCheck>(), comparisonBefore = ref<string[]>([]);
+let recheckTimer: ReturnType<typeof setTimeout> | undefined;
+let recheckAfter = 0, recheckRunning = false, adoptingRecheck = false;
 const staleReason = ref('');
 const selectingAgain = ref(false);
 const selectionStamp = ref(''), checkStamp = ref('');
@@ -234,6 +248,9 @@ function highlight(elements: PageHighlight['elements'], pageState: string, kind:
 	emit('highlight', { elements, page_state_id: pageState, kind });
 }
 function stopInspection() {
+	clearTimeout(recheckTimer);
+	pendingComparison.value = undefined;
+	rechecking.value = false;
 	generation++;
 	queued = undefined;
 	leaveFrame();
@@ -250,6 +267,113 @@ function invalidateEvidence(reason: string) {
 	staleReason.value = reason;
 	hideEvidence();
 }
+function recheckAvailable() {
+	return !!props.recheckEnabled && !!props.session?.available && !props.recheckBlocked;
+}
+function queueRecheck() {
+	clearTimeout(recheckTimer);
+	if (!recheckAvailable() || !check.value?.state || !check.value.fingerprint || !expression.value.trim() || recheckRunning) return;
+	rechecking.value = true;
+	staleReason.value = '';
+	recheckTimer = setTimeout(
+		() => {
+			void recheckRule();
+		},
+		Math.max(600, recheckAfter - Date.now())
+	);
+}
+async function recheckRule() {
+	const session = props.session,
+		previous = check.value;
+	if (!recheckAvailable() || !session?.state || !previous?.state || !previous.fingerprint || recheckRunning) {
+		rechecking.value = false;
+		return;
+	}
+	if (previous.state.document_id !== session.state.document_id) {
+		rechecking.value = false;
+		return;
+	}
+	const locator = { strategy: strategy.value, expression: expression.value.trim() };
+	if (previous.locator.strategy !== locator.strategy || previous.locator.expression !== locator.expression) {
+		rechecking.value = false;
+		return;
+	}
+	const epoch = generation,
+		context = contextStamp();
+	recheckRunning = true;
+	rechecking.value = true;
+	recheckAfter = Date.now() + 3000;
+	try {
+		const result = await appApi.recheckLocator(session.session_id, {
+			page_state_id: session.page_state_id,
+			document_id: previous.state.document_id,
+			locator,
+			...(scope.value ? { scope: scope.value } : {}),
+			previous_fingerprint: previous.fingerprint,
+		});
+		if (disposed || epoch !== generation || context !== contextStamp() || !recheckAvailable()) return;
+		if (!result.state || result.state.document_id !== previous.state.document_id) throw new Error('document mismatch');
+		adoptingRecheck = true;
+		emit('verified-state', result.state);
+		await nextTick();
+		adoptingRecheck = false;
+		if (
+			disposed ||
+			epoch !== generation ||
+			!evidenceStateValid(result) ||
+			locator.expression !== expression.value.trim() ||
+			locator.strategy !== strategy.value
+		)
+			return;
+		if (result.comparison === 'unchanged' && result.fingerprint === previous.fingerprint && !result.truncated && result.match_count > 0) {
+			check.value = result;
+			checkStamp.value = contextStamp();
+			staleReason.value = '';
+			message.value = '';
+			// Element references stay invalid until explicitly inspected; only locator evidence is refreshed.
+			const key = JSON.stringify([locator, scope.value]);
+			evidence.set(key, result.fingerprint);
+			highlight(result.elements, result.page_state_id, result.match_count === 1 ? 'selected' : 'similar');
+		} else {
+			pendingComparison.value = result;
+			comparisonBefore.value = [...previous.sample_values];
+			staleReason.value = '命中元素、记录范围或关键链接属性已变化，请核对新样例后确认。';
+		}
+	} catch {
+		if (!disposed && epoch === generation) staleReason.value = '后台复核暂未完成；配置已保留，可手动重新验证。';
+	} finally {
+		adoptingRecheck = false;
+		recheckRunning = false;
+		if (epoch === generation) rechecking.value = false;
+		else if (!disposed && !checkValid.value && check.value?.state?.document_id === props.session?.state?.document_id) queueRecheck();
+	}
+}
+function acceptComparison() {
+	const result = pendingComparison.value;
+	if (
+		!result ||
+		!recheckAvailable() ||
+		!evidenceStateValid(result) ||
+		result.page_state_id !== props.session?.page_state_id ||
+		!result.match_count ||
+		result.truncated
+	)
+		return;
+	check.value = result;
+	checkStamp.value = contextStamp();
+	pendingComparison.value = undefined;
+	staleReason.value = '';
+	const key = JSON.stringify([result.locator, scope.value]);
+	evidence.set(key, result.fingerprint);
+	highlight(result.elements, result.page_state_id, result.match_count === 1 ? 'selected' : 'similar');
+}
+watch(
+	() => props.recheckBlocked,
+	(blocked) => {
+		if (!blocked && !checkValid.value && check.value?.state?.document_id === props.session?.state?.document_id) queueRecheck();
+	}
+);
+
 function cancelSelection() {
 	invalidateEvidence('');
 	selection.value = check.value = undefined;
@@ -440,7 +564,7 @@ function prepareAction() {
 		emit('action-locator', { ...check.value.locator });
 }
 function saveRule(target: SelectionRule['target']) {
-	if (!available.value || !checkValid.value || !check.value || !check.value.match_count || check.value.truncated || busy.value) return;
+	if (!canConfirm.value || !checkValid.value || !check.value || !check.value.match_count || check.value.truncated || busy.value) return;
 	if (target === 'next' && (scope.value || check.value.match_count !== 1)) return;
 	if (props.detailPage && target !== 'field') return;
 	emit('rule', {
@@ -487,14 +611,24 @@ watch(
 			: change === 'validation' ? '网页 DOM 已变化，旧验证证据已停用；配置已保留，请重新验证。'
 			: '网页画面或滚动位置已变化，旧坐标已停用；规则保留，请重新验证。'
 			: '页面、会话或草稿已变化；配置已保留，请重新验证。';
-		invalidateEvidence(reason);
+        // Same-document mutations request scoped read-only revalidation, not global user interruption.
+        const canRecheck = props.recheckEnabled && current && prior && current.document_id === prior.document_id
+          && [0, 2, 3].every(index => next[index] === previous?.[index])
+          && check.value?.state?.document_id === current.document_id;
+        if (adoptingRecheck && canRecheck) return;
+        if (canRecheck) {
+            invalidateEvidence('');
+            if (recheckRunning) rechecking.value = true;
+            else queueRecheck();
+        } else invalidateEvidence(reason);
 	},
 	{ flush: 'sync' }
 );
 watch(
 	() => props.blocked,
 	() => {
-		stopInspection();
+		if (props.recheckEnabled && !props.recheckBlocked) leaveFrame();
+		else stopInspection();
 		hideEvidence();
 		if (available.value && checkValid.value && check.value) highlight(check.value.elements, props.session!.page_state_id, check.value.match_count === 1 ? 'selected' : 'similar');
 	},
@@ -536,6 +670,7 @@ watch([fieldName, extractKind, nextKind], () => {
 	leaveFrame();
 }, { flush: 'sync' });
 onBeforeUnmount(() => {
+	clearTimeout(recheckTimer);
 	disposed = true;
 	generation++;
 	if (hoverTimer) clearTimeout(hoverTimer);

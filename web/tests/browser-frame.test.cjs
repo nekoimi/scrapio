@@ -115,7 +115,7 @@ function mountEditor(apiOverrides = {}, time) {
   vm.runInNewContext(output, { module, exports: module.exports,
     require: name => name === 'vue' ? vue : name === './api' ? { appApi: api }
       : name === './browser-frame' ? { createBrowserFrame: options => createBrowserFrame({ ...options, decode: async () => ({ width: 1280, height: 800 }), createURL: blob => `image-${blob.id}`, revokeURL: () => {} }) }
-        : name === './browser-workbench' ? { ...require('./workbench-loader.cjs'), createAdaptiveRefresh: options => require('./workbench-loader.cjs').createAdaptiveRefresh({ ...options, clock: time }), createDelayedRefreshIndicator: options => require('./workbench-loader.cjs').createDelayedRefreshIndicator({ ...options, clock: time }) } : name === 'vue-router' ? { useRoute: () => ({ params: { id: 'collector-1' }, query: {} }), onBeforeRouteLeave: () => {}, onBeforeRouteUpdate: () => {} } : {},
+        : name === './browser-preview' ? require('./workbench-loader.cjs') : name === './browser-workbench' ? { ...require('./workbench-loader.cjs'), createAdaptiveRefresh: options => require('./workbench-loader.cjs').createAdaptiveRefresh({ ...options, clock: time }), createDelayedRefreshIndicator: options => require('./workbench-loader.cjs').createDelayedRefreshIndicator({ ...options, clock: time }) } : name === 'vue-router' ? { useRoute: () => ({ params: { id: 'collector-1' }, query: {} }), onBeforeRouteLeave: () => {}, onBeforeRouteUpdate: () => {} } : {},
     sessionStorage: { getItem: () => null, setItem: () => {}, removeItem: () => {} },
     document: { visibilityState: 'visible', addEventListener() {}, removeEventListener() {} }, AbortController, queueMicrotask, setTimeout, clearTimeout, setInterval: () => 1, clearInterval: () => {},
   });
@@ -128,6 +128,35 @@ function mountEditor(apiOverrides = {}, time) {
   return { state, unmount: () => app.unmount() };
 }
 const session = pageState => ({ session_id: 'session-1', page_state_id: pageState, frame_url: '/frame', available: true, status: 'ready', heartbeat_interval_seconds: 20 });
+
+test('live preview freezes before selection and never reuses streamed click coordinates', async () => {
+  const stopped=deferred(); let streamSignal, captures=0, picked=0, activated=0;
+  const h=mountEditor({capabilities:async()=>({supports_preview_stream:true}), browserSession:async()=>session('page-1'),
+    browserFrame:async()=>{captures++; return {id:'frozen'};},
+    streamBrowserPreview:(_,signal)=>{streamSignal=signal; return stopped.promise;}}); await tick();
+  try {
+    const s=h.state; s.dirty.value=false; await s.setBrowserSession(session('page-1')); await tick();
+    assert.equal(s.previewRunning.value,true); assert.equal(captures,0);
+    s.previewDisplay.frame.value={objectURL:'live-jpeg'};
+    s.actionsPanel.value={frameClick:()=>picked++, activateSelection:()=>activated++};
+    s.prepareFrameClick({clientX:10,clientY:10}); await tick();
+    assert.equal(streamSignal.aborted,true); assert.equal(s.syncingFrame.value,true); assert.equal(picked,0); assert.equal(captures,0);
+    stopped.resolve(); for (let i=0;i<20;i++) await tick();
+    assert.equal(s.viewMode.value,'configure'); assert.equal(captures,1); assert.equal(activated,1); assert.equal(picked,0);
+    assert.equal(s.frameObjectUrl.value,'image-frozen'); assert.equal(s.previewRunning.value,false);
+  } finally {stopped.resolve();h.unmount();}
+});
+
+test('preview failure falls back to authoritative PNG and hidden tabs stop streaming', async () => {
+  let signal; const h=mountEditor({capabilities:async()=>({supports_preview_stream:true}), browserSession:async()=>session('page-1'),
+    streamBrowserPreview:(_,s)=>{signal=s; return Promise.reject(Object.assign(new Error('unsupported'),{code:'STREAM_MASK_REQUIRED'}));}}); await tick();
+  try {
+    h.state.dirty.value=false; await h.state.setBrowserSession(session('page-1')); for(let i=0;i<5;i++) await tick();
+    assert.equal(h.state.previewFailed.value,true); assert.equal(h.state.showPreview.value,false); assert.match(h.state.previewNotice.value,/遮罩/);
+    await h.state.updateBrowserFrame(); assert.equal(h.state.frameObjectUrl.value,'image-capture');
+    h.state.tabVisible.value=false; await tick(); assert.equal(signal.aborted,true);
+  } finally {h.unmount();}
+});
 test('editor refuses image coordinates while stale or updating and retains same-page highlights', async () => {
   const h = mountEditor(); await tick();
   try {

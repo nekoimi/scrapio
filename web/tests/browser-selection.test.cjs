@@ -38,7 +38,7 @@ function mount(api = {}) {
     createElement: node, createText: node, createComment: node, insert: (child, parent) => parent.children.push(child),
     remove: () => {}, setElementText: () => {}, setText: () => {}, patchProp: () => {}, parentNode: () => null, nextSibling: () => null,
   });
-  const app = renderer.createApp({ render: () => vue.h(component, { ...props, onRule: rule => events.push(['rule', rule]), onActionLocator: locator => events.push(['action', locator]), onHighlight: group => events.push(['highlight', group]) }) });
+  const app = renderer.createApp({ render: () => vue.h(component, { ...props, onRule: rule => events.push(['rule', rule]), onActionLocator: locator => events.push(['action', locator]), onHighlight: group => events.push(['highlight', group]), onVerifiedState: state => { props.session = {...props.session, state, page_state_id: state.page_state_id}; events.push(['verified', state]); } }) });
   app.mount(node());
   return { props, get state() { return state; }, events, unmount: () => app.unmount(), fireHover: () => { for (const fn of [...timers]) { timers.delete(fn); fn(); } } };
 }
@@ -47,6 +47,57 @@ function locatorResult(input) {
   return { page_state_id: input.page_state_id, locator: input.locator, fingerprint: 'evidence', elements: [], sample_values: ['电影'], match_count: 1, truncated: false, comparison: 'changed', warnings: [] };
 }
 const settle = async () => { await Promise.resolve(); await vue.nextTick(); await Promise.resolve(); };
+
+test('same-document background recheck preserves fields and refreshes only locator evidence', async () => {
+  const current = {protocol:'editor.state.v1', document_id:'a'.repeat(64), frame_state_id:'frame', validation_state_id:'dom', page_state_id:'page-1'};
+  let requests = [];
+  const h = mount({checkLocator: async (_, input) => ({...locatorResult(input), fingerprint:'b'.repeat(64), state:current}),
+    recheckLocator: async (_, input) => { requests.push(input); return {...locatorResult(input), fingerprint:input.previous_fingerprint, comparison:'unchanged', state:h.props.session.state}; }});
+  try {
+    h.props.recheckEnabled = true; h.props.recheckBlocked = false; h.props.session.state = current; await settle();
+    const s = h.state; s.expression.value='.title'; s.fieldName.value='电影标题'; await s.validateLocator();
+    h.props.blocked = true; // PNG can be stale; locator-only recheck remains available.
+    h.props.session = {...h.props.session, page_state_id:'page-2', state:{...current, page_state_id:'page-2', validation_state_id:'new-dom'}}; await settle();
+    assert.equal(s.checkValid.value, false); assert.equal(s.rechecking.value, true); assert.equal(s.staleReason.value, '');
+    h.fireHover(); await settle(); await settle();
+    assert.equal(requests.length, 1); assert.equal(requests[0].document_id, current.document_id);
+    assert.equal(requests[0].position, undefined); assert.equal(requests[0].frame_sequence, undefined); assert.equal(requests[0].element_id, undefined);
+    assert.equal(s.checkValid.value, true); assert.equal(s.fieldName.value, '电影标题'); assert.equal(s.selectionValid.value, false);
+    s.saveRule('field'); assert.equal(h.events.filter(e => e[0]==='rule').length, 1);
+    s.prepareAction(); assert.equal(h.events.filter(e => e[0]==='action').length, 0);
+  } finally {h.unmount();}
+});
+
+test('changed target evidence requires explicit confirmation and navigation never rechecks', async () => {
+  const current = {protocol:'editor.state.v1', document_id:'a'.repeat(64), frame_state_id:'frame', validation_state_id:'dom', page_state_id:'page-1'};
+  let calls=0;
+  const h = mount({checkLocator:async (_, input)=>({...locatorResult(input), fingerprint:'b'.repeat(64), state:current}),
+    recheckLocator:async (_, input)=>{calls++; return {...locatorResult(input), fingerprint:'c'.repeat(64), sample_values:['新标题'], state:h.props.session.state};}});
+  try {
+    h.props.recheckEnabled=true; h.props.recheckBlocked=false; h.props.session.state=current; await settle();
+    const s=h.state; s.expression.value='.title'; s.fieldName.value='标题'; await s.validateLocator();
+    h.props.session={...h.props.session, page_state_id:'page-2', state:{...current, page_state_id:'page-2', validation_state_id:'changed'}}; await settle(); h.fireHover(); await settle(); await settle();
+    assert.equal(s.checkValid.value, false); assert.equal(s.pendingComparison.value.sample_values[0], '新标题');
+    s.saveRule('field'); assert.equal(h.events.filter(e=>e[0]==='rule').length, 0);
+    s.acceptComparison(); assert.equal(s.checkValid.value, true);
+    h.props.session={...h.props.session, page_state_id:'page-3', state:{...current, page_state_id:'page-3', document_id:'d'.repeat(64)}}; await settle(); h.fireHover(); await settle();
+    assert.equal(calls, 1); assert.equal(s.checkValid.value,false); assert.match(s.staleReason.value,/文档/);
+  } finally {h.unmount();}
+});
+
+test('late background recheck cannot overwrite edited locator or adopt its state', async () => {
+  const current={protocol:'editor.state.v1', document_id:'a'.repeat(64), frame_state_id:'frame', validation_state_id:'dom', page_state_id:'page-1'};
+  let finish;
+  const h=mount({checkLocator:async (_,input)=>({...locatorResult(input), fingerprint:'b'.repeat(64), state:current}),
+    recheckLocator:(_,input)=>new Promise(resolve=>finish=()=>resolve({...locatorResult(input), comparison:'unchanged', fingerprint:input.previous_fingerprint, state:h.props.session.state}))});
+  try {
+    h.props.recheckEnabled=true; h.props.recheckBlocked=false; h.props.session.state=current; await settle();
+    h.state.expression.value='.old'; await h.state.validateLocator();
+    h.props.session={...h.props.session,page_state_id:'page-2',state:{...current,page_state_id:'page-2',validation_state_id:'changed'}}; await settle(); h.fireHover(); await settle();
+    h.state.expression.value='.new'; finish(); await settle(); await settle();
+    assert.equal(h.state.expression.value,'.new'); assert.equal(h.state.checkValid.value,false); assert.equal(h.events.filter(e=>e[0]==='verified').length,0);
+  } finally {h.unmount();}
+});
 
 test('save blocking preserves inputs; page changes require new evidence before rule/action confirmation', async () => {
   const editor = mount({ checkLocator: async (_, input) => locatorResult(input) });

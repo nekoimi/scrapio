@@ -302,3 +302,7 @@
 }
 
 .editor-action-workspace:not(.workbench-focused):not(.panel-is-collapsed) .browser-web-viewport { height: clamp(280px, 44vh, 620px); }
+
+.selection-comparison { margin: 12px 0; padding: 14px; border: 1px solid #d8c391; border-radius: 8px; background: #fffaf0; color: #6d5525; overflow-wrap: anywhere; }
+.selection-comparison p { margin: 8px 0; }
+.browser-frame-status > button { margin-left: auto; flex-shrink: 0; }

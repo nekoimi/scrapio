@@ -104,6 +104,11 @@
 					@session-state="setActionBrowserSession"
 					@frame-invalidated="frameQueue.invalidate(); adaptiveFrames.activity()"
 					@workbench-busy="workbenchBusy = $event"
+					@view-mode="changeViewMode"
+					@verified-state="adoptRecheckedState"
+					:preview-streaming="showPreview"
+					:preview-scroll-busy="previewPaused"
+					@preview-scroll="scrollLivePreview"
 					@highlight="setHighlights"
 				>
 					<template #display-settings>
@@ -111,30 +116,31 @@
 							<button :aria-pressed="displayScale === 'fit'" @click="displayScale = 'fit'">适应宽度</button>
 							<button :aria-pressed="displayScale === 'original'" @click="displayScale = 'original'">原始比例</button>
 							<label><input type="checkbox" v-model="remoteWheel" />滚轮控制远端网页</label>
+							<label><input type="checkbox" v-model="livePreview" :disabled="!previewSupported" />流式浏览（点选时冻结）</label>
 							<label><input type="checkbox" v-model="autoFrames" />持续观察（约每 5 秒更新）</label>
 						</div>
 						<p class="muted viewport-help">{{ remoteWheel ? '滚轮滚动远端主页面，可能触发懒加载；不支持内部滚动容器。' : '滚轮只移动本地截图，远端页面不滚动。' }} 原始比例按网页 CSS 宽度显示，可用视口滚动条本地查看。
 							{{ automaticStatus }}
-							{{ frameProtocolStatus }}
+							{{ frameProtocolStatus }} {{ previewNotice }}
 						</p>
 					</template>
 					<template #page
-						><div class="browser-frame-status" :data-stale="!frameRefreshing && !frameInteractive" :data-busy="frameRefreshing" :aria-busy="frameRefreshing" role="status"><span v-if="frameRefreshing" class="browser-refresh-dot" aria-hidden="true"></span><span>{{ frameStatus }}</span></div>
-						<p v-if="frameError" class="app-error" role="status">{{ frameError }}</p>
+						><div class="browser-frame-status" :data-stale="!showPreview && !frameRefreshing && !frameInteractive" :data-busy="frameRefreshing" :aria-busy="frameRefreshing" role="status"><span v-if="frameRefreshing" class="browser-refresh-dot" aria-hidden="true"></span><span>{{ showPreview ? '实时网页画面 · 点选提取时自动冻结' : frameStatus }}</span><button v-if="showPreview" @click="freezeForSelection">冻结并点选</button></div>
+						<p v-if="frameError && !showPreview" class="app-error" role="status">{{ frameError }}</p>
 						<div class="browser-web-viewport" tabindex="0" aria-label="独立网页视口" @wheel="handleFrameWheel" @mouseenter="pointerInFrame = true; adaptiveFrames.activity()" @mouseleave="pointerInFrame = false; actionsPanel?.leaveFrame()">
-						<div v-if="frameObjectUrl" class="browser-frame-stage" :style="frameDisplayStyle" :data-stale="!frameRefreshing && !frameInteractive" :aria-busy="frameRefreshing" @mouseleave="actionsPanel?.leaveFrame()">
+						<div v-if="displayFrameUrl" class="browser-frame-stage" :style="frameDisplayStyle" :data-stale="!showPreview && !frameRefreshing && !frameInteractive" :aria-busy="frameRefreshing" @mouseleave="actionsPanel?.leaveFrame()">
 							<img
 								ref="frameImage"
 								class="browser-session-frame"
-								:src="frameObjectUrl"
+								:src="displayFrameUrl"
 								alt="当前网页截图；选择模式只检查元素，浏览模式准备待确认动作"
-								:aria-disabled="!frameInteractive"
+								:aria-disabled="!showPreview && !frameInteractive"
 								@load="updateFrameSize"
 								@error="handleFrameError"
 								@click="prepareFrameClick"
 								@mousemove="prepareFrameHover"
 							/>
-							<div class="frame-highlights" aria-hidden="true">
+							<div v-show="!showPreview" class="frame-highlights" aria-hidden="true">
 								<div v-for="(box, index) in highlightBoxes" :key="box.kind + index" class="frame-highlight" :data-kind="box.kind" :style="box.style">
 									<span>{{ box.kind === 'hover' ? '悬停' : box.kind === 'similar' ? '同类' : '选中' }}</span>
 								</div>
@@ -220,8 +226,9 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router';
 import BrowserActions from './browser-actions.vue';
+import { createPreviewDisplay } from './browser-preview';
 import { createBrowserFrame } from './browser-frame';
-import { createAdaptiveRefresh, createDelayedRefreshIndicator, framePoint } from './browser-workbench';
+import { createAdaptiveRefresh, createDelayedRefreshIndicator, wheelPixels, framePoint } from './browser-workbench';
 import HttpEntry from './http-entry.vue';
 import BrowserAuthorization from './browser-authorization.vue';
 import ExtractionPreview from './extraction-preview.vue';
@@ -355,6 +362,69 @@ const browserStatus = computed(
 const changedFieldLabels: Record<string, string> = { name: '名称', entry_url: '入口地址', definition: '采集定义' };
 const browserSession = ref<BrowserSession>();
 const frameQueue = createBrowserFrame({ load: target => appApi.browserFrame(target.url, target.pageStateID) });
+const previewSupported = ref(false),
+	previewPaused = ref(false),
+	previewRunning = ref(false),
+	livePreview = ref(true),
+	previewFailed = ref(false),
+	previewConnecting = ref(false);
+const viewMode = ref<'browse' | 'configure'>('browse');
+const previewNotice = ref('');
+let previewController: AbortController | undefined;
+let previewTask: Promise<void> | undefined;
+const previewDisplay = createPreviewDisplay({
+	failure: () => {
+		previewFailed.value = true;
+		stopPreview();
+		previewDisplay.clear();
+		frameDemand.value = true;
+		previewNotice.value = '流式画面显示失败，已回退截图。';
+	},
+});
+const showPreview = computed(() => viewMode.value === 'browse' && !previewPaused.value && livePreview.value && !!previewDisplay.frame.value);
+const displayFrameUrl = computed(() => (showPreview.value ? previewDisplay.frame.value!.objectURL : frameObjectUrl.value));
+function stopPreview() {
+	previewController?.abort();
+	previewController = undefined;
+	previewConnecting.value = false;
+}
+function changeViewMode(value: 'browse' | 'configure') {
+	if (viewMode.value === value) return;
+	viewMode.value = value;
+	if (value === 'configure') {
+		stopPreview();
+		void updateBrowserFrame();
+	}
+}
+async function freezeForSelection() {
+	if (frameRefreshing.value) return;
+	stopPreview();
+	// Never apply streaming-frame coordinates to a different authoritative screenshot.
+	viewMode.value = 'configure';
+	await updateBrowserFrame();
+	await actionsPanel.value?.activateSelection('record');
+}
+async function scrollLivePreview(distance: number) {
+	if (previewPaused.value || frameRefreshing.value || !browserSession.value?.available) return;
+	previewPaused.value = true;
+	try {
+		await updateBrowserFrame();
+		await nextTick();
+		if (frameImage.value?.decode) await frameImage.value.decode();
+		updateFrameSize();
+		await actionsPanel.value?.scrollPixels(distance);
+	} catch {
+		previewNotice.value = '滚动画面尚未就绪，请更新后重试。';
+	} finally {
+		previewPaused.value = false;
+	}
+}
+async function adoptRecheckedState(state: NonNullable<BrowserSession['state']>) {
+	const current = browserSession.value;
+	if (!current || current.state?.document_id !== state.document_id || !current.available) return;
+	await setBrowserSession({ ...current, page_state_id: state.page_state_id, state }, false);
+}
+
 const frameObjectUrl = computed(() => frameQueue.frame.value?.objectURL || '');
 const framePageStateID = computed(() => frameQueue.frame.value?.pageStateID || '');
 const frameError = frameQueue.error;
@@ -377,10 +447,10 @@ const frameImage = ref<HTMLImageElement>();
 const authorizationPanel = ref<InstanceType<typeof BrowserAuthorization>>();
 const frameSize = ref({ width: 0, height: 0 });
 const frameLoaded = ref(false);
-const frameInteractive = computed(() => frameLoaded.value && !syncingFrame.value && !frameRefreshing.value && !frameQueue.stale.value && !!browserSession.value?.available && !closing.value);
+const frameInteractive = computed(() => !showPreview.value && !previewRunning.value && !previewConnecting.value && frameLoaded.value && !syncingFrame.value && !frameRefreshing.value && !frameQueue.stale.value && !!browserSession.value?.available && !closing.value);
 const frameStatus = computed(() => !browserSession.value?.available ? '浏览器会话不可用；原有配置已保留。'
 	: frameRefreshing.value ? (!frameObjectUrl.value ? '正在加载网页画面…' : slowFrameRefresh.value ? '正在更新画面，完成后可点选…' : '')
-	: frameQueue.stale.value ? '网页已变化或画面已过期，请更新画面后重新验证；配置已保留。'
+	: frameQueue.stale.value ? (previewSupported.value && viewMode.value === 'configure' ? '点选画面已冻结；规则在后台复核，重新点选时请更新画面。' : '网页已变化或画面已过期，请更新画面后重新验证；配置已保留。')
 	: !frameLoaded.value ? '画面已获取，正在显示…' : '当前画面可点选。');
 watch(frameObjectUrl, () => { frameLoaded.value = false; }, { flush: 'sync' });
 const displayScale = ref<'fit' | 'original'>('fit');
@@ -388,10 +458,87 @@ const remoteWheel = ref(true), autoFrames = ref(false), pointerInFrame = ref(fal
 const frameDemand = ref(false);
 const tabVisible = ref(true), refreshMeasurement = ref({ duration: 0, delay: 5000, failures: 0 });
 let resumeFrameSync = true;
-const frameDisplayStyle = computed(() => displayScale.value === 'original'
+const frameDisplayStyle = computed(() => showPreview.value ? { width: '100%', maxWidth: 'none' } : displayScale.value === 'original'
 	? { width: `${frameQueue.frame.value?.state?.viewport.width || browserSession.value?.viewport?.width || frameSize.value.width}px`, maxWidth: 'none' }
 	: { width: '100%', maxWidth: 'none' });
-const automaticAllowed = computed(() => tabVisible.value && editorStage.value === 'edit' && !!browserSession.value?.available
+const previewAllowed = computed(
+	() =>
+		previewSupported.value &&
+		livePreview.value &&
+		!previewFailed.value &&
+		!previewPaused.value &&
+		viewMode.value === 'browse' &&
+		!!browserSession.value?.available &&
+		tabVisible.value &&
+		editorStage.value === 'edit' &&
+		!workbenchBusy.value &&
+		!dirty.value &&
+		!saving.value &&
+		!closing.value &&
+		!connecting.value &&
+		!syncingFrame.value &&
+		!frameQueue.busy.value
+);
+function reconcilePreview() {
+	const allowed = previewAllowed.value;
+	if (!allowed) {
+		stopPreview();
+		if (showPreview.value && workbenchBusy.value && !frameRefreshing.value && browserSession.value?.available) void updateBrowserFrame();
+		return;
+	}
+	if (previewController || previewTask || !browserSession.value) return;
+	const id = browserSession.value.session_id,
+		controller = new AbortController();
+	previewController = controller;
+	previewConnecting.value = true;
+	previewRunning.value = true;
+	const task = appApi
+		.streamBrowserPreview(id, controller.signal, (packet) => {
+			if (controller.signal.aborted || browserSession.value?.session_id !== id) return;
+			previewConnecting.value = false;
+			previewDisplay.push(packet);
+		})
+		.then(() => {
+			if (!controller.signal.aborted) throw new Error('preview ended');
+		})
+		.catch((cause) => {
+			if (!controller.signal.aborted) {
+				previewFailed.value = true;
+				previewNotice.value =
+					cause?.code === 'STREAM_MASK_REQUIRED' ? '授权页面继续使用遮罩截图。' : '流式连接不可用，已回退按需截图；可重新开启流式浏览。';
+				previewDisplay.clear();
+				frameDemand.value = true;
+			}
+		})
+		.finally(() => {
+			if (previewController === controller) previewController = undefined;
+			if (previewTask === task) previewTask = undefined;
+			previewConnecting.value = false;
+			previewRunning.value = false;
+			if (previewAllowed.value && !disposed) void nextTick(reconcilePreview);
+		});
+	previewTask = task;
+}
+watch(previewAllowed, reconcilePreview, { flush: 'post' });
+watch(livePreview, (enabled) => {
+	if (enabled) {
+		previewFailed.value = false;
+		previewNotice.value = '';
+	} else {
+		stopPreview();
+		previewDisplay.clear();
+		frameDemand.value = true;
+	}
+});
+onMounted(async () => {
+	try {
+		previewSupported.value = !!(await appApi.capabilities()).supports_preview_stream;
+	} catch {
+		previewSupported.value = false;
+	}
+});
+
+const automaticAllowed = computed(() => !previewAllowed.value && !previewRunning.value && tabVisible.value && editorStage.value === 'edit' && !!browserSession.value?.available
 	&& !pointerInFrame.value && !workbenchBusy.value && !dirty.value && !saving.value && !closing.value && !connecting.value && !syncingFrame.value && !frameQueue.busy.value);
 const adaptiveFrames = createAdaptiveRefresh({
 	allowed: () => automaticAllowed.value,
@@ -428,6 +575,10 @@ watch(() => [tabVisible.value, editorStage.value], () => { resumeFrameSync = tru
 function handleVisibility() { tabVisible.value = document.visibilityState !== 'hidden'; }
 onMounted(() => { handleVisibility(); document.addEventListener('visibilitychange', handleVisibility); adaptiveFrames.reconcile(); });
 function handleFrameWheel(event: WheelEvent) {
+	if (showPreview.value) {
+        const distance = wheelPixels(event, browserSession.value?.viewport?.height || 800);
+        if (remoteWheel.value && distance) { event.preventDefault(); void scrollLivePreview(distance); } return;
+    }
 	if (!remoteWheel.value || !tabVisible.value || editorStage.value !== 'edit') return;
 	if (actionsPanel.value?.frameWheel(event, frameQueue.frame.value?.state?.viewport.height || browserSession.value?.viewport?.height || 800)) {
 		event.preventDefault(); adaptiveFrames.activity();
@@ -462,11 +613,13 @@ const highlightBoxes = computed(() =>
 	})
 );
 function updateFrameSize() {
+	if (showPreview.value) return;
 	frameLoaded.value = !!frameImage.value?.naturalWidth && frameImage.value.currentSrc === frameObjectUrl.value
 		&& frameImage.value.naturalWidth === frameQueue.frame.value?.width && frameImage.value.naturalHeight === frameQueue.frame.value?.height;
 	frameSize.value = { width: frameImage.value?.naturalWidth || 0, height: frameImage.value?.naturalHeight || 0 };
 }
 function handleFrameError() {
+	if (showPreview.value) { previewFailed.value = true; stopPreview(); previewDisplay.clear(); frameDemand.value = true; return; }
 	frameLoaded.value = false;
 	frameQueue.invalidate();
 	frameError.value = '画面显示失败，请更新画面后再操作。';
@@ -498,6 +651,7 @@ function applyActionDraft(latest: Collector) {
 	});
 }
 function prepareFrameClick(event: MouseEvent) {
+	if (showPreview.value) { void freezeForSelection(); return; }
 	const img = event.currentTarget as HTMLImageElement;
 	if (!frameInteractive.value) return;
 	const point = framePoint(event.clientX, event.clientY, img.getBoundingClientRect(), img.naturalWidth, img.naturalHeight);
@@ -596,6 +750,7 @@ async function validate() {
 	}
 }
 function clearFrame() {
+	stopPreview(); previewDisplay.clear();
 	frameQueue.setTarget(undefined);
 	frameLoaded.value = false;
 	pageHighlights.value = {};
@@ -669,6 +824,7 @@ async function setBrowserSession(session: BrowserSession, capture = true) {
 		stopHeartbeat();
 		stopSessionEvents();
 		pageHighlights.value = {};
+		stopPreview(); previewDisplay.clear(); previewFailed.value = false;
 		frameDemand.value = false;
 	}
 	browserSession.value = session;
@@ -685,7 +841,7 @@ async function setBrowserSession(session: BrowserSession, capture = true) {
 		if (capture && frameQueue.stale.value && !frameError.value && (changed || (!frameObjectUrl.value && !frameQueue.busy.value))) {
 			frameDemand.value = true;
 			// First/reconnected frames load immediately; SSE changes share the idle scheduler.
-			if ((!frameObjectUrl.value || !prior?.available) && tabVisible.value && editorStage.value === 'edit' && !workbenchBusy.value && !pointerInFrame.value) {
+			if (!previewAllowed.value && (!frameObjectUrl.value || !prior?.available) && tabVisible.value && editorStage.value === 'edit' && !workbenchBusy.value && !pointerInFrame.value) {
 				resumeFrameSync = false;
 				await frameQueue.refresh();
 			}
@@ -709,8 +865,12 @@ async function updateBrowserFrame(state?: BrowserSession) {
 	frameDemand.value = false;
 	resumeFrameSync = false;
 	syncingFrame.value = true;
+	stopPreview(); previewDisplay.clear();
 	if (!state) frameQueue.invalidate();
 	try {
+		// Block stream restart before awaiting cancellation; PNG and CDP never race.
+		if (previewTask) await previewTask;
+		if (!isCurrent(prior, epoch)) return;
 		let session = state || await appApi.browserSession(prior.session_id, true);
 		if (!isCurrent(prior, epoch) || session.session_id !== prior.session_id) return;
 		// SSE may have advanced while the state request was in flight. Never roll it back.
@@ -849,6 +1009,7 @@ function loadLatest() {
 	});
 }
 onBeforeUnmount(() => {
+	stopPreview(); previewDisplay.clear();
 	disposed = true;
 	sessionEpoch++;
 	if (saveTimer) clearTimeout(saveTimer);

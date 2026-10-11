@@ -34,8 +34,8 @@
 			</div>
 			<div class="workbench-tools">
 				<div class="browser-viewport-toolbar" role="group" aria-label="远端网页浏览">
-					<button class="secondary-action" :disabled="!canScroll" @click="scrollPage(-1)">向上滚动</button>
-					<button class="secondary-action" :disabled="!canScroll" @click="scrollPage(1)">向下滚动</button>
+					<button class="secondary-action" :disabled="previewStreaming ? busy || previewScrollBusy || !supported.includes('scroll') : !canScroll" @click="previewStreaming ? emit('preview-scroll', -600) : scrollPage(-1)">向上滚动</button>
+					<button class="secondary-action" :disabled="previewStreaming ? busy || previewScrollBusy || !supported.includes('scroll') : !canScroll" @click="previewStreaming ? emit('preview-scroll', 600) : scrollPage(1)">向下滚动</button>
 					<button class="secondary-action" :disabled="!canRefreshFrame" @click="requestFrame">
 						{{ updatingFrame ? '更新画面中…' : '更新画面' }}
 					</button>
@@ -157,6 +157,9 @@
 					:frame-state="frameState"
 					:mode="mode === 'field-select' ? 'field' : 'record'"
 					:enabled="inspectionSupported"
+					:recheck-enabled="recheckSupported"
+					:recheck-blocked="busy || recordWorking || replaying || !selecting || dirty || saving"
+					@verified-state="emit('verified-state', $event)"
 					:target="selectionTarget"
 					:revision="draft.revision"
 					:blocked="busy || recordWorking || replaying || !selecting || dirty || saving || !frameReady"
@@ -303,13 +306,16 @@ import BrowserSelection from './browser-selection.vue';
 import { createWheelQueue, wheelPixels } from './browser-workbench';
 import RecordDesigner from './record-designer.vue';
 
-const props = withDefaults(defineProps<{ draft: Collector; session?: BrowserSession; dirty: boolean; saving: boolean; frameReady: boolean; frameRefreshing: boolean; frameFailed?: boolean; frameState?: BrowserSession['state']; active?: boolean; wheelEnabled?: boolean; refreshFrame: (state?: BrowserSession) => Promise<void> }>(), { active: true, wheelEnabled: true });
+const props = withDefaults(defineProps<{ draft: Collector; session?: BrowserSession; dirty: boolean; saving: boolean; frameReady: boolean; frameRefreshing: boolean; frameFailed?: boolean; previewStreaming?: boolean; previewScrollBusy?: boolean; frameState?: BrowserSession['state']; active?: boolean; wheelEnabled?: boolean; refreshFrame: (state?: BrowserSession) => Promise<void> }>(), { active: true, wheelEnabled: true });
 const emit = defineEmits<{
 	(event: 'draft-saved', draft: Collector): void;
 	(event: 'session-state', session: BrowserSession): void;
 	(event: 'highlight', value: PageHighlight): void;
 	(event: 'frame-invalidated'): void;
 	(event: 'workbench-busy', busy: boolean): void;
+	(event: 'preview-scroll', distance: number): void;
+	(event: 'view-mode', mode: 'browse' | 'configure'): void;
+	(event: 'verified-state', state: NonNullable<BrowserSession['state']>): void;
 }>();
 const labels: Record<string, string> = {
 	navigate: '打开网址',
@@ -373,7 +379,8 @@ watch(
 		if (active === false) focused.value = false;
 	}
 );
-const mode = ref<'browse' | 'record' | 'record-select' | 'field-select'>('record-select');
+const mode = ref<'browse' | 'record' | 'record-select' | 'field-select'>('browse');
+watch(mode, value => emit('view-mode', value === 'browse' ? 'browse' : 'configure'), { immediate: true, flush: 'sync' });
 const selectionTarget = ref<SelectionRule['target']>('record');
 const selectionGoals: { target: SelectionRule['target']; label: string }[] = [
 	{ target: 'record', label: '① 选记录' },
@@ -403,7 +410,7 @@ function applySelection(rule: SelectionRule) {
 watch([panelTab, panelCollapsed], () => { configurationFocused.value = false; });
 const selecting = computed(() => mode.value === 'record-select' || mode.value === 'field-select');
 const selectionPanel = ref<InstanceType<typeof BrowserSelection>>();
-const inspectionSupported = ref(false);
+const inspectionSupported = ref(false), recheckSupported = ref(false);
 const recordsSupported = ref(false),
 	recordWorking = ref(false);
 const recordPanel = ref<InstanceType<typeof RecordDesigner>>();
@@ -661,7 +668,7 @@ async function focusField(stepID: string, key: string, role: string) {
 	await nextTick();
 	recordPanel.value?.focusField(stepID, key, role);
 }
-defineExpose({ frameWheel, frameClick, frameHover, leaveFrame, hasUnsavedChanges, focusField });
+defineExpose({ activateSelection, scrollPixels, frameWheel, frameClick, frameHover, leaveFrame, hasUnsavedChanges, focusField });
 
 async function refreshHistory(id = props.session?.session_id) {
 	if (!id) {
@@ -892,6 +899,7 @@ onMounted(async () => {
 		const capabilities = await appApi.capabilities();
 		supported.value = capabilities.supported_actions;
 		inspectionSupported.value = !!capabilities.supports_live_inspection;
+		recheckSupported.value = !!capabilities.supports_locator_recheck;
 		recordsSupported.value = !!capabilities.supports_record_preview;
 	} catch {
 		supported.value = [];

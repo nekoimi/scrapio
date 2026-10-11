@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.9
 // 	protoc        v6.32.1
-// source: fetch.proto
+// source: proto/fetch.proto
 
 package grpc
 
@@ -31,7 +31,7 @@ type FetchRequest struct {
 
 func (x *FetchRequest) Reset() {
 	*x = FetchRequest{}
-	mi := &file_fetch_proto_msgTypes[0]
+	mi := &file_proto_fetch_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -43,7 +43,7 @@ func (x *FetchRequest) String() string {
 func (*FetchRequest) ProtoMessage() {}
 
 func (x *FetchRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_fetch_proto_msgTypes[0]
+	mi := &file_proto_fetch_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -56,7 +56,7 @@ func (x *FetchRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FetchRequest.ProtoReflect.Descriptor instead.
 func (*FetchRequest) Descriptor() ([]byte, []int) {
-	return file_fetch_proto_rawDescGZIP(), []int{0}
+	return file_proto_fetch_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *FetchRequest) GetUrl() string {
@@ -84,7 +84,7 @@ type FetchResponse struct {
 
 func (x *FetchResponse) Reset() {
 	*x = FetchResponse{}
-	mi := &file_fetch_proto_msgTypes[1]
+	mi := &file_proto_fetch_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -96,7 +96,7 @@ func (x *FetchResponse) String() string {
 func (*FetchResponse) ProtoMessage() {}
 
 func (x *FetchResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_fetch_proto_msgTypes[1]
+	mi := &file_proto_fetch_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -109,7 +109,7 @@ func (x *FetchResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FetchResponse.ProtoReflect.Descriptor instead.
 func (*FetchResponse) Descriptor() ([]byte, []int) {
-	return file_fetch_proto_rawDescGZIP(), []int{1}
+	return file_proto_fetch_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *FetchResponse) GetSuccess() bool {
@@ -146,7 +146,7 @@ type BrowserAction struct {
 
 func (x *BrowserAction) Reset() {
 	*x = BrowserAction{}
-	mi := &file_fetch_proto_msgTypes[2]
+	mi := &file_proto_fetch_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -158,7 +158,7 @@ func (x *BrowserAction) String() string {
 func (*BrowserAction) ProtoMessage() {}
 
 func (x *BrowserAction) ProtoReflect() protoreflect.Message {
-	mi := &file_fetch_proto_msgTypes[2]
+	mi := &file_proto_fetch_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -171,7 +171,7 @@ func (x *BrowserAction) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BrowserAction.ProtoReflect.Descriptor instead.
 func (*BrowserAction) Descriptor() ([]byte, []int) {
-	return file_fetch_proto_rawDescGZIP(), []int{2}
+	return file_proto_fetch_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *BrowserAction) GetType() string {
@@ -227,7 +227,7 @@ type BrowserJobRequest struct {
 
 func (x *BrowserJobRequest) Reset() {
 	*x = BrowserJobRequest{}
-	mi := &file_fetch_proto_msgTypes[3]
+	mi := &file_proto_fetch_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -239,7 +239,7 @@ func (x *BrowserJobRequest) String() string {
 func (*BrowserJobRequest) ProtoMessage() {}
 
 func (x *BrowserJobRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_fetch_proto_msgTypes[3]
+	mi := &file_proto_fetch_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -252,7 +252,7 @@ func (x *BrowserJobRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BrowserJobRequest.ProtoReflect.Descriptor instead.
 func (*BrowserJobRequest) Descriptor() ([]byte, []int) {
-	return file_fetch_proto_rawDescGZIP(), []int{3}
+	return file_proto_fetch_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *BrowserJobRequest) GetProtocolVersion() string {
@@ -337,7 +337,7 @@ type BrowserCookie struct {
 
 func (x *BrowserCookie) Reset() {
 	*x = BrowserCookie{}
-	mi := &file_fetch_proto_msgTypes[4]
+	mi := &file_proto_fetch_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -349,7 +349,7 @@ func (x *BrowserCookie) String() string {
 func (*BrowserCookie) ProtoMessage() {}
 
 func (x *BrowserCookie) ProtoReflect() protoreflect.Message {
-	mi := &file_fetch_proto_msgTypes[4]
+	mi := &file_proto_fetch_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -362,7 +362,7 @@ func (x *BrowserCookie) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BrowserCookie.ProtoReflect.Descriptor instead.
 func (*BrowserCookie) Descriptor() ([]byte, []int) {
-	return file_fetch_proto_rawDescGZIP(), []int{4}
+	return file_proto_fetch_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *BrowserCookie) GetName() string {
@@ -406,7 +406,7 @@ type BrowserActionResult struct {
 
 func (x *BrowserActionResult) Reset() {
 	*x = BrowserActionResult{}
-	mi := &file_fetch_proto_msgTypes[5]
+	mi := &file_proto_fetch_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -418,7 +418,7 @@ func (x *BrowserActionResult) String() string {
 func (*BrowserActionResult) ProtoMessage() {}
 
 func (x *BrowserActionResult) ProtoReflect() protoreflect.Message {
-	mi := &file_fetch_proto_msgTypes[5]
+	mi := &file_proto_fetch_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -431,7 +431,7 @@ func (x *BrowserActionResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BrowserActionResult.ProtoReflect.Descriptor instead.
 func (*BrowserActionResult) Descriptor() ([]byte, []int) {
-	return file_fetch_proto_rawDescGZIP(), []int{5}
+	return file_proto_fetch_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *BrowserActionResult) GetIndex() int32 {
@@ -492,7 +492,7 @@ type BrowserJobResponse struct {
 
 func (x *BrowserJobResponse) Reset() {
 	*x = BrowserJobResponse{}
-	mi := &file_fetch_proto_msgTypes[6]
+	mi := &file_proto_fetch_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -504,7 +504,7 @@ func (x *BrowserJobResponse) String() string {
 func (*BrowserJobResponse) ProtoMessage() {}
 
 func (x *BrowserJobResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_fetch_proto_msgTypes[6]
+	mi := &file_proto_fetch_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -517,7 +517,7 @@ func (x *BrowserJobResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BrowserJobResponse.ProtoReflect.Descriptor instead.
 func (*BrowserJobResponse) Descriptor() ([]byte, []int) {
-	return file_fetch_proto_rawDescGZIP(), []int{6}
+	return file_proto_fetch_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *BrowserJobResponse) GetSuccess() bool {
@@ -635,7 +635,7 @@ type BrowserHealthRequest struct {
 
 func (x *BrowserHealthRequest) Reset() {
 	*x = BrowserHealthRequest{}
-	mi := &file_fetch_proto_msgTypes[7]
+	mi := &file_proto_fetch_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -647,7 +647,7 @@ func (x *BrowserHealthRequest) String() string {
 func (*BrowserHealthRequest) ProtoMessage() {}
 
 func (x *BrowserHealthRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_fetch_proto_msgTypes[7]
+	mi := &file_proto_fetch_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -660,7 +660,7 @@ func (x *BrowserHealthRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BrowserHealthRequest.ProtoReflect.Descriptor instead.
 func (*BrowserHealthRequest) Descriptor() ([]byte, []int) {
-	return file_fetch_proto_rawDescGZIP(), []int{7}
+	return file_proto_fetch_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *BrowserHealthRequest) GetProtocolVersion() string {
@@ -689,7 +689,7 @@ type BrowserHealthResponse struct {
 
 func (x *BrowserHealthResponse) Reset() {
 	*x = BrowserHealthResponse{}
-	mi := &file_fetch_proto_msgTypes[8]
+	mi := &file_proto_fetch_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -701,7 +701,7 @@ func (x *BrowserHealthResponse) String() string {
 func (*BrowserHealthResponse) ProtoMessage() {}
 
 func (x *BrowserHealthResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_fetch_proto_msgTypes[8]
+	mi := &file_proto_fetch_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -714,7 +714,7 @@ func (x *BrowserHealthResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BrowserHealthResponse.ProtoReflect.Descriptor instead.
 func (*BrowserHealthResponse) Descriptor() ([]byte, []int) {
-	return file_fetch_proto_rawDescGZIP(), []int{8}
+	return file_proto_fetch_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *BrowserHealthResponse) GetReady() bool {
@@ -762,7 +762,7 @@ type EditorSessionCreateRequest struct {
 
 func (x *EditorSessionCreateRequest) Reset() {
 	*x = EditorSessionCreateRequest{}
-	mi := &file_fetch_proto_msgTypes[9]
+	mi := &file_proto_fetch_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -774,7 +774,7 @@ func (x *EditorSessionCreateRequest) String() string {
 func (*EditorSessionCreateRequest) ProtoMessage() {}
 
 func (x *EditorSessionCreateRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_fetch_proto_msgTypes[9]
+	mi := &file_proto_fetch_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -787,7 +787,7 @@ func (x *EditorSessionCreateRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EditorSessionCreateRequest.ProtoReflect.Descriptor instead.
 func (*EditorSessionCreateRequest) Descriptor() ([]byte, []int) {
-	return file_fetch_proto_rawDescGZIP(), []int{9}
+	return file_proto_fetch_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *EditorSessionCreateRequest) GetProtocolVersion() string {
@@ -859,7 +859,7 @@ type EditorSessionRequest struct {
 
 func (x *EditorSessionRequest) Reset() {
 	*x = EditorSessionRequest{}
-	mi := &file_fetch_proto_msgTypes[10]
+	mi := &file_proto_fetch_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -871,7 +871,7 @@ func (x *EditorSessionRequest) String() string {
 func (*EditorSessionRequest) ProtoMessage() {}
 
 func (x *EditorSessionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_fetch_proto_msgTypes[10]
+	mi := &file_proto_fetch_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -884,7 +884,7 @@ func (x *EditorSessionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EditorSessionRequest.ProtoReflect.Descriptor instead.
 func (*EditorSessionRequest) Descriptor() ([]byte, []int) {
-	return file_fetch_proto_rawDescGZIP(), []int{10}
+	return file_proto_fetch_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *EditorSessionRequest) GetProtocolVersion() string {
@@ -945,7 +945,7 @@ type EditorSessionResponse struct {
 
 func (x *EditorSessionResponse) Reset() {
 	*x = EditorSessionResponse{}
-	mi := &file_fetch_proto_msgTypes[11]
+	mi := &file_proto_fetch_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -957,7 +957,7 @@ func (x *EditorSessionResponse) String() string {
 func (*EditorSessionResponse) ProtoMessage() {}
 
 func (x *EditorSessionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_fetch_proto_msgTypes[11]
+	mi := &file_proto_fetch_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -970,7 +970,7 @@ func (x *EditorSessionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EditorSessionResponse.ProtoReflect.Descriptor instead.
 func (*EditorSessionResponse) Descriptor() ([]byte, []int) {
-	return file_fetch_proto_rawDescGZIP(), []int{11}
+	return file_proto_fetch_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *EditorSessionResponse) GetSuccess() bool {
@@ -1094,7 +1094,7 @@ type EditorCommandRequest struct {
 
 func (x *EditorCommandRequest) Reset() {
 	*x = EditorCommandRequest{}
-	mi := &file_fetch_proto_msgTypes[12]
+	mi := &file_proto_fetch_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1106,7 +1106,7 @@ func (x *EditorCommandRequest) String() string {
 func (*EditorCommandRequest) ProtoMessage() {}
 
 func (x *EditorCommandRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_fetch_proto_msgTypes[12]
+	mi := &file_proto_fetch_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1119,7 +1119,7 @@ func (x *EditorCommandRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EditorCommandRequest.ProtoReflect.Descriptor instead.
 func (*EditorCommandRequest) Descriptor() ([]byte, []int) {
-	return file_fetch_proto_rawDescGZIP(), []int{12}
+	return file_proto_fetch_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *EditorCommandRequest) GetProtocolVersion() string {
@@ -1247,7 +1247,7 @@ type EditorCommandResponse struct {
 
 func (x *EditorCommandResponse) Reset() {
 	*x = EditorCommandResponse{}
-	mi := &file_fetch_proto_msgTypes[13]
+	mi := &file_proto_fetch_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1259,7 +1259,7 @@ func (x *EditorCommandResponse) String() string {
 func (*EditorCommandResponse) ProtoMessage() {}
 
 func (x *EditorCommandResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_fetch_proto_msgTypes[13]
+	mi := &file_proto_fetch_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1272,7 +1272,7 @@ func (x *EditorCommandResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EditorCommandResponse.ProtoReflect.Descriptor instead.
 func (*EditorCommandResponse) Descriptor() ([]byte, []int) {
-	return file_fetch_proto_rawDescGZIP(), []int{13}
+	return file_proto_fetch_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *EditorCommandResponse) GetSuccess() bool {
@@ -1374,7 +1374,7 @@ type EditorInspectionRequest struct {
 
 func (x *EditorInspectionRequest) Reset() {
 	*x = EditorInspectionRequest{}
-	mi := &file_fetch_proto_msgTypes[14]
+	mi := &file_proto_fetch_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1386,7 +1386,7 @@ func (x *EditorInspectionRequest) String() string {
 func (*EditorInspectionRequest) ProtoMessage() {}
 
 func (x *EditorInspectionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_fetch_proto_msgTypes[14]
+	mi := &file_proto_fetch_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1399,7 +1399,7 @@ func (x *EditorInspectionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EditorInspectionRequest.ProtoReflect.Descriptor instead.
 func (*EditorInspectionRequest) Descriptor() ([]byte, []int) {
-	return file_fetch_proto_rawDescGZIP(), []int{14}
+	return file_proto_fetch_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *EditorInspectionRequest) GetProtocolVersion() string {
@@ -1458,7 +1458,7 @@ type EditorInspectionResponse struct {
 
 func (x *EditorInspectionResponse) Reset() {
 	*x = EditorInspectionResponse{}
-	mi := &file_fetch_proto_msgTypes[15]
+	mi := &file_proto_fetch_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1470,7 +1470,7 @@ func (x *EditorInspectionResponse) String() string {
 func (*EditorInspectionResponse) ProtoMessage() {}
 
 func (x *EditorInspectionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_fetch_proto_msgTypes[15]
+	mi := &file_proto_fetch_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1483,7 +1483,7 @@ func (x *EditorInspectionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EditorInspectionResponse.ProtoReflect.Descriptor instead.
 func (*EditorInspectionResponse) Descriptor() ([]byte, []int) {
-	return file_fetch_proto_rawDescGZIP(), []int{15}
+	return file_proto_fetch_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *EditorInspectionResponse) GetSuccess() bool {
@@ -1528,11 +1528,88 @@ func (x *EditorInspectionResponse) GetResultJson() string {
 	return ""
 }
 
-var File_fetch_proto protoreflect.FileDescriptor
+// Preview frames never authorize coordinates; use FrameEditorSession to freeze for inspection.
+type EditorPreviewFrame struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	Success         bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	ProtocolVersion string                 `protobuf:"bytes,2,opt,name=protocol_version,json=protocolVersion,proto3" json:"protocol_version,omitempty"`
+	Image           []byte                 `protobuf:"bytes,3,opt,name=image,proto3" json:"image,omitempty"`
+	MetadataJson    string                 `protobuf:"bytes,4,opt,name=metadata_json,json=metadataJson,proto3" json:"metadata_json,omitempty"`
+	ErrorCode       string                 `protobuf:"bytes,5,opt,name=error_code,json=errorCode,proto3" json:"error_code,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
 
-const file_fetch_proto_rawDesc = "" +
+func (x *EditorPreviewFrame) Reset() {
+	*x = EditorPreviewFrame{}
+	mi := &file_proto_fetch_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EditorPreviewFrame) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EditorPreviewFrame) ProtoMessage() {}
+
+func (x *EditorPreviewFrame) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_fetch_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EditorPreviewFrame.ProtoReflect.Descriptor instead.
+func (*EditorPreviewFrame) Descriptor() ([]byte, []int) {
+	return file_proto_fetch_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *EditorPreviewFrame) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *EditorPreviewFrame) GetProtocolVersion() string {
+	if x != nil {
+		return x.ProtocolVersion
+	}
+	return ""
+}
+
+func (x *EditorPreviewFrame) GetImage() []byte {
+	if x != nil {
+		return x.Image
+	}
+	return nil
+}
+
+func (x *EditorPreviewFrame) GetMetadataJson() string {
+	if x != nil {
+		return x.MetadataJson
+	}
+	return ""
+}
+
+func (x *EditorPreviewFrame) GetErrorCode() string {
+	if x != nil {
+		return x.ErrorCode
+	}
+	return ""
+}
+
+var File_proto_fetch_proto protoreflect.FileDescriptor
+
+const file_proto_fetch_proto_rawDesc = "" +
 	"\n" +
-	"\vfetch.proto\x12\x04grpc\":\n" +
+	"\x11proto/fetch.proto\x12\x04grpc\":\n" +
 	"\fFetchRequest\x12\x10\n" +
 	"\x03url\x18\x01 \x01(\tR\x03url\x12\x18\n" +
 	"\atimeout\x18\x02 \x01(\x05R\atimeout\"S\n" +
@@ -1711,7 +1788,14 @@ const file_fetch_proto_rawDesc = "" +
 	"error_code\x18\x04 \x01(\tR\terrorCode\x12\x14\n" +
 	"\x05error\x18\x05 \x01(\tR\x05error\x12\x1f\n" +
 	"\vresult_json\x18\x06 \x01(\tR\n" +
-	"resultJson2\xbd\a\n" +
+	"resultJson\"\xb3\x01\n" +
+	"\x12EditorPreviewFrame\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12)\n" +
+	"\x10protocol_version\x18\x02 \x01(\tR\x0fprotocolVersion\x12\x14\n" +
+	"\x05image\x18\x03 \x01(\fR\x05image\x12#\n" +
+	"\rmetadata_json\x18\x04 \x01(\tR\fmetadataJson\x12\x1d\n" +
+	"\n" +
+	"error_code\x18\x05 \x01(\tR\terrorCode2\x8b\b\n" +
 	"\x10PageFetchService\x120\n" +
 	"\x05Fetch\x12\x12.grpc.FetchRequest\x1a\x13.grpc.FetchResponse\x125\n" +
 	"\n" +
@@ -1722,26 +1806,27 @@ const file_fetch_proto_rawDesc = "" +
 	"\x13CreateEditorSession\x12 .grpc.EditorSessionCreateRequest\x1a\x1b.grpc.EditorSessionResponse\x12K\n" +
 	"\x10GetEditorSession\x12\x1a.grpc.EditorSessionRequest\x1a\x1b.grpc.EditorSessionResponse\x12Q\n" +
 	"\x16HeartbeatEditorSession\x12\x1a.grpc.EditorSessionRequest\x1a\x1b.grpc.EditorSessionResponse\x12M\n" +
-	"\x12CloseEditorSession\x12\x1a.grpc.EditorSessionRequest\x1a\x1b.grpc.EditorSessionResponse\x12M\n" +
+	"\x12CloseEditorSession\x12\x1a.grpc.EditorSessionRequest\x1a\x1b.grpc.EditorSessionResponse\x12L\n" +
+	"\x12StreamEditorFrames\x12\x1a.grpc.EditorSessionRequest\x1a\x18.grpc.EditorPreviewFrame0\x01\x12M\n" +
 	"\x12FrameEditorSession\x12\x1a.grpc.EditorSessionRequest\x1a\x1b.grpc.EditorSessionResponse\x12O\n" +
 	"\x14ExecuteEditorCommand\x12\x1a.grpc.EditorCommandRequest\x1a\x1b.grpc.EditorCommandResponse\x12K\n" +
 	"\x10GetEditorCommand\x12\x1a.grpc.EditorCommandRequest\x1a\x1b.grpc.EditorCommandResponse\x12R\n" +
 	"\x11InspectEditorPage\x12\x1d.grpc.EditorInspectionRequest\x1a\x1e.grpc.EditorInspectionResponseB7Z5github.com/nekoimi/scrapio/internal/drission_rod/grpcb\x06proto3"
 
 var (
-	file_fetch_proto_rawDescOnce sync.Once
-	file_fetch_proto_rawDescData []byte
+	file_proto_fetch_proto_rawDescOnce sync.Once
+	file_proto_fetch_proto_rawDescData []byte
 )
 
-func file_fetch_proto_rawDescGZIP() []byte {
-	file_fetch_proto_rawDescOnce.Do(func() {
-		file_fetch_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_fetch_proto_rawDesc), len(file_fetch_proto_rawDesc)))
+func file_proto_fetch_proto_rawDescGZIP() []byte {
+	file_proto_fetch_proto_rawDescOnce.Do(func() {
+		file_proto_fetch_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_proto_fetch_proto_rawDesc), len(file_proto_fetch_proto_rawDesc)))
 	})
-	return file_fetch_proto_rawDescData
+	return file_proto_fetch_proto_rawDescData
 }
 
-var file_fetch_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
-var file_fetch_proto_goTypes = []any{
+var file_proto_fetch_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
+var file_proto_fetch_proto_goTypes = []any{
 	(*FetchRequest)(nil),               // 0: grpc.FetchRequest
 	(*FetchResponse)(nil),              // 1: grpc.FetchResponse
 	(*BrowserAction)(nil),              // 2: grpc.BrowserAction
@@ -1758,11 +1843,12 @@ var file_fetch_proto_goTypes = []any{
 	(*EditorCommandResponse)(nil),      // 13: grpc.EditorCommandResponse
 	(*EditorInspectionRequest)(nil),    // 14: grpc.EditorInspectionRequest
 	(*EditorInspectionResponse)(nil),   // 15: grpc.EditorInspectionResponse
-	nil,                                // 16: grpc.BrowserJobRequest.HeadersEntry
+	(*EditorPreviewFrame)(nil),         // 16: grpc.EditorPreviewFrame
+	nil,                                // 17: grpc.BrowserJobRequest.HeadersEntry
 }
-var file_fetch_proto_depIdxs = []int32{
+var file_proto_fetch_proto_depIdxs = []int32{
 	2,  // 0: grpc.BrowserJobRequest.actions:type_name -> grpc.BrowserAction
-	16, // 1: grpc.BrowserJobRequest.headers:type_name -> grpc.BrowserJobRequest.HeadersEntry
+	17, // 1: grpc.BrowserJobRequest.headers:type_name -> grpc.BrowserJobRequest.HeadersEntry
 	4,  // 2: grpc.BrowserJobResponse.cookies:type_name -> grpc.BrowserCookie
 	5,  // 3: grpc.BrowserJobResponse.action_results:type_name -> grpc.BrowserActionResult
 	0,  // 4: grpc.PageFetchService.Fetch:input_type -> grpc.FetchRequest
@@ -1774,50 +1860,52 @@ var file_fetch_proto_depIdxs = []int32{
 	10, // 10: grpc.PageFetchService.GetEditorSession:input_type -> grpc.EditorSessionRequest
 	10, // 11: grpc.PageFetchService.HeartbeatEditorSession:input_type -> grpc.EditorSessionRequest
 	10, // 12: grpc.PageFetchService.CloseEditorSession:input_type -> grpc.EditorSessionRequest
-	10, // 13: grpc.PageFetchService.FrameEditorSession:input_type -> grpc.EditorSessionRequest
-	12, // 14: grpc.PageFetchService.ExecuteEditorCommand:input_type -> grpc.EditorCommandRequest
-	12, // 15: grpc.PageFetchService.GetEditorCommand:input_type -> grpc.EditorCommandRequest
-	14, // 16: grpc.PageFetchService.InspectEditorPage:input_type -> grpc.EditorInspectionRequest
-	1,  // 17: grpc.PageFetchService.Fetch:output_type -> grpc.FetchResponse
-	1,  // 18: grpc.PageFetchService.FetchJavDB:output_type -> grpc.FetchResponse
-	1,  // 19: grpc.PageFetchService.FetchSehuatang:output_type -> grpc.FetchResponse
-	6,  // 20: grpc.PageFetchService.Execute:output_type -> grpc.BrowserJobResponse
-	8,  // 21: grpc.PageFetchService.Health:output_type -> grpc.BrowserHealthResponse
-	11, // 22: grpc.PageFetchService.CreateEditorSession:output_type -> grpc.EditorSessionResponse
-	11, // 23: grpc.PageFetchService.GetEditorSession:output_type -> grpc.EditorSessionResponse
-	11, // 24: grpc.PageFetchService.HeartbeatEditorSession:output_type -> grpc.EditorSessionResponse
-	11, // 25: grpc.PageFetchService.CloseEditorSession:output_type -> grpc.EditorSessionResponse
-	11, // 26: grpc.PageFetchService.FrameEditorSession:output_type -> grpc.EditorSessionResponse
-	13, // 27: grpc.PageFetchService.ExecuteEditorCommand:output_type -> grpc.EditorCommandResponse
-	13, // 28: grpc.PageFetchService.GetEditorCommand:output_type -> grpc.EditorCommandResponse
-	15, // 29: grpc.PageFetchService.InspectEditorPage:output_type -> grpc.EditorInspectionResponse
-	17, // [17:30] is the sub-list for method output_type
-	4,  // [4:17] is the sub-list for method input_type
+	10, // 13: grpc.PageFetchService.StreamEditorFrames:input_type -> grpc.EditorSessionRequest
+	10, // 14: grpc.PageFetchService.FrameEditorSession:input_type -> grpc.EditorSessionRequest
+	12, // 15: grpc.PageFetchService.ExecuteEditorCommand:input_type -> grpc.EditorCommandRequest
+	12, // 16: grpc.PageFetchService.GetEditorCommand:input_type -> grpc.EditorCommandRequest
+	14, // 17: grpc.PageFetchService.InspectEditorPage:input_type -> grpc.EditorInspectionRequest
+	1,  // 18: grpc.PageFetchService.Fetch:output_type -> grpc.FetchResponse
+	1,  // 19: grpc.PageFetchService.FetchJavDB:output_type -> grpc.FetchResponse
+	1,  // 20: grpc.PageFetchService.FetchSehuatang:output_type -> grpc.FetchResponse
+	6,  // 21: grpc.PageFetchService.Execute:output_type -> grpc.BrowserJobResponse
+	8,  // 22: grpc.PageFetchService.Health:output_type -> grpc.BrowserHealthResponse
+	11, // 23: grpc.PageFetchService.CreateEditorSession:output_type -> grpc.EditorSessionResponse
+	11, // 24: grpc.PageFetchService.GetEditorSession:output_type -> grpc.EditorSessionResponse
+	11, // 25: grpc.PageFetchService.HeartbeatEditorSession:output_type -> grpc.EditorSessionResponse
+	11, // 26: grpc.PageFetchService.CloseEditorSession:output_type -> grpc.EditorSessionResponse
+	16, // 27: grpc.PageFetchService.StreamEditorFrames:output_type -> grpc.EditorPreviewFrame
+	11, // 28: grpc.PageFetchService.FrameEditorSession:output_type -> grpc.EditorSessionResponse
+	13, // 29: grpc.PageFetchService.ExecuteEditorCommand:output_type -> grpc.EditorCommandResponse
+	13, // 30: grpc.PageFetchService.GetEditorCommand:output_type -> grpc.EditorCommandResponse
+	15, // 31: grpc.PageFetchService.InspectEditorPage:output_type -> grpc.EditorInspectionResponse
+	18, // [18:32] is the sub-list for method output_type
+	4,  // [4:18] is the sub-list for method input_type
 	4,  // [4:4] is the sub-list for extension type_name
 	4,  // [4:4] is the sub-list for extension extendee
 	0,  // [0:4] is the sub-list for field type_name
 }
 
-func init() { file_fetch_proto_init() }
-func file_fetch_proto_init() {
-	if File_fetch_proto != nil {
+func init() { file_proto_fetch_proto_init() }
+func file_proto_fetch_proto_init() {
+	if File_proto_fetch_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_fetch_proto_rawDesc), len(file_fetch_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_fetch_proto_rawDesc), len(file_proto_fetch_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   17,
+			NumMessages:   18,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_fetch_proto_goTypes,
-		DependencyIndexes: file_fetch_proto_depIdxs,
-		MessageInfos:      file_fetch_proto_msgTypes,
+		GoTypes:           file_proto_fetch_proto_goTypes,
+		DependencyIndexes: file_proto_fetch_proto_depIdxs,
+		MessageInfos:      file_proto_fetch_proto_msgTypes,
 	}.Build()
-	File_fetch_proto = out.File
-	file_fetch_proto_goTypes = nil
-	file_fetch_proto_depIdxs = nil
+	File_proto_fetch_proto = out.File
+	file_proto_fetch_proto_goTypes = nil
+	file_proto_fetch_proto_depIdxs = nil
 }

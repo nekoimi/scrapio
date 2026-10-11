@@ -1,11 +1,13 @@
 package editor
 
 import (
+	"encoding/hex"
 	"errors"
 	"math"
 )
 
 type Inspection struct {
+	DocumentID          string      `json:"document_id,omitempty"`
 	FrameSequence       int64       `json:"frame_sequence,omitempty"`
 	ExpectedRevision    int         `json:"expected_revision,omitempty"`
 	StepID              string      `json:"step_id,omitempty"`
@@ -59,7 +61,18 @@ func (i *Inspection) Validate(operation string) error {
 			return errors.New("provide either position or element_id")
 		}
 	case "dom":
-	case "locator-check":
+	case "locator-check", "locator-recheck":
+		if operation == "locator-recheck" && (len(i.DocumentID) != 64 || i.Position != nil || i.ElementID != "" || i.FrameSequence != 0 || len(i.PreviousFingerprint) != 64) {
+			return errors.New("recheck requires document identity and prior fingerprint, without coordinates")
+		}
+		if operation == "locator-recheck" {
+			if _, err := hex.DecodeString(i.DocumentID); err != nil {
+				return errors.New("invalid document identity")
+			}
+			if _, err := hex.DecodeString(i.PreviousFingerprint); err != nil {
+				return errors.New("invalid prior fingerprint")
+			}
+		}
 		if i.Locator == nil {
 			return errors.New("locator is required")
 		}

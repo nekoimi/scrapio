@@ -75,13 +75,24 @@ func CapabilitiesWithBrowser(browser *drission_rod.DrissionRod) http.HandlerFunc
 			authorization = browser.ProbeEditorAuthorization(ctx) == nil
 			cancel()
 		}
+		preview, recheck := false, false
+		if ready {
+			ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+			preview = browser.ProbeEditorPreview(ctx)
+			cancel()
+			ctx, cancel = context.WithTimeout(r.Context(), 2*time.Second)
+			recheck = browser.ProbeEditorRecheck(ctx)
+			cancel()
+		}
 		reason := "浏览器服务未连接"
 		if ready {
 			reason = "editor.v1 已连接；动作能力见 supported_actions，页面创建需浏览器可用"
 		}
 		ok(w, r, map[string]any{
 			"editor_protocol": "editor.v1", "state_protocol": stateProtocol, "supports_frame_metadata": stateProtocol == editor.StateProtocol, "browser_ready": false, "editor_service_connected": ready,
-			"supported_actions": actions, "supports_live_inspection": inspection,
+			"supports_preview_stream": preview, "preview_protocol": drission_rod.EditorPreviewProtocol,
+			"supports_locator_recheck": recheck,
+			"supported_actions":        actions, "supports_live_inspection": inspection,
 			"supports_record_preview": records,
 			"supports_http_capture":   true, "supports_offline_capture": true,
 			"supports_json_capture_check": true,

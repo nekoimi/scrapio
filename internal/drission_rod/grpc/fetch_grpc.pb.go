@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.5.1
 // - protoc             v6.32.1
-// source: fetch.proto
+// source: proto/fetch.proto
 
 package grpc
 
@@ -28,6 +28,7 @@ const (
 	PageFetchService_GetEditorSession_FullMethodName       = "/grpc.PageFetchService/GetEditorSession"
 	PageFetchService_HeartbeatEditorSession_FullMethodName = "/grpc.PageFetchService/HeartbeatEditorSession"
 	PageFetchService_CloseEditorSession_FullMethodName     = "/grpc.PageFetchService/CloseEditorSession"
+	PageFetchService_StreamEditorFrames_FullMethodName     = "/grpc.PageFetchService/StreamEditorFrames"
 	PageFetchService_FrameEditorSession_FullMethodName     = "/grpc.PageFetchService/FrameEditorSession"
 	PageFetchService_ExecuteEditorCommand_FullMethodName   = "/grpc.PageFetchService/ExecuteEditorCommand"
 	PageFetchService_GetEditorCommand_FullMethodName       = "/grpc.PageFetchService/GetEditorCommand"
@@ -47,6 +48,7 @@ type PageFetchServiceClient interface {
 	GetEditorSession(ctx context.Context, in *EditorSessionRequest, opts ...grpc.CallOption) (*EditorSessionResponse, error)
 	HeartbeatEditorSession(ctx context.Context, in *EditorSessionRequest, opts ...grpc.CallOption) (*EditorSessionResponse, error)
 	CloseEditorSession(ctx context.Context, in *EditorSessionRequest, opts ...grpc.CallOption) (*EditorSessionResponse, error)
+	StreamEditorFrames(ctx context.Context, in *EditorSessionRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[EditorPreviewFrame], error)
 	FrameEditorSession(ctx context.Context, in *EditorSessionRequest, opts ...grpc.CallOption) (*EditorSessionResponse, error)
 	ExecuteEditorCommand(ctx context.Context, in *EditorCommandRequest, opts ...grpc.CallOption) (*EditorCommandResponse, error)
 	GetEditorCommand(ctx context.Context, in *EditorCommandRequest, opts ...grpc.CallOption) (*EditorCommandResponse, error)
@@ -151,6 +153,25 @@ func (c *pageFetchServiceClient) CloseEditorSession(ctx context.Context, in *Edi
 	return out, nil
 }
 
+func (c *pageFetchServiceClient) StreamEditorFrames(ctx context.Context, in *EditorSessionRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[EditorPreviewFrame], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &PageFetchService_ServiceDesc.Streams[0], PageFetchService_StreamEditorFrames_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[EditorSessionRequest, EditorPreviewFrame]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type PageFetchService_StreamEditorFramesClient = grpc.ServerStreamingClient[EditorPreviewFrame]
+
 func (c *pageFetchServiceClient) FrameEditorSession(ctx context.Context, in *EditorSessionRequest, opts ...grpc.CallOption) (*EditorSessionResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(EditorSessionResponse)
@@ -204,6 +225,7 @@ type PageFetchServiceServer interface {
 	GetEditorSession(context.Context, *EditorSessionRequest) (*EditorSessionResponse, error)
 	HeartbeatEditorSession(context.Context, *EditorSessionRequest) (*EditorSessionResponse, error)
 	CloseEditorSession(context.Context, *EditorSessionRequest) (*EditorSessionResponse, error)
+	StreamEditorFrames(*EditorSessionRequest, grpc.ServerStreamingServer[EditorPreviewFrame]) error
 	FrameEditorSession(context.Context, *EditorSessionRequest) (*EditorSessionResponse, error)
 	ExecuteEditorCommand(context.Context, *EditorCommandRequest) (*EditorCommandResponse, error)
 	GetEditorCommand(context.Context, *EditorCommandRequest) (*EditorCommandResponse, error)
@@ -244,6 +266,9 @@ func (UnimplementedPageFetchServiceServer) HeartbeatEditorSession(context.Contex
 }
 func (UnimplementedPageFetchServiceServer) CloseEditorSession(context.Context, *EditorSessionRequest) (*EditorSessionResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CloseEditorSession not implemented")
+}
+func (UnimplementedPageFetchServiceServer) StreamEditorFrames(*EditorSessionRequest, grpc.ServerStreamingServer[EditorPreviewFrame]) error {
+	return status.Errorf(codes.Unimplemented, "method StreamEditorFrames not implemented")
 }
 func (UnimplementedPageFetchServiceServer) FrameEditorSession(context.Context, *EditorSessionRequest) (*EditorSessionResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method FrameEditorSession not implemented")
@@ -440,6 +465,17 @@ func _PageFetchService_CloseEditorSession_Handler(srv interface{}, ctx context.C
 	return interceptor(ctx, in, info, handler)
 }
 
+func _PageFetchService_StreamEditorFrames_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(EditorSessionRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(PageFetchServiceServer).StreamEditorFrames(m, &grpc.GenericServerStream[EditorSessionRequest, EditorPreviewFrame]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type PageFetchService_StreamEditorFramesServer = grpc.ServerStreamingServer[EditorPreviewFrame]
+
 func _PageFetchService_FrameEditorSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(EditorSessionRequest)
 	if err := dec(in); err != nil {
@@ -572,6 +608,12 @@ var PageFetchService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _PageFetchService_InspectEditorPage_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
-	Metadata: "fetch.proto",
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "StreamEditorFrames",
+			Handler:       _PageFetchService_StreamEditorFrames_Handler,
+			ServerStreams: true,
+		},
+	},
+	Metadata: "proto/fetch.proto",
 }

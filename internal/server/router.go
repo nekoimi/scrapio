@@ -191,6 +191,8 @@ func newRouter(ctx context.Context, cfg *config.Config) *mux.Router {
 		v3Api.HandleFunc("/browser-sessions/{session_id}/heartbeat", v3.HeartbeatBrowserSession(browserService)).Methods("POST")
 		v3Api.HandleFunc("/browser-sessions/{session_id}/resume", v3.ResumeBrowserSession(browserService)).Methods("POST")
 		v3Api.HandleFunc("/browser-sessions/{session_id}/events", v3.BrowserSessionEvents(browserService)).Methods("GET")
+		v3Api.HandleFunc("/browser-sessions/{session_id}/preview", v3.StreamBrowserPreview(browserService)).Methods("GET")
+		v3Api.HandleFunc("/browser-sessions/{session_id}/locator-rechecks", v3.InspectBrowserPage(browserService, "locator-recheck")).Methods("POST")
 		v3Api.HandleFunc("/browser-sessions/{session_id}/frame", v3.GetBrowserSessionFrame(browserService)).Methods("GET")
 		v3Api.HandleFunc("/browser-sessions/{session_id}/inspect", v3.InspectBrowserPage(browserService, "inspect")).Methods("POST")
 		v3Api.HandleFunc("/browser-sessions/{session_id}/dom", v3.InspectBrowserPage(browserService, "dom")).Methods("GET")

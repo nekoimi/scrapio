@@ -35,11 +35,14 @@ func (d *DrissionRod) InspectEditorPage(ctx context.Context, sessionID, requestI
 	if operation == "snapshot" {
 		limit = 2 * 1024 * 1024
 	}
-	if len(response.ResultJson) > limit || json.Unmarshal([]byte(response.ResultJson), &result) != nil || result.PageStateID != input.PageStateID {
+	if len(response.ResultJson) > limit || json.Unmarshal([]byte(response.ResultJson), &result) != nil || (operation != "locator-recheck" && result.PageStateID != input.PageStateID) {
 		return nil, &BrowserError{Code: "INVALID_RESPONSE", Message: "invalid or stale inspection response"}
 	}
-	if result.State != nil && result.State.Validate(input.PageStateID, false) != nil {
+	if result.State != nil && result.State.Validate(result.PageStateID, false) != nil {
 		return nil, &BrowserError{Code: "INVALID_RESPONSE", Message: "invalid inspection state"}
+	}
+	if operation == "locator-recheck" && (result.State == nil || result.State.DocumentID != input.DocumentID) {
+		return nil, &BrowserError{Code: "INVALID_RESPONSE", Message: "recheck document mismatch"}
 	}
 	return json.RawMessage(response.ResultJson), nil
 }

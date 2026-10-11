@@ -170,6 +170,15 @@ message EditorInspectionResponse {
   string result_json = 6;
 }
 
+// Preview frames never authorize coordinates; use FrameEditorSession to freeze for inspection.
+message EditorPreviewFrame {
+  bool success = 1;
+  string protocol_version = 2;
+  bytes image = 3;
+  string metadata_json = 4;
+  string error_code = 5;
+}
+
 service PageFetchService {
   rpc Fetch(FetchRequest) returns (FetchResponse);
   rpc FetchJavDB(FetchRequest) returns (FetchResponse);
@@ -180,6 +189,7 @@ service PageFetchService {
   rpc GetEditorSession(EditorSessionRequest) returns (EditorSessionResponse);
   rpc HeartbeatEditorSession(EditorSessionRequest) returns (EditorSessionResponse);
   rpc CloseEditorSession(EditorSessionRequest) returns (EditorSessionResponse);
+  rpc StreamEditorFrames(EditorSessionRequest) returns (stream EditorPreviewFrame);
   rpc FrameEditorSession(EditorSessionRequest) returns (EditorSessionResponse);
   rpc ExecuteEditorCommand(EditorCommandRequest) returns (EditorCommandResponse);
   rpc GetEditorCommand(EditorCommandRequest) returns (EditorCommandResponse);

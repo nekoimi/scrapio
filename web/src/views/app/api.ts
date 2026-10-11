@@ -1,5 +1,6 @@
 import request from '/@/utils/request';
 import { captureBlob, type BrowserState } from './browser-state';
+import { createPreviewDecoder, type PreviewPacket } from './browser-preview';
 import { Session } from '/@/utils/storage';
 
 export interface RepairContext {repair_id:string;source_collector_id:string;target_collector_id:string;run_id:string;version_id:string;version_number:number;current_published_version_id:string|null;current_published_version_number:number;target_revision:number;pending_draft:boolean;archived:boolean;mode:string;step_id:string;stage:string;reason:string;failed_step_id:string;failed_stage:string;document_id:string;capture_id:string;evidence_status:'available'|'missing'|'corrupt'|'too_large'|'unsupported';format:string;field_keys:string[];step_compatible:boolean}
@@ -16,6 +17,7 @@ export interface RegressionEvaluation {status:string;error_code?:string;record_c
 export interface RegressionJob {job_id:string;collector_id:string;kind:'regression'|'comparison';collector_revision:number;base_version_id:string;target_version_id:string;base_hash:string;target_hash:string;snapshot_hash:string;status:string;total:number;completed:number;error_code:string;created_at:string;finished_at:string|null;report:{verdict?:string;definition?:RegressionDiff;alignment?:string;samples?:{sample_id:string;name:string;revision:number;step_id:string;stage:string;kind:string;content_hash:string;expected_hash:string;target:RegressionEvaluation;base?:RegressionEvaluation;records?:RegressionDiff}[]}}
 export interface VersionRestore {restore_id:string;collector_id:string;version_id:string;target_collector_id:string;created_at:string}
 export interface Capabilities {
+ supports_preview_stream?: boolean; supports_locator_recheck?: boolean;
  state_protocol?: string; supports_frame_metadata?: boolean;
  supports_schema_changes?:boolean;supports_retention_settings?:boolean;supports_operation_audit?:boolean;
  supports_credentials?:boolean;supports_browser_authorization?:boolean;
@@ -62,6 +64,7 @@ export interface Collector { published_version_id?:string; id: string; name: str
 export interface BrowserSession { state?: BrowserState; session_id: string; collector_id: string; draft_revision: number; status: string; expires_at: string; page_state_id: string; current_url: string; viewport: { width: number; height: number }; frame_url: string; heartbeat_interval_seconds: number; available: boolean; needs_reopen: boolean }
 
 export interface EditorAction {
+  document_id?: string;
   frame_sequence?: number;
   type: string; value?: string; locator?: { strategy: 'css' | 'xpath'; expression: string };
   position?: { x: number; y: number }; timeout_ms: number; confirmed: boolean;
@@ -156,6 +159,44 @@ async function streamRun(id:string,after:number,signal:AbortSignal,onEvent:(even
  if(!response.ok||!response.body||!response.headers.get('Content-Type')?.includes('text/event-stream'))throw Object.assign(new Error('正式运行事件流不可用'),{terminal:[401,403,404].includes(response.status)});
  const reader=response.body.getReader(),decoder=new TextDecoder();let buffer='';
  try{while(!signal.aborted){const {value,done}=await reader.read();if(done)return;buffer+=decoder.decode(value,{stream:true}).replace(/\r\n/g,'\n');let boundary=buffer.indexOf('\n\n');while(boundary>=0){const lines=buffer.slice(0,boundary).split('\n');buffer=buffer.slice(boundary+2);const idLine=lines.find(line=>line.startsWith('id:'));const data=lines.filter(line=>line.startsWith('data:')).map(line=>line.slice(5).trim()).join('\n');if(idLine&&data)onEvent({sequence:Number(idLine.slice(3)),payload:JSON.parse(data)});boundary=buffer.indexOf('\n\n')}}}finally{await reader.cancel().catch(()=>undefined);reader.releaseLock()}
+}
+
+async function streamBrowserPreview(id: string, signal: AbortSignal, onFrame: (packet: PreviewPacket) => void): Promise<void> {
+	const base = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
+	const response = await fetch(`${base}/api/v3/browser-sessions/${id}/preview`, {
+		headers: { Authorization: Session.get('token') || '', Accept: 'application/x-scrapio-preview' },
+		credentials: 'same-origin',
+		signal,
+	});
+	if (!response.ok || !response.body || !response.headers.get('Content-Type')?.includes('application/x-scrapio-preview'))
+		throw Object.assign(new Error('流式画面不可用，已回退截图'), { code: response.status === 409 ? 'STREAM_MASK_REQUIRED' : 'STREAM_UNAVAILABLE' });
+	const decoder = createPreviewDecoder(),
+		reader = response.body.getReader();
+	try {
+		while (!signal.aborted) {
+			let timer: ReturnType<typeof setTimeout> | undefined;
+			const read = reader.read();
+			let result: ReadableStreamReadResult<Uint8Array>;
+			try {
+				result = await Promise.race([
+					read,
+					new Promise<never>((_, reject) => {
+						timer = setTimeout(() => reject(new Error('流式画面超时')), 10000);
+					}),
+				]);
+			} finally {
+				clearTimeout(timer);
+			}
+			if (result.done) {
+				decoder.finish();
+				return;
+			}
+			for (const packet of decoder.feed(result.value)) onFrame(packet);
+		}
+	} finally {
+		await reader.cancel().catch(() => undefined);
+		reader.releaseLock();
+	}
 }
 
 async function streamBrowserSession(id: string, signal: AbortSignal, onSession: (session: BrowserSession) => void): Promise<void> {
@@ -329,6 +370,7 @@ export const appApi = {
   browserSession: (id: string, localError = false) => request({ url: `/api/v3/browser-sessions/${id}`, method: 'get', localError, timeout: 8000 }).then((response: any) => response.data as BrowserSession),
   heartbeatBrowserSession: (id: string) => request({ url: `/api/v3/browser-sessions/${id}/heartbeat`, method: 'post' }).then((response: any) => response.data as BrowserSession),
   streamBrowserSession,
+  streamBrowserPreview,
   resumeBrowserSession: (id: string) => request({ url: `/api/v3/browser-sessions/${id}/resume`, method: 'post' }).then((response: any) => response.data as BrowserSession),
   closeBrowserSession: (id: string) => request({ url: `/api/v3/browser-sessions/${id}`, method: 'delete' }),
   createBrowserCommand: (id: string, data: EditorAction, key: string) => request({ url: `/api/v3/browser-sessions/${id}/commands`, method: 'post', data, headers: { 'Idempotency-Key': key } }).then((response: any) => response.data as EditorCommand),
@@ -347,6 +389,7 @@ export const appApi = {
   }),
   inspectElement: (id: string, input: InspectionInput) => request({ url: `/api/v3/browser-sessions/${id}/inspect`, method: 'post', data: input, localError: true, timeout: 8000 }).then((response: any) => response.data as ElementInspection),
   checkLocator: (id: string, input: InspectionInput) => request({ url: `/api/v3/browser-sessions/${id}/locator-checks`, method: 'post', data: input, localError: true, timeout: 8000 }).then((response: any) => response.data as LocatorCheck),
+  recheckLocator: (id: string, input: InspectionInput) => request({ url: `/api/v3/browser-sessions/${id}/locator-rechecks`, method: 'post', data: input, localError: true, timeout: 8000 }).then((response: any) => response.data as LocatorCheck),
   previewRecords: (id:string, pageState:string, revision:number, stepID:string, stage:'list'|'detail') => request({url:`/api/v3/browser-sessions/${id}/record-previews`,method:'post',data:{page_state_id:pageState,expected_revision:revision,step_id:stepID,stage}}).then((response:any)=>response.data as RecordPreview),
   createCapture:(input:{collector_id:string;expected_revision:number;source:'http'|'offline';format:'json'|'html';content?:string;confirmed:boolean},key:string)=>request({url:'/api/v3/captures',method:'post',data:input,headers:{'Idempotency-Key':key}}).then((response:any)=>response.data as InputCapture),
   capture:(id:string)=>get<InputCapture>(`/api/v3/captures/${id}`),

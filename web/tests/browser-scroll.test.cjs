@@ -57,7 +57,7 @@ test('scroll buttons keep modes, use bounded CSS increments, and record only wit
   try {
     const s = h.state;
     await s.scrollPage(1); await tick();
-    assert.equal(h.calls[0].input.record, false); assert.equal(h.calls[0].input.value, '600'); assert.equal(s.mode.value, 'record-select');
+    assert.equal(h.calls[0].input.record, false); assert.equal(h.calls[0].input.value, '600'); assert.equal(s.mode.value, 'browse');
     s.mode.value = 'record'; await tick();
     await s.scrollPage(-1); await tick();
     assert.equal(h.calls[1].input.record, false); assert.equal(h.calls[1].input.value, '-600');
@@ -127,6 +127,7 @@ test('explicit webpage picks reopen the selection panel without losing configure
   try {
     const s = h.state;
     let picked;
+    s.mode.value = 'record-select'; await tick();
     s.selectionPanel.value = { framePick: (...args) => { picked = args; }, leaveFrame: () => {} };
     s.value.value = 'unfinished value'; s.expression.value = '.saved-locator';
     s.openPanel('history'); s.panelCollapsed.value = true;
@@ -193,6 +194,7 @@ test('reviewing an element or data preview reserves automatic updates without di
   const h = mount(); await tick();
   try {
     const s = h.state;
+    s.mode.value = 'record-select'; await tick();
     s.selectionPanel.value = { hasPending: true, leaveFrame: () => {} }; await tick();
     assert.equal(s.reviewing.value, true); assert.equal(s.workbenchBusy.value, true);
     assert.equal(s.canRefreshFrame.value, true);
