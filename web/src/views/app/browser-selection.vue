@@ -13,7 +13,7 @@
 		<section v-if="pendingComparison" class="selection-comparison">
 			<strong>规则命中需要确认</strong>
 			<p>上次样例：{{ comparisonBefore.join(' / ') || '无样例' }}</p>
-			<p>当前样例：{{ pendingComparison.sample_values.join(' / ') || '无匹配' }}</p>
+			<p>当前样例：{{ samplesFor(pendingComparison).join(' / ') || '无匹配' }}</p>
 			<button :disabled="!recheckAvailable() || !evidenceStateValid(pendingComparison) || !pendingComparison.match_count || pendingComparison.truncated" @click="acceptComparison">确认新的命中</button>
 		</section>
 		<div v-if="hasPending" class="editor-actions">
@@ -34,6 +34,7 @@
 		<section v-if="selection" class="selection-summary">
 			<strong>{{ selectionValid ? '已选中' : '上次选择（元素引用待更新）' }} &lt;{{ selection.element.tag }}&gt; · {{ selection.element.element_id }}</strong>
 			<p>{{ selection.element.text || '无文本' }}</p>
+			<p v-if="selection.enclosing_link" class="muted">文字所在链接：{{ selection.enclosing_link.attributes.href }}</p>
 			<details class="editor-advanced">
 				<summary>元素属性</summary>
 				<dl>
@@ -45,6 +46,7 @@
 			</details>
 			<p v-if="selection.element.boundary" class="status-warn">{{ selection.element.boundary }} 边界；当前只检查外层元素。</p>
 			<div class="editor-actions">
+				<button v-if="selection.enclosing_link && target !== 'record'" :disabled="!available || busy || !selectionValid" @click="selectEnclosingLink">选中所在链接</button>
 				<button :disabled="!available || busy || !selectionValid || !selection.element.parent_id" @click="changeRange('parent')">扩大到父元素</button>
 				<label>子元素序号<input v-model.number="childIndex" type="number" min="1" :max="selection.element.child_count" /></label>
 				<button :disabled="!available || busy || !selectionValid || !selection.element.child_count" @click="changeRange('child')">缩小到子元素</button>
@@ -88,7 +90,7 @@
 				}}
 			</p>
 			<ul>
-				<li v-for="(sample, i) in check.sample_values" :key="i">{{ sample || '无文本' }}</li>
+				<li v-for="(sample, i) in displayedSamples" :key="i">{{ sample || (showLinkSamples ? '此命中没有可提取的 HTTP(S) 链接，请选中 a 标签并重新验证' : '无文本') }}</li>
 			</ul>
 			<p v-for="warning in check.warnings" :key="warning" class="muted">{{ warning }}</p>
 		</div>
@@ -97,7 +99,7 @@
 				<template v-if="target === 'field'"
 					><label>字段名称<input v-model="fieldName" :readonly="replacingField" maxlength="64" placeholder="例如：电影名称；留空自动命名" /></label
 					><label
-						>提取内容<select v-model="extractKind" :disabled="replacingField">
+						>提取内容<select v-model="extractKind" :disabled="replacingField" @change="onExtractChanged">
 							<option value="text">文本</option>
 							<option value="link">链接</option>
 							<option value="image">图片地址</option>
@@ -227,6 +229,11 @@ function evidenceStateValid(result: { state?: BrowserSession['state'] }) {
 	return !current || (!!result.state && current.document_id === result.state.document_id && current.frame_state_id === result.state.frame_state_id && current.validation_state_id === result.state.validation_state_id);
 }
 const selectionValid = computed(() => !!selection.value && evidenceStateValid(selection.value) && selectionStamp.value === contextStamp());
+const showLinkSamples = computed(() => (props.target === 'field' && extractKind.value === 'link') || props.target === 'detail' || (props.target === 'next' && nextKind.value === 'link'));
+function samplesFor(result?: LocatorCheck) {
+	return showLinkSamples.value ? result?.link_sample_values || result?.elements.map(element => element.attributes?.href || '') || [] : result?.sample_values || [];
+}
+const displayedSamples = computed(() => samplesFor(check.value));
 const checkValid = computed(() => !!check.value && evidenceStateValid(check.value) && checkStamp.value === contextStamp()
 	&& check.value.locator.strategy === strategy.value && check.value.locator.expression === expression.value.trim());
 // Local, bounded drafts for four goals on the list/detail page. Never persisted as validated evidence.
@@ -337,7 +344,7 @@ async function recheckRule() {
 			highlight(result.elements, result.page_state_id, result.match_count === 1 ? 'selected' : 'similar');
 		} else {
 			pendingComparison.value = result;
-			comparisonBefore.value = [...previous.sample_values];
+			comparisonBefore.value = [...samplesFor(previous)];
 			staleReason.value = '命中元素、记录范围或关键链接属性已变化，请核对新样例后确认。';
 		}
 	} catch {
@@ -432,6 +439,7 @@ async function inspect(input: Partial<InspectionInput>, pageState: string, hover
 	busy.value = true;
 	const hoverEpoch = hoverGeneration;
 	let recommended: LocatorCheck | undefined;
+	let inspectedSelection: ElementInspection | undefined;
 	try {
 		const result = await appApi.inspectElement(session.session_id, {
 			...input,
@@ -446,6 +454,7 @@ async function inspect(input: Partial<InspectionInput>, pageState: string, hover
 		} else {
 			const firstSelection = !hasPending.value;
 			selection.value = result;
+			inspectedSelection = selection.value;
 			selectionStamp.value = contextStamp();
 			checkStamp.value = '';
 			selectingAgain.value = false;
@@ -473,6 +482,19 @@ async function inspect(input: Partial<InspectionInput>, pageState: string, hover
 		drainQueued();
 	}
 	if (recommended && !busy.value && accept(session.session_id, pageState, epoch)) await chooseCandidate(recommended);
+	if (inspectedSelection && selection.value === inspectedSelection && props.target === 'field' && extractKind.value === 'link' && selectionValid.value && selection.value?.enclosing_link && !busy.value && accept(session.session_id, pageState, generation)) await selectEnclosingLink();
+}
+async function selectEnclosingLink() {
+	const result = selection.value;
+	if (!result?.enclosing_link || !selectionValid.value || !available.value || busy.value || props.target === 'record') return;
+	if (props.target === 'field' && !props.replacingField) extractKind.value = 'link';
+	stopInspection();
+	await inspect({ element_id: result.enclosing_link.element_id }, result.page_state_id, false, generation);
+}
+async function onExtractChanged() {
+	if (extractKind.value !== 'link') return;
+	if (selectionValid.value && selection.value?.enclosing_link) await selectEnclosingLink();
+	else if (selection.value && selection.value.element.tag.toLowerCase() !== 'a') message.value = '请选中带 href 的 a 标签；旧浏览器服务可用“扩大到父元素”找到链接。';
 }
 function framePick(x: number, y: number, state: string) {
 	stopInspection();

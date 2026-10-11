@@ -48,6 +48,53 @@ function locatorResult(input) {
 }
 const settle = async () => { await Promise.resolve(); await vue.nextTick(); await Promise.resolve(); };
 
+function linkInspection(input) {
+  const anchor={element_id:'anchor',tag:'a',attributes:{href:'/movie/1'},text:'电影',parent_id:'record',child_count:1};
+  const element=input.element_id==='anchor'?anchor:{element_id:'title',tag:'span',attributes:{},text:'电影',parent_id:'anchor',child_count:0};
+  return {page_state_id:input.page_state_id,element,...(element===anchor?{}:{enclosing_link:anchor}),
+    locators:[{...locatorResult(input),locator:{strategy:'css',expression:element===anchor?'a.title':'span.title'},kind:'id'}]};
+}
+test('switching a nested text field to link selects and validates its enclosing anchor',async()=>{
+  const calls=[];
+  const h=mount({inspectElement:async(_,input)=>{calls.push(input);return linkInspection(input);},checkLocator:async(_,input)=>({...locatorResult(input),link_sample_values:['https://example.test/movie/1']})});
+  try{
+    h.props.recordScope={strategy:'css',expression:'.record'};await settle();
+    await h.state.inspect({position:{x:10,y:20}},'page-1');
+    assert.equal(h.state.selection.value.element.tag,'span');assert.equal(h.state.extractKind.value,'text');
+    h.state.fieldName.value='电影地址';h.state.extractKind.value='link';await h.state.onExtractChanged();
+    assert.equal(calls.length,2);assert.equal(calls[1].element_id,'anchor');assert.equal(calls[1].scope.expression,'.record');
+    assert.equal(h.state.selection.value.element.tag,'a');assert.equal(h.state.checkValid.value,true);assert.equal(h.state.fieldName.value,'电影地址');
+    assert.equal(h.state.displayedSamples.value[0],'https://example.test/movie/1');
+    h.state.saveRule('field');const rule=h.events.find(event=>event[0]==='rule')[1];
+    assert.equal(rule.locator.expression,'a.title');assert.equal(rule.extract,'link');assert.equal(rule.scope.expression,'.record');
+  }finally{h.unmount();}
+});
+test('reselecting a link field resolves nested text without changing field metadata',async()=>{
+  const h=mount({inspectElement:async(_,input)=>linkInspection(input),checkLocator:async(_,input)=>locatorResult(input)});
+  try{
+    h.props.replacingField=true;await settle();h.state.prepareField({name:'原链接字段',extract:'link'});
+    await h.state.inspect({position:{x:1,y:1}},'page-1');
+    assert.equal(h.state.selection.value.element.tag,'a');assert.equal(h.state.expression.value,'a.title');
+    assert.equal(h.state.fieldName.value,'原链接字段');assert.equal(h.state.extractKind.value,'link');assert.equal(h.state.checkValid.value,true);
+  }finally{h.unmount();}
+});
+test('stale element evidence cannot be used to select its enclosing link',async()=>{
+  let calls=0;
+  const h=mount({inspectElement:async(_,input)=>{calls++;return linkInspection(input);},checkLocator:async(_,input)=>locatorResult(input)});
+  try{
+    await h.state.inspect({position:{x:1,y:1}},'page-1');
+    h.props.session.page_state_id='page-2';await settle();
+    await h.state.selectEnclosingLink();assert.equal(calls,1);assert.equal(h.state.selection.value.element.tag,'span');
+  }finally{h.unmount();}
+});
+test('older browser service keeps explicit parent selection available without invented anchor evidence',async()=>{
+  const h=mount({inspectElement:async(_,input)=>{const result=linkInspection(input);delete result.enclosing_link;return result;},checkLocator:async(_,input)=>locatorResult(input)});
+  try{
+    await h.state.inspect({position:{x:1,y:1}},'page-1');h.state.extractKind.value='link';await h.state.onExtractChanged();
+    assert.equal(h.state.selection.value.element.tag,'span');assert.match(h.state.message.value,/扩大到父元素/);
+  }finally{h.unmount();}
+});
+
 test('reselecting an existing field starts fresh evidence while preserving its name and extraction kind',async()=>{
  const h=mount({inspectElement:async()=>({page_state_id:'page-1',element:{element_id:'node',tag:'img',attributes:{},text:''},locators:[]})});
  try{

@@ -98,9 +98,10 @@ export interface LocatorCheck {
  state?: BrowserState;
   page_state_id: string; locator: EditorLocator; match_count: number; truncated: boolean;
   elements: InspectedElement[]; sample_values: string[]; fingerprint: string;
+  link_sample_values?: string[];
   comparison: 'first-check' | 'unchanged' | 'changed'; warnings: string[]; scope_match_count: number;
 }
-export interface ElementInspection { state?: BrowserState; page_state_id: string; element: InspectedElement; locators: (LocatorCheck & { kind: string; warning: string })[]; warnings: string[] }
+export interface ElementInspection { state?: BrowserState; page_state_id: string; element: InspectedElement; enclosing_link?: InspectedElement; locators: (LocatorCheck & { kind: string; warning: string })[]; warnings: string[] }
 export interface DOMChildren { page_state_id: string; root: InspectedElement; items: InspectedElement[]; next_offset: number | null; total: number; warnings: string[] }
 export interface PageHighlight { page_state_id: string; elements: InspectedElement[]; kind: 'hover' | 'selected' | 'similar' }
 export interface FieldOptions {field_key?:string;type?:'string'|'integer'|'number'|'boolean'|'date'|'datetime'|'json';required?:boolean;multiple?:boolean;clean?:'trim'|'whitespace';regex?:string;date_format?:string}
