@@ -14,7 +14,7 @@ function mount(filename,initial,api={},confirm=()=>true){
  const output=ts.transpileModule(script.content,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true}}).outputText;
  const module={exports:{}}; const events=[],navigations=[],props=vue.reactive(initial);
  vm.runInNewContext(output,{module,exports:module.exports,require:name=>name==='vue'?vue:name==='./api'?{appApi:api}:{},window:{confirm},
-  sessionStorage:{getItem:()=>null,setItem(){},removeItem(){}},crypto:require('node:crypto'),document:{getElementById:()=>null}});
+  sessionStorage:{getItem:()=>null,setItem(){},removeItem(){}},crypto:require('node:crypto'),URL,document:{getElementById:()=>null}});
  const component=module.exports.default;let state;
  const setup=component.setup; component.setup=(props,context)=>{state=setup(props,context);return state;};component.render=()=>vue.h('div');
  const node=()=>({children:[]});
@@ -23,9 +23,77 @@ function mount(filename,initial,api={},confirm=()=>true){
  return {props,events,navigations,get state(){return state;},unmount:()=>app.unmount()};
 }
 function rules(extra={},confirm){return mount('record-rule-editor.vue',{plan:plan(),available:true,disabled:false,detailPage:false,canPreview:true,canReturn:true,previewStale:true,...extra},{},confirm);}
-function designer(api={},extra={}){
- return mount('record-designer.vue',{draft:{id:'collector',name:'Movies',revision:1,definition:{steps:[{step_id:'records',type:'record_set',config:plan()}]}},session:{session_id:'session',page_state_id:'page',available:true},blocked:false,enabled:true,execute:async()=>{throw new Error('Unexpected website action');},view:'rules',...extra},api);
+function designer(api={},extra={},confirm){
+ return mount('record-designer.vue',{draft:{id:'collector',name:'Movies',revision:1,definition:{steps:[{step_id:'records',type:'record_set',config:plan()}]}},session:{session_id:'session',page_state_id:'page',available:true},blocked:false,enabled:true,execute:async()=>{throw new Error('Unexpected website action');},view:'rules',...extra},api,confirm);
 }
+
+function detailWorkflow({status='succeeded',candidates=true,confirm=()=>true,redirectToList=false}={}){
+ const calls=[];let h;
+ const api={updateCollector:async(_,input)=>{calls.push('save');return {...h.props.draft,revision:h.props.draft.revision+1,definition:input.definition};},
+  previewRecords:async(_,page,revision,step,stage)=>{calls.push(`preview-${stage}`);return {page_state_id:page,stage,records:[{index:0,values:{},fields:[]}],current_url:h.props.session.current_url,
+   detail_urls:stage==='list' && candidates?[{url:'https://example.test/movie/1',raw_url:'/movie/1',record_index:0}]:[],next_pages:[],warnings:[]};}};
+ h=designer(api,{session:{session_id:'session',page_state_id:'page',available:true,current_url:'https://example.test/list'},execute:async action=>{
+  calls.push(action.type);if(status==='succeeded')h.props.session={...h.props.session,current_url:action.type==='back'||redirectToList?'https://example.test/list':action.value,page_state_id:action.type==='back'?'returned':'detail'};
+  await tick();return {status,result:{final_url:h.props.session.current_url}};
+ }},confirm);
+ h.state.enableDetail();h.state.plan.value.fields=[];
+ return {h,calls};
+}
+test('opening an example saves the entry, navigates before selecting and stores fields in detail scope',async()=>{
+ const {h,calls}=detailWorkflow();try{
+  await h.state.openExampleDetail();
+  assert.deepEqual(calls,['save','preview-list','navigate','preview-detail']);
+  assert.equal(h.state.context.value.listURL,'https://example.test/list');assert.equal(h.state.context.value.detailURL,'https://example.test/movie/1');
+  assert.equal(h.state.selectionBlocked.value,false);assert.equal(h.events.filter(event=>event[0]==='select').length,1);
+  assert.equal(h.state.applySelection({target:'field',name:'description',extract:'text',locator:{strategy:'css',expression:'.description'}}),true);
+  assert.equal(h.state.plan.value.fields.length,0);assert.equal(h.state.plan.value.detail_fields[0].name,'description');
+  await h.state.save();await tick();await h.state.returnToList();
+  assert.equal(h.state.context.value,undefined);assert.equal(h.props.session.current_url,'https://example.test/list');
+  assert.equal(h.state.plan.value.detail_fields[0].name,'description');assert.equal(h.state.selectionBlocked.value,false);
+ }finally{h.unmount();}
+});
+test('failed or unconfirmed detail navigation never enables field selection or accepts a field',async()=>{
+ for(const status of ['failed','uncertain']){
+  const {h,calls}=detailWorkflow({status});try{
+   await h.state.openExampleDetail();assert.equal(h.state.selectionBlocked.value,true);
+   assert.equal(h.props.session.current_url,'https://example.test/list');assert.equal(calls.includes('preview-detail'),false);
+   assert.equal(h.events.filter(event=>event[0]==='select').length,0);
+   assert.equal(h.state.applySelection({target:'field',name:'bad',locator:{strategy:'css',expression:'.list'}}),false);
+   assert.equal(h.state.plan.value.detail_fields.length,0);
+  }finally{h.unmount();}
+ }
+});
+test('a successful navigation receipt that redirects to the list cannot enable detail field selection',async()=>{
+ const {h,calls}=detailWorkflow({redirectToList:true});try{
+  await h.state.openExampleDetail();assert.equal(h.state.selectionBlocked.value,true);
+  assert.equal(calls.includes('preview-detail'),false);assert.match(h.state.message.value,/列表地址/);
+  assert.equal(h.events.filter(event=>event[0]==='select').length,0);
+ }finally{h.unmount();}
+});
+test('missing candidates or declined navigation leave the list without selecting detail fields',async()=>{
+ for(const options of [{candidates:false},{confirm:()=>false}]){
+  const {h,calls}=detailWorkflow(options);try{
+   await h.state.openExampleDetail();assert.equal(calls.includes('navigate'),false);assert.equal(h.state.context.value,undefined);
+   assert.equal(h.events.filter(event=>event[0]==='select').length,0);
+  }finally{h.unmount();}
+ }
+});
+test('leaving the example detail page blocks field selection until its page is restored',async()=>{
+ const {h}=detailWorkflow();try{
+  await h.state.openExampleDetail();h.props.session.current_url='https://example.test/list';await tick();
+  assert.equal(h.state.selectionBlocked.value,true);const before=h.events.filter(event=>event[0]==='select').length;
+  h.state.beginSelection('field');assert.equal(h.events.filter(event=>event[0]==='select').length,before);
+  assert.equal(h.state.applySelection({target:'field',name:'bad',locator:{strategy:'css',expression:'.list'}}),false);
+  h.props.session.current_url=h.state.context.value.detailURL;await tick();assert.equal(h.state.selectionBlocked.value,false);
+ }finally{h.unmount();}
+});
+test('detail node cannot emit field selection while the webpage is still the list',async()=>{
+ const h=rules();try{
+  h.state.activeNode.value='detail';h.state.select('field');assert.equal(h.events.length,0);
+  h.props.detailPage=true;await tick();h.state.select('field');assert.equal(h.events[0][0],'select');
+  h.state.activeNode.value='fields';h.state.select('field');assert.equal(h.events.length,1);
+ }finally{h.unmount();}
+});
 test('node switching preserves field edits and never navigates or executes a webpage',async()=>{
  const h=rules();try{
   assert.equal(h.state.activeNode.value,'overview');h.state.activeNode.value='fields';h.state.editField(h.props.plan.fields[0]);

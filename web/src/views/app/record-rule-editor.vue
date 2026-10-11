@@ -57,7 +57,8 @@
 							{{ plan.detail.return_strategy === 'back' ? '后退到列表' : '重新打开列表地址' }}
 						</p>
 						<button :disabled="!canPreview || detailPage" @click="emit('inspect-path', 'detail')">查看详情候选</button>
-						<p v-if="!detailPage" class="muted">先保存并检查列表，再明确打开一条详情；到达详情页后才能点选详情字段。</p>
+						<button v-if="!detailPage" class="primary-action" :disabled="!canOpenDetail" @click="emit('open-detail')">{{ unsaved ? '保存入口并打开示例详情' : '打开示例详情并选字段' }}</button>
+						<p v-if="!detailPage" class="muted">当前仍在列表页。先打开一条示例详情，再从详情网页中选字段；此操作只调试页面，不写正式数据。</p>
 						<button v-else :disabled="!canReturn" @click="emit('return-list')">返回列表并重新检查</button>
 						<details class="editor-advanced">
 							<summary>高级：入口、返回方式与检查预算</summary>
@@ -82,7 +83,8 @@
 					<div class="pane-heading">
 						<h4>{{ fieldRole === 'detail' ? '详情页字段' : '列表 / 单页字段' }}</h4>
 						<div class="editor-actions">
-							<button :disabled="!available || (fieldRole === 'detail') !== detailPage" @click="select('field')">继续选字段</button
+							<button v-if="fieldRole === 'detail' && !detailPage" :disabled="!canOpenDetail" @click="emit('open-detail')">打开详情后选字段</button>
+							<button v-else :disabled="!available || (fieldRole === 'detail') !== detailPage" @click="select('field')">{{ fieldRole === 'detail' ? '从当前详情页选字段' : '继续选列表字段' }}</button
 							><button @click="addField">手动添加字段</button>
 						</div>
 					</div>
@@ -202,6 +204,8 @@ const props = defineProps<{
 	detailPage: boolean;
 	canPreview: boolean;
 	canReturn: boolean;
+	canOpenDetail?: boolean;
+	unsaved?: boolean;
 	preview?: RecordPreview;
 	previewStale: boolean;
 }>();
@@ -209,6 +213,7 @@ const emit = defineEmits<{
 	(event: 'select', target: SelectionRule['target'], field?: FieldRule): void;
 	(event: 'inspect-path', target: 'detail' | 'next'): void;
 	(event: 'return-list'): void;
+	(event: 'open-detail'): void;
 }>();
 type Node = 'overview' | 'record' | 'fields' | 'detail' | 'next';
 const activeNode = ref<Node>('overview'),
@@ -227,6 +232,7 @@ const nodes = computed(() => [
 const fieldRole = computed(() => (activeNode.value === 'detail' ? ('detail' as const) : ('list' as const)));
 const fields = computed(() => (fieldRole.value === 'detail' ? props.plan.detail_fields || [] : props.plan.fields));
 function select(target: SelectionRule['target'], field?: FieldRule) {
+	if (target === 'field' && activeNode.value !== 'overview' && (fieldRole.value === 'detail') !== props.detailPage) return;
 	if (!props.disabled && props.available) emit('select', target, field);
 }
 function changeMode() {

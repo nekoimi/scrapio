@@ -1,5 +1,6 @@
 <template>
 	<section class="record-designer">
+		<p v-if="selectionBlocked" class="status-warn" role="status">详情页面尚未确认或浏览器已离开示例详情，暂不能点选字段。请先在操作记录核对回执及当前页面，再恢复路径。</p>
 		<div v-show="view !== 'preview'">
 			<div class="record-source-toolbar">
 				<label
@@ -22,16 +23,19 @@
 			<RecordRuleEditor
 				ref="ruleEditor"
 				:plan="plan"
-				:available="available"
+				:available="available && !selectionBlocked"
 				:disabled="working || blocked || unsupported"
 				:detail-page="!!context"
 				:can-preview="canPreview"
+				:can-open-detail="available && !working && !unsupported && !!plan.detail && !context"
+				:unsaved="localDirty"
 				:can-return="available && !working && !context?.uncertain && !localDirty"
 				:preview="preview"
 				:preview-stale="previewStale"
 				@select="beginSelection"
 				@inspect-path="inspectPath"
 				@return-list="returnToList"
+				@open-detail="openExampleDetail"
 			/>
 			<div class="record-save-bar">
 				<span>{{ localDirty ? '有未保存修改' : stepID ? '规则已保存 · 页面检查另行核对' : '尚未保存采集步骤' }}</span>
@@ -103,7 +107,7 @@
 						"
 						@click="openDetail(link.url!, link.record_index)"
 					>
-						{{ link.url && visited.has(link.url) ? '本轮已访问' : '打开并检查详情' }}
+						{{ link.url && visited.has(link.url) ? '本轮已访问' : '打开详情并选字段' }}
 					</button>
 				</div>
 				<h4 v-if="preview.stage === 'list' && plan.next_page">下一页入口（本轮仅验证一次）</h4>
@@ -174,6 +178,7 @@ type PathContext = {
 	sessionID: string;
 	stepID: string;
 	listURL: string;
+	detailURL?: string;
 	recordIndex?: number;
 	strategy: 'back' | 'navigate-list';
 	uncertain: boolean;
@@ -203,7 +208,7 @@ const canPreview = computed(
 		!unsupported.value &&
 		!!stepID.value &&
 		baseRevision.value === props.draft.revision &&
-		!context.value?.uncertain
+		!selectionBlocked.value
 );
 const previewStale = computed(
 	() =>
@@ -230,6 +235,8 @@ const unsupported = computed(
 );
 const recordScope = computed(() => (plan.value.mode === 'repeated' ? plan.value.locator : undefined));
 const detailPage = computed(() => !!context.value);
+const selectionBlocked = computed(() => !!context.value && (context.value.uncertain ||
+	(!!context.value.detailURL && props.session?.current_url !== context.value.detailURL)));
 function setWorking(value: boolean) {
 	working.value = value;
 	emit('working', value);
@@ -306,6 +313,10 @@ function enableDetail() {
 	plan.value.detail_fields = plan.value.detail_fields || [];
 }
 function applySelection(rule: SelectionRule) {
+	if (selectionBlocked.value) {
+		message.value = '详情页尚未确认或已离开示例详情，请先确认页面位置并恢复路径。';
+		return false;
+	}
 	if (working.value || props.blocked || unsupported.value || (context.value && rule.target !== 'field')) return false;
 	if (rule.target === 'record') {
 		plan.value.mode = 'repeated';
@@ -372,7 +383,7 @@ function applySelection(rule: SelectionRule) {
 	return true;
 }
 function beginSelection(target: SelectionRule['target'], field?: FieldRule) {
-	if (working.value || props.blocked || unsupported.value || !available.value || (context.value && target !== 'field')) return;
+	if (working.value || props.blocked || unsupported.value || !available.value || selectionBlocked.value || (context.value && target !== 'field')) return;
 	prepareSelection(target, field);
 	emit('select', target, field);
 }
@@ -505,9 +516,10 @@ async function execute(action: Partial<EditorAction>) {
 }
 async function openDetail(url: string, recordIndex = 0) {
 	if (!canNavigate.value || !plan.value.detail || context.value || visited.value.size >= plan.value.detail.max_details) return;
+	if (preview.value?.stage !== 'list' || !preview.value.detail_urls.some(link => link.url === url && link.record_index === recordIndex && !link.error)) return;
 	const pageState = preview.value!.page_state_id,
 		sessionID = props.session?.session_id;
-	if (!window.confirm(`打开详情 ${url}，随后检查字段；不会写正式数据。确认访问？`)) return;
+	if (!window.confirm(`打开示例详情 ${url}，成功后在详情页选择字段；不会写正式数据。确认访问？`)) return;
 	if (!canNavigate.value || sessionID !== props.session?.session_id) return;
 	const session = props.session!;
 	context.value = {
@@ -520,18 +532,44 @@ async function openDetail(url: string, recordIndex = 0) {
 	};
 	storeContext();
 	setWorking(true);
+	let ready = false;
 	try {
-		await execute({ type: 'navigate', value: url, timeout_ms: 10000, page_state_id: pageState });
+		const command = await execute({ type: 'navigate', value: url, timeout_ms: 10000, page_state_id: pageState });
+		await nextTick();
+		if (sessionID !== props.session?.session_id || context.value?.sessionID !== sessionID) throw new Error('会话已切换，请在当前会话重新打开示例详情。');
+		context.value.detailURL = command.result.final_url || url;
+		if (props.session?.current_url !== context.value.detailURL) throw new Error('详情动作已结束，但当前页面地址尚未确认；请先查询回执并检查页面位置。');
+		if (context.value.detailURL.split('#')[0] === context.value.listURL.split('#')[0]) throw new Error('打开详情后仍停留在列表地址，请检查入口或网站重定向，不能在列表中选择详情字段。');
 		context.value.uncertain = false;
 		storeContext();
 		visited.value.add(url);
 		await readPreview('detail');
-		message.value = '详情已检查，确认后返回列表；原列表预览已过期。';
+		ready = true;
+		message.value = '已打开示例详情，请在网页中选择详情字段；保存后可返回列表继续配置。';
 	} catch (cause: any) {
 		message.value = cause?.error?.message || cause?.message || '详情路径中断';
 	} finally {
 		setWorking(false);
 	}
+	if (ready && !selectionBlocked.value) {
+		ruleEditor.value?.focusSelection('detail');
+		beginSelection('field');
+	}
+}
+async function openExampleDetail() {
+	if (!available.value || working.value || unsupported.value || !plan.value.detail || context.value) return;
+	if (localDirty.value && !(await save())) return;
+	await nextTick();
+	if (!canPreview.value) return;
+	await previewCurrent();
+	if (!canNavigate.value || preview.value?.stage !== 'list') return;
+	const candidate = preview.value.detail_urls.find(link => link.url && !link.error && !visited.value.has(link.url));
+	if (!candidate?.url) {
+		message.value = '没有可打开的示例详情，请检查详情入口规则或在候选列表中核对地址。';
+		emit('preview-requested');
+		return;
+	}
+	await openDetail(candidate.url, candidate.record_index);
 }
 async function returnToList() {
 	if (!context.value || !available.value || working.value || localDirty.value || context.value.uncertain) return;
@@ -629,5 +667,5 @@ async function focusField(id: string, key: string, role: string) {
 	if (id !== stepID.value) return;
 	await ruleEditor.value?.focusField(key, role);
 }
-defineExpose({ applySelection, localDirty, recordScope, detailPage, focusField, summary, prepareSelection, selectionError: message });
+defineExpose({ applySelection, localDirty, recordScope, detailPage, selectionBlocked, focusField, summary, prepareSelection, selectionError: message });
 </script>

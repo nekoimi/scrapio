@@ -162,12 +162,12 @@
 					:mode="mode === 'field-select' ? 'field' : 'record'"
 					:enabled="inspectionSupported"
 					:recheck-enabled="recheckSupported"
-					:recheck-blocked="busy || recordWorking || replaying || !selecting || dirty || saving"
+					:recheck-blocked="busy || recordWorking || replaying || !selecting || dirty || saving || !!recordPanel?.selectionBlocked"
 					@verified-state="emit('verified-state', $event)"
 					:target="selectionTarget"
 					:replacing-field="replacingField"
 					:revision="draft.revision"
-					:blocked="busy || recordWorking || replaying || !selecting || dirty || saving || !frameReady"
+					:blocked="busy || recordWorking || replaying || !selecting || dirty || saving || !frameReady || !!recordPanel?.selectionBlocked"
 					:record-scope="recordPanel?.recordScope"
 					:detail-page="recordPanel?.detailPage"
 					@highlight="emit('highlight', $event)"
@@ -404,6 +404,10 @@ const selectionHelp: Record<SelectionRule['target'], string> = {
 };
 async function activateSelection(target: SelectionRule['target'], field?: FieldRule) {
 	if (busy.value || recordWorking.value || replaying.value) return;
+	if (recordPanel.value?.selectionBlocked) {
+		notice.value = '详情页尚未确认或已离开示例详情，请先检查页面位置并恢复路径。';
+		return;
+	}
 	if (recordPanel.value?.detailPage && target !== 'field') return;
 	recordPanel.value?.prepareSelection(target, field);
 	replacingField.value = !!field;
