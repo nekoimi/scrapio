@@ -1,10 +1,10 @@
 <template>
 	<section class="record-designer">
-		<p v-if="selectionBlocked" class="status-warn" role="status">详情页面尚未确认或浏览器已离开示例详情，暂不能点选字段。请先在操作记录核对回执及当前页面，再恢复路径。</p>
+		<p v-if="selectionBlocked" class="status-warn" role="status">{{ detailBlockReason }}</p>
 		<div v-if="context?.needsConfirmation" class="selection-scope" role="status">
-			<p>详情已打开，网站跳转到了其他域名。请核对当前网页是否为所需详情。</p>
+			<p>详情打开动作已完成，当前页面用途尚待核对。请确认网页是否为所需详情。</p>
 			<p>原地址：{{ context.requestedURL }}<br />实际地址：{{ context.detailURL }}</p>
-			<button :disabled="working || !available || context.detailURL !== session?.current_url" @click="resumeDetailFields">确认当前详情页并选字段</button>
+			<button :disabled="working || !available || !samePageURL(context.detailURL, session?.current_url)" @click="resumeDetailFields">确认当前详情页并选字段</button>
 			<button :disabled="working || !available || localDirty" @click="returnToList">返回列表</button>
 		</div>
 		<div v-show="view !== 'preview'">
@@ -167,6 +167,7 @@ const props = defineProps<{
 	execute: (action: Partial<EditorAction>) => Promise<EditorCommand>;
 }>();
 const emit = defineEmits<{
+	(event: 'session-state', session: BrowserSession): void;
 	(event: 'draft-saved', draft: Collector): void;
 	(event: 'highlight', value: PageHighlight): void;
 	(event: 'working', busy: boolean): void;
@@ -190,6 +191,8 @@ type PathContext = {
 	stepID: string;
 	listURL: string;
 	detailURL?: string;
+	documentID?: string;
+	commandID?: string;
 	requestedURL?: string;
 	needsConfirmation?: boolean;
 	recordIndex?: number;
@@ -255,8 +258,24 @@ const unsupported = computed(
 );
 const recordScope = computed(() => (plan.value.mode === 'repeated' ? plan.value.locator : undefined));
 const detailPage = computed(() => !!context.value);
-const selectionBlocked = computed(() => !!context.value && (context.value.uncertain || context.value.needsConfirmation ||
-	(!!context.value.detailURL && props.session?.current_url !== context.value.detailURL)));
+function samePageURL(left?: string, right?: string) {
+	if (!left || !right) return false;
+	try { return new URL(left).href === new URL(right).href; } catch { return false; }
+}
+const detailBlockReason = computed(() => {
+	const path = context.value;
+	if (!path) return '';
+	if (path.sessionID !== props.session?.session_id) return '浏览器会话已切换，请在当前会话重新打开示例详情。';
+	if (path.uncertain) return '上一次路径动作结果尚未确认。点击“检查当前详情页”查询原回执，不会重新打开网页。';
+	if (path.needsConfirmation) return '详情已打开，尚未确认页面用途。点击“检查当前详情页”，核对实际网页后继续选字段。';
+	if (samePageURL(path.listURL, props.session?.current_url)) return '浏览器当前仍在原列表页，不能在这里选择详情字段。请恢复目标详情页，或清除路径后从列表重新打开。';
+	if (path.detailURL && !samePageURL(path.detailURL, props.session?.current_url))
+		return `当前地址与已确认的详情地址不同。点击“检查当前详情页”核对，或返回列表。当前：${props.session?.current_url || '尚未同步'}；已确认：${path.detailURL}`;
+	if (path.documentID && props.session?.state?.document_id && path.documentID !== props.session.state.document_id)
+		return '详情文档已重新加载或切换。请检查当前详情页并确认页面用途后继续选字段。';
+	return '';
+});
+const selectionBlocked = computed(() => !!detailBlockReason.value);
 function setWorking(value: boolean) {
 	working.value = value;
 	emit('working', value);
@@ -334,7 +353,7 @@ function enableDetail() {
 }
 function applySelection(rule: SelectionRule) {
 	if (selectionBlocked.value) {
-		message.value = '详情页尚未确认或已离开示例详情，请先确认页面位置并恢复路径。';
+		message.value = detailBlockReason.value;
 		return false;
 	}
 	if (working.value || props.blocked || unsupported.value || (context.value && rule.target !== 'field')) return false;
@@ -535,7 +554,7 @@ async function execute(action: Partial<EditorAction>) {
 }
 async function readDetailFields() {
 	const path = context.value;
-	if (disposed || !path || path.uncertain || path.sessionID !== props.session?.session_id || path.stepID !== stepID.value || path.detailURL !== props.session?.current_url) return false;
+	if (disposed || !path || path.uncertain || path.sessionID !== props.session?.session_id || path.stepID !== stepID.value || !samePageURL(path.detailURL, props.session?.current_url)) return false;
 	if (path.needsConfirmation) {
 		const page = props.session?.page_state_id;
 		if (!(await confirmAction(`网页已打开并发生跨域跳转。\n原地址：${path.requestedURL}\n实际地址：${path.detailURL}\n请核对网页内容；确认这是需要的详情页后继续选字段。`, '确认详情页面'))) {
@@ -543,7 +562,7 @@ async function readDetailFields() {
 			return false;
 		}
 		if (disposed || context.value !== path || props.session?.session_id !== path.sessionID ||
-			props.session?.page_state_id !== page || props.session?.current_url !== path.detailURL)
+			props.session?.page_state_id !== page || !samePageURL(props.session?.current_url, path.detailURL))
 			throw new Error('确认期间网页或会话已变化，请核对当前页面后继续。');
 		path.needsConfirmation = false;
 		storeContext();
@@ -558,6 +577,53 @@ async function resumeDetailFields() {
 	let ready = false;
 	try { ready = await readDetailFields(); }
 	catch (cause) { reportFailure(cause, '确认详情页面并检查字段'); }
+	finally { setWorking(false); }
+	if (ready && !selectionBlocked.value) {
+		ruleEditor.value?.focusSelection('detail');
+		beginSelection('field');
+	}
+}
+async function recoverDetailPage() {
+	const path = context.value, session = props.session;
+	if (!path || !session || disposed || working.value || !available.value || localDirty.value) return;
+	setWorking(true);
+	previewRevision.value = 0;
+	message.value = '';
+	let ready = false;
+	try {
+		// Query only; never replay a navigation whose outcome is unknown. Older
+		// stored contexts have no command ID, so inspect the session's receipts.
+		if (path.commandID) await appApi.browserCommand(session.session_id, path.commandID);
+		const commands = (await appApi.browserCommands(session.session_id, true)).items;
+		const unresolved = commands.filter(command => ['queued', 'running', 'uncertain'].includes(command.status));
+		if (unresolved.length) {
+			const receipt = await appApi.browserCommand(session.session_id, unresolved[0].command_id);
+			if (unresolved.length > 1 || ['queued', 'running', 'uncertain'].includes(receipt.status))
+				throw new Error('原网页动作仍在执行或结果未知，请先到操作记录核对该回执；本次没有重新派发动作。');
+		}
+		const state = await appApi.browserSession(session.session_id, true);
+		if (disposed || context.value !== path || props.session?.session_id !== session.session_id) return;
+		if (state.session_id !== path.sessionID) throw new Error('返回的会话与原详情路径不一致，请重新打开当前会话。');
+		emit('session-state', state);
+		await nextTick();
+		if (!state.available || props.session?.page_state_id !== state.page_state_id || !samePageURL(props.session?.current_url, state.current_url))
+			throw new Error('当前浏览器状态尚未同步，请更新会话后再次检查；没有重新打开详情。');
+		const destination = new URL(state.current_url);
+		if (!['http:', 'https:'].includes(destination.protocol) || destination.username || destination.password)
+			throw new Error('当前地址无法用于网页采集，请先恢复目标详情页。');
+		if (samePageURL(state.current_url, path.listURL))
+			throw new Error('浏览器当前仍在原列表页，不能确认成详情页。请恢复目标详情页，或清除路径后从列表重新打开。');
+		if (!(await confirmAction(`当前网页：${state.current_url}\n原列表：${path.listURL}\n请核对画面，确认当前网页是需要配置字段的详情页。此操作不会重新访问网站。`, '确认当前详情页'))) return;
+		if (disposed || context.value !== path || props.session?.session_id !== session.session_id ||
+			props.session?.page_state_id !== state.page_state_id || !samePageURL(props.session?.current_url, state.current_url))
+			throw new Error('确认期间页面已变化，请重新检查当前详情页。');
+		path.detailURL = state.current_url;
+		path.documentID = state.state?.document_id;
+		path.uncertain = false;
+		path.needsConfirmation = false;
+		storeContext();
+		ready = await readDetailFields();
+	} catch (cause) { reportFailure(cause, '检查并恢复当前详情页'); }
 	finally { setWorking(false); }
 	if (ready && !selectionBlocked.value) {
 		ruleEditor.value?.focusSelection('detail');
@@ -589,9 +655,20 @@ async function openDetail(url: string, recordIndex = 0) {
 		await nextTick();
 		if (sessionID !== props.session?.session_id || context.value?.sessionID !== sessionID) throw new Error('会话已切换，请在当前会话重新打开示例详情。');
 		context.value.detailURL = command.result.final_url || url;
-		if (props.session?.current_url !== context.value.detailURL) throw new Error('详情动作已结束，但当前页面地址尚未确认；请先查询回执并检查页面位置。');
+		context.value.commandID = command.command_id;
+		context.value.requestedURL = url;
+		// A successful receipt is known even if the state event is still behind.
+		context.value.uncertain = false;
+		storeContext();
+		if (!samePageURL(props.session?.current_url, context.value.detailURL)) {
+			context.value.needsConfirmation = true;
+			storeContext();
+			message.value = '详情动作已成功，当前网页地址尚未同步。点击“检查当前详情页”刷新状态后继续，不会重复导航。';
+			return;
+		}
 		if (context.value.detailURL.split('#')[0] === context.value.listURL.split('#')[0]) throw new Error('打开详情后仍停留在列表地址，请检查入口或网站重定向，不能在列表中选择详情字段。');
 		context.value.uncertain = false;
+		context.value.documentID = props.session?.state?.document_id;
 		context.value.requestedURL = url;
 		const requested = new URL(url), destination = new URL(context.value.detailURL);
 		// HTTPS upgrades on the same host are routine; a different origin needs
@@ -603,6 +680,10 @@ async function openDetail(url: string, recordIndex = 0) {
 		phase = '检查已打开详情页的字段';
 		ready = await readDetailFields();
 	} catch (cause: any) {
+		if (context.value?.sessionID === sessionID && cause?.command_id) {
+			context.value.commandID = cause.command_id;
+			storeContext();
+		}
 		reportFailure(cause, phase);
 	} finally {
 		setWorking(false);
@@ -637,11 +718,15 @@ async function returnToList() {
 	context.value.uncertain = true;
 	storeContext();
 	try {
-		await execute(
+		const command = await execute(
 			path.strategy === 'back'
 				? { type: 'back', timeout_ms: 10000, page_state_id: pageState }
 				: { type: 'navigate', value: path.listURL, timeout_ms: 10000, page_state_id: pageState }
 		);
+		if (context.value) {
+			context.value.commandID = command.command_id;
+			storeContext();
+		}
 		const result = await readPreview('list');
 		if (new URL(result.current_url).href !== new URL(path.listURL).href || !result.records.length)
 			throw new Error('返回后的地址或记录范围不匹配，请手动恢复列表');
@@ -649,6 +734,10 @@ async function returnToList() {
 		storeContext();
 		message.value = '已返回列表并重新发现记录，可继续选择下一条详情。';
 	} catch (cause: any) {
+		if (context.value?.sessionID === path.sessionID && cause?.command_id) {
+			context.value.commandID = cause.command_id;
+			storeContext();
+		}
 		reportFailure(cause, '返回列表并检查记录范围');
 	} finally {
 		setWorking(false);
@@ -723,5 +812,5 @@ async function focusField(id: string, key: string, role: string) {
 	if (id !== stepID.value) return;
 	await ruleEditor.value?.focusField(key, role);
 }
-defineExpose({ applySelection, localDirty, recordScope, detailPage, selectionBlocked, focusField, summary, prepareSelection, selectionError: message });
+defineExpose({ applySelection, localDirty, recordScope, detailPage, selectionBlocked, detailBlockReason, recoverDetailPage, returnToList, forgetContext, focusField, summary, prepareSelection, selectionError: message });
 </script>

@@ -19,7 +19,7 @@ function mount(filename,initial,api={},confirm=()=>true){
  const setup=component.setup; component.setup=(props,context)=>{state=setup(props,context);return state;};component.render=()=>vue.h('div');
  const node=()=>({children:[]});
  const renderer=vue.createRenderer({createElement:node,createText:node,createComment:node,insert:(child,parent)=>parent.children.push(child),remove(){},setElementText(){},setText(){},patchProp(){},parentNode:()=>null,nextSibling:()=>null});
- const app=renderer.createApp({render:()=>vue.h(component,{...props,onSelect:(...args)=>events.push(['select',...args]),onPreviewRequested:()=>events.push(['preview']),onDraftSaved:draft=>{events.push(['saved',draft]);props.draft=draft;},onInspectPath:target=>events.push(['path',target]),onReturnList:()=>navigations.push('return')})});app.mount(node());
+ const app=renderer.createApp({render:()=>vue.h(component,{...props,onSessionState:state=>{events.push(['session',state]);props.session=state;},onSelect:(...args)=>events.push(['select',...args]),onPreviewRequested:()=>events.push(['preview']),onDraftSaved:draft=>{events.push(['saved',draft]);props.draft=draft;},onInspectPath:target=>events.push(['path',target]),onReturnList:()=>navigations.push('return')})});app.mount(node());
  return {props,events,navigations,get state(){return state;},unmount:()=>app.unmount()};
 }
 function rules(extra={},confirm){return mount('record-rule-editor.vue',{plan:plan(),available:true,disabled:false,detailPage:false,canPreview:true,canReturn:true,previewStale:true,...extra},{},confirm);}
@@ -132,6 +132,65 @@ test('changing page during asynchronous navigation confirmation prevents dispatc
   assert.equal(typeof resolve,'function');
   h.props.session.page_state_id='another-page';resolve(true);await pending;
   assert.equal(calls.includes('navigate'),false);assert.equal(h.state.context.value,undefined);
+ }finally{h.unmount();}
+});
+async function recoverable({current='https://example.test/detail',receipt='succeeded',known=false,documentID='doc-current',confirm=()=>true}={}){
+ const calls=[];
+ const state={session_id:'session',page_state_id:'current-page',available:true,current_url:current,state:{document_id:documentID}};
+ const h=designer({
+  browserCommands:async()=>{calls.push('list-receipts');return {items:[{command_id:'original',status:receipt}]};},
+  browserCommand:async()=>{calls.push('query-receipt');return {command_id:'original',status:receipt};},
+  browserSession:async()=>{calls.push('refresh-session');return state;},
+  previewRecords:async(_,page,revision,step,stage)=>{calls.push('preview-'+stage);return {page_state_id:page,stage,records:[],current_url:current,detail_urls:[],next_pages:[],warnings:[]};},
+ },{session:{session_id:'session',page_state_id:'old-page',available:true,current_url:'https://example.test/old-detail'}},confirm);
+ await tick();
+ h.state.context.value={sessionID:'session',stepID:'records',listURL:'https://example.test/list',detailURL:'https://example.test/old-detail',strategy:'back',uncertain:true,...(known?{commandID:'original'}:{})};
+ return {h,calls,state};
+}
+test('an older stuck path recovers from current session and receipts without navigating again',async()=>{
+ const {h,calls}=await recoverable();try{
+  await h.state.recoverDetailPage();
+  assert.equal(h.state.context.value.uncertain,false);assert.equal(h.state.context.value.detailURL,'https://example.test/detail');
+  assert.equal(h.state.context.value.documentID,'doc-current');assert.equal(h.state.selectionBlocked.value,false);
+  assert.ok(calls.includes('preview-detail'));assert.equal(h.events.filter(event=>event[0]==='select').length,1);
+ }finally{h.unmount();}
+});
+test('unresolved receipts cannot be bypassed by confirming the current page',async()=>{
+ const {h,calls}=await recoverable({receipt:'uncertain',known:true});try{
+  await h.state.recoverDetailPage();
+  assert.equal(h.state.selectionBlocked.value,true);assert.equal(h.state.context.value.uncertain,true);
+  assert.ok(calls.includes('query-receipt'));assert.equal(calls.includes('refresh-session'),false);assert.equal(calls.includes('preview-detail'),false);
+  assert.match(h.state.failureDetails.value.reason,/结果未知/);
+ }finally{h.unmount();}
+});
+test('recovery cannot confirm the original list as a detail and cancelling keeps the path blocked',async()=>{
+ for(const options of [{current:'https://example.test/list'},{confirm:()=>false}]){
+  const {h,calls}=await recoverable(options);try{
+   await h.state.recoverDetailPage();assert.equal(h.state.selectionBlocked.value,true);
+   assert.equal(calls.includes('preview-detail'),false);assert.equal(h.events.filter(event=>event[0]==='select').length,0);
+  }finally{h.unmount();}
+ }
+});
+test('scroll and DOM updates keep the detail role, but a new document requires explicit recovery',async()=>{
+ const {h}=detailWorkflow();try{
+  await h.state.openExampleDetail();
+  h.state.context.value.documentID='doc-detail';h.props.session.state={document_id:'doc-detail',frame_state_id:'new-frame',validation_state_id:'new-dom'};
+  h.props.session.page_state_id='scrolled';await tick();assert.equal(h.state.selectionBlocked.value,false);
+  h.props.session.state.document_id='another-document';await tick();assert.equal(h.state.selectionBlocked.value,true);
+  assert.match(h.state.detailBlockReason.value,/文档已重新加载或切换/);
+ }finally{h.unmount();}
+});
+test('a successful navigation with delayed session address offers recovery instead of staying uncertain',async()=>{
+ let h;
+ h=designer({previewRecords:async(_,page,revision,step,stage)=>({page_state_id:page,stage,records:[],current_url:'https://example.test/list',detail_urls:[{record_index:0,url:'https://example.test/detail'}],next_pages:[],warnings:[]})},
+  {session:{session_id:'session',page_state_id:'page',available:true,current_url:'https://example.test/list'},execute:async()=>({status:'succeeded',command_id:'original',result:{final_url:'https://example.test/detail'}})});
+ try{
+  h.state.plan.value.detail={locator:{strategy:'css',expression:'a'},max_details:3,return_strategy:'back'};
+  h.state.saved.value=JSON.stringify(h.state.plan.value);
+  await h.state.openExampleDetail();
+  assert.equal(h.state.context.value.commandID,'original');assert.equal(h.state.context.value.uncertain,false);
+  assert.equal(h.state.context.value.needsConfirmation,true);assert.equal(h.state.selectionBlocked.value,true);
+  assert.match(h.state.message.value,/尚未同步/);assert.equal(h.state.failureDetails.value,undefined);
  }finally{h.unmount();}
 });
 test('missing candidates or declined navigation leave the list without selecting detail fields',async()=>{

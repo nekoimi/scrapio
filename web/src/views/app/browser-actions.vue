@@ -69,6 +69,11 @@
 			<p v-if="session?.available && !supported.includes('scroll')" class="status-warn">当前服务未支持滚动；请检查浏览器服务版本。</p>
 			<slot name="page" />
 		</section>
+		<section v-if="recordPanel?.selectionBlocked" class="selection-scope" role="status">
+			<p>{{ recordPanel.detailBlockReason }}</p>
+			<button :disabled="submitting || savingSteps || querying || recordWorking || replaying || dirty || saving || !!recordPanel.localDirty" @click="recoverDetailPage">检查当前详情页</button>
+			<button :disabled="busy || recordWorking || replaying" @click="openDetailRecovery">查看详情路径配置</button>
+		</section>
 		<div class="workbench-command-status" role="status" aria-live="polite">
 			<span v-if="unknownRequest">上一请求结果未确认，确认前不能执行新动作。</span>
 			<span v-else-if="pending">{{ labels[pending.type] }} · {{ statusLabel(pending.status) }}</span>
@@ -289,6 +294,7 @@
 				:execute="executePathAction"
 				@working="recordWorking = $event"
 				@draft-saved="emit('draft-saved', $event)"
+				@session-state="emit('session-state', $event)"
 				@highlight="emit('highlight', $event)"
 			/>
 			<p v-if="panelTab === 'flow' && flowEditing && selectedStep >= 0 && steps[selectedStep]?.type !== 'record_set' && !executable(steps[selectedStep])" class="status-warn">当前步骤使用高级配置，请在方案的高级定义中编辑；当前表单不会覆盖它。</p>
@@ -407,11 +413,12 @@ const selectionHelp: Record<SelectionRule['target'], string> = {
 	next: '点选列表页的下一页或加载更多；确认采用链接导航还是按钮点击。',
 };
 async function activateSelection(target: SelectionRule['target'], field?: FieldRule) {
-	if (busy.value || recordWorking.value || replaying.value) return;
 	if (recordPanel.value?.selectionBlocked) {
-		notice.value = '详情页尚未确认或已离开示例详情，请先检查页面位置并恢复路径。';
+		notice.value = '';
+		openDetailRecovery();
 		return;
 	}
+	if (busy.value || recordWorking.value || replaying.value) return;
 	if (recordPanel.value?.detailPage && target !== 'field') return;
 	recordPanel.value?.prepareSelection(target, field);
 	replacingField.value = !!field;
@@ -421,6 +428,33 @@ async function activateSelection(target: SelectionRule['target'], field?: FieldR
 	await nextTick();
 	if (field) selectionPanel.value?.prepareField(field);
 	workbenchRoot.value?.querySelector('.editor-page-pane')?.scrollIntoView({ block: 'nearest' });
+}
+function openDetailRecovery() {
+	flowEditing.value = true;
+	selectedStep.value = -1;
+	openPanel('flow');
+}
+async function recoverDetailPage() {
+	if (disposed || submitting.value || savingSteps.value || querying.value || recordWorking.value || replaying.value || props.dirty || props.saving || recordPanel.value?.localDirty) return;
+	notice.value = '';
+	openDetailRecovery();
+	if (unknownRequest.value) {
+		notice.value = '上一请求尚未获得动作编号，请先使用“确认上一请求”核对原请求，再检查当前详情页。';
+		return;
+	}
+	if (pending.value) {
+		const previous = pending.value;
+		querying.value = true;
+		try { await settle(await appApi.browserCommand(previous.session_id, previous.command_id)); }
+		catch (cause) { reportFailure(cause, '查询原详情动作回执'); return; }
+		finally { querying.value = false; }
+		if (pending.value) {
+			notice.value = '原动作仍在执行或结果未知，请核对操作记录；没有重新打开详情。';
+			return;
+		}
+		await nextTick();
+	}
+	await recordPanel.value?.recoverDetailPage();
 }
 function applySelection(rule: SelectionRule) {
 	if (!recordPanel.value?.applySelection(rule)) {

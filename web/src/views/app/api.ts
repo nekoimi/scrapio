@@ -376,7 +376,7 @@ export const appApi = {
   closeBrowserSession: (id: string) => request({ url: `/api/v3/browser-sessions/${id}`, method: 'delete' }),
   createBrowserCommand: (id: string, data: EditorAction, key: string) => request({ url: `/api/v3/browser-sessions/${id}/commands`, method: 'post', data, localError: true, headers: { 'Idempotency-Key': key } }).then((response: any) => response.data as EditorCommand),
   browserCommand: (id: string, commandId: string) => request({url:`/api/v3/browser-sessions/${id}/commands/${commandId}`,method:'get',localError:true}).then((response:any)=>response.data as EditorCommand),
-  browserCommands: (id: string) => get<{ items: EditorCommand[]; limit: number }>(`/api/v3/browser-sessions/${id}/commands`),
+  browserCommands: (id: string, localError = false) => request({url:`/api/v3/browser-sessions/${id}/commands`,method:'get',localError}).then((response:any)=>response.data as { items: EditorCommand[]; limit: number }),
   checkpoints: (id: string) => get<{ items: EditorCheckpoint[] }>(`/api/v3/collectors/${id}/checkpoints`),
   createCheckpoint: (id: string, data: { name: string; expected_revision: number; through_step_id: string }) => request({ url: `/api/v3/collectors/${id}/checkpoints`, method: 'post', data }).then((response: any) => response.data as EditorCheckpoint),
   deleteCheckpoint: (id: string, key: string) => request({ url: `/api/v3/collectors/${id}/checkpoints/${key}`, method: 'delete' }),

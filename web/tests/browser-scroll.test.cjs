@@ -52,6 +52,29 @@ function mount(overrides = {}, refresh) {
   app.mount(node());
   return { props, calls, refreshed, origin, get state() { return state; }, unmount: () => app.unmount() };
 }
+test('blocked detail selection exposes its recovery configuration instead of a generic dead end', async () => {
+  const h=mount();await tick();
+  try {
+    let checked=0;
+    h.state.recordPanel.value={selectionBlocked:true,detailBlockReason:'当前地址不同',recoverDetailPage:async()=>{checked++;}};
+    await h.state.activateSelection('field');
+    assert.equal(h.state.flowEditing.value,true);assert.equal(h.state.panelTab.value,'flow');assert.equal(h.state.notice.value,'');
+    await h.state.recoverDetailPage();assert.equal(checked,1);assert.equal(h.calls.length,0);
+  } finally { h.unmount(); }
+});
+test('detail recovery reconciles a pending receipt before releasing the child workflow', async () => {
+  for(const status of ['succeeded','uncertain']) {
+    let queries=0,recovered=0;
+    const h=mount({browserCommand:async()=>{queries++;return {session_id:'session-1',command_id:'old',status,result:{}};}});await tick();
+    try {
+      h.state.recordPanel.value={selectionBlocked:true,recoverDetailPage:async()=>{recovered++;}};
+      h.state.pending.value={session_id:'session-1',command_id:'old',status:'uncertain',result:{}};
+      await h.state.recoverDetailPage();
+      assert.equal(queries,1);assert.equal(recovered,status==='succeeded'?1:0);assert.equal(h.calls.length,0);
+      if(status==='uncertain')assert.match(h.state.notice.value,/结果未知/);
+    } finally { h.unmount(); }
+  }
+});
 test('scroll buttons keep modes, use bounded CSS increments, and record only with explicit opt-in', async () => {
   const h = mount(); await tick();
   try {
