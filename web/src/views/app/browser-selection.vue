@@ -121,6 +121,7 @@
 						!check?.match_count ||
 						check?.truncated ||
 						busy ||
+						(target === 'detail' && !detailLinkAvailable) ||
 						(target === 'next' && (!!scope || check?.match_count !== 1)) ||
 						(detailPage && (target === 'record' || target === 'detail' || target === 'next'))
 					"
@@ -234,6 +235,9 @@ function samplesFor(result?: LocatorCheck) {
 	return showLinkSamples.value ? result?.link_sample_values || result?.elements.map(element => element.attributes?.href || '') || [] : result?.sample_values || [];
 }
 const displayedSamples = computed(() => samplesFor(check.value));
+const detailLinkAvailable = computed(() => !!check.value && (check.value.link_sample_values
+	? check.value.link_sample_values.some(value => !!value)
+	: check.value.elements.some(element => !!element.attributes?.href?.trim())));
 const checkValid = computed(() => !!check.value && evidenceStateValid(check.value) && checkStamp.value === contextStamp()
 	&& check.value.locator.strategy === strategy.value && check.value.locator.expression === expression.value.trim());
 // Local, bounded drafts for four goals on the list/detail page. Never persisted as validated evidence.
@@ -482,7 +486,8 @@ async function inspect(input: Partial<InspectionInput>, pageState: string, hover
 		drainQueued();
 	}
 	if (recommended && !busy.value && accept(session.session_id, pageState, epoch)) await chooseCandidate(recommended);
-	if (inspectedSelection && selection.value === inspectedSelection && props.target === 'field' && extractKind.value === 'link' && selectionValid.value && selection.value?.enclosing_link && !busy.value && accept(session.session_id, pageState, generation)) await selectEnclosingLink();
+	if (inspectedSelection && selection.value === inspectedSelection && (props.target === 'detail' || (props.target === 'field' && extractKind.value === 'link')) && selectionValid.value && selection.value?.enclosing_link && !busy.value && accept(session.session_id, pageState, generation)) await selectEnclosingLink();
+	if (props.target === 'detail' && checkValid.value && !detailLinkAvailable.value) message.value = '详情入口须指向带 href 的链接。请选择 a 标签；旧浏览器服务可用“扩大到父元素”找到链接。';
 }
 async function selectEnclosingLink() {
 	const result = selection.value;
@@ -588,6 +593,10 @@ function prepareAction() {
 }
 function saveRule(target: SelectionRule['target']) {
 	if (!canConfirm.value || !checkValid.value || !check.value || !check.value.match_count || check.value.truncated || busy.value) return;
+	if (target === 'detail' && !detailLinkAvailable.value) {
+		message.value = '当前规则没有可用的详情链接，请选中所在链接或扩大到 a 标签，再重新验证。';
+		return;
+	}
 	if (target === 'next' && (scope.value || check.value.match_count !== 1)) return;
 	if (props.detailPage && target !== 'field') return;
 	emit('rule', {

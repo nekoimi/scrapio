@@ -399,7 +399,7 @@ const selectionGoals: { target: SelectionRule['target']; label: string; empty: s
 const selectionHelp: Record<SelectionRule['target'], string> = {
 	record: '点一条记录，扩大到记录容器并选择同类；核对高亮范围后使用。',
 	field: '在记录内点选标题、图片等字段；底部可命名并确认提取内容。',
-	detail: '在一条记录内选择详情链接；若选中文字，可扩大到带链接的父元素。',
+	detail: '在一条记录内点选详情标题，自动定位所在链接；核对地址后使用。旧服务可扩大到带链接的父元素。',
 	next: '点选列表页的下一页或加载更多；确认采用链接导航还是按钮点击。',
 };
 async function activateSelection(target: SelectionRule['target'], field?: FieldRule) {

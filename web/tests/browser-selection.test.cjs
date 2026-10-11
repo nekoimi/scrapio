@@ -54,6 +54,39 @@ function linkInspection(input) {
   return {page_state_id:input.page_state_id,element,...(element===anchor?{}:{enclosing_link:anchor}),
     locators:[{...locatorResult(input),locator:{strategy:'css',expression:element===anchor?'a.title':'span.title'},kind:'id'}]};
 }
+test('detail entry automatically selects the enclosing anchor and emits its scoped rule without navigating',async()=>{
+  const calls=[];
+  const h=mount({inspectElement:async(_,input)=>{calls.push(input);return linkInspection(input);},checkLocator:async(_,input)=>({...locatorResult(input),link_sample_values:input.locator.expression==='a.title'?['https://example.test/movie/1']:['']})});
+  try{
+    h.props.target='detail';h.props.recordScope={strategy:'css',expression:'.record'};await settle();
+    await h.state.inspect({position:{x:10,y:20}},'page-1');
+    assert.equal(calls.length,2);assert.equal(calls[1].element_id,'anchor');assert.equal(calls[1].scope.expression,'.record');
+    assert.equal(h.state.selection.value.element.tag,'a');assert.equal(h.state.checkValid.value,true);
+    assert.equal(h.state.displayedSamples.value[0],'https://example.test/movie/1');assert.equal(h.state.detailLinkAvailable.value,true);
+    h.state.saveRule('detail');const rule=h.events.find(event=>event[0]==='rule')[1];
+    assert.equal(rule.target,'detail');assert.equal(rule.locator.expression,'a.title');assert.equal(rule.scope.expression,'.record');
+    assert.equal(h.events.filter(event=>event[0]==='action').length,0);
+  }finally{h.unmount();}
+});
+test('detail entry selected directly on an anchor validates it without extra inspection',async()=>{
+  let calls=0;
+  const h=mount({inspectElement:async(_,input)=>{calls++;return linkInspection({...input,element_id:'anchor'});},checkLocator:async(_,input)=>({...locatorResult(input),elements:[{tag:'a',attributes:{href:'/movie/1'}}]})});
+  try{
+    h.props.target='detail';await settle();await h.state.inspect({position:{x:1,y:1}},'page-1');
+    assert.equal(calls,1);assert.equal(h.state.detailLinkAvailable.value,true);h.state.saveRule('detail');
+    assert.equal(h.events.filter(event=>event[0]==='rule').length,1);
+  }finally{h.unmount();}
+});
+test('detail entry without an enclosing link cannot save a text-only rule and explains parent selection',async()=>{
+  let calls=0;
+  const h=mount({inspectElement:async(_,input)=>{calls++;const result=linkInspection(input);delete result.enclosing_link;return result;},checkLocator:async(_,input)=>({...locatorResult(input),elements:[{tag:'span',attributes:{}}]})});
+  try{
+    h.props.target='detail';await settle();await h.state.inspect({position:{x:1,y:1}},'page-1');
+    assert.equal(calls,1);assert.match(h.state.message.value,/扩大到父元素/);assert.equal(h.state.detailLinkAvailable.value,false);
+    h.state.saveRule('detail');assert.equal(h.events.filter(event=>event[0]==='rule').length,0);
+    assert.match(h.state.message.value,/详情链接/);
+  }finally{h.unmount();}
+});
 test('switching a nested text field to link selects and validates its enclosing anchor',async()=>{
   const calls=[];
   const h=mount({inspectElement:async(_,input)=>{calls.push(input);return linkInspection(input);},checkLocator:async(_,input)=>({...locatorResult(input),link_sample_values:['https://example.test/movie/1']})});
