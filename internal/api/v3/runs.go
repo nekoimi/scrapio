@@ -236,11 +236,11 @@ func RunEvents(w http.ResponseWriter, r *http.Request) {
 		}
 		after = n
 	}
-	flusher, valid := w.(http.Flusher)
-	if !valid {
+	if !supportsFlush(w) {
 		fail(w, r, 500, "INTERNAL", "事件流不可用，请轮询", true, "run", "")
 		return
 	}
+	controller := http.NewResponseController(w)
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("X-Accel-Buffering", "no")
@@ -261,7 +261,9 @@ func RunEvents(w http.ResponseWriter, r *http.Request) {
 			}
 			after = event.Sequence
 		}
-		flusher.Flush()
+		if controller.Flush() != nil {
+			return
+		}
 		ctx, cancel = context.WithTimeout(r.Context(), 5*time.Second)
 		current, err := v22_run_repo.Get(ctx, row.OwnerId, row.Id, "")
 		cancel()
@@ -280,7 +282,9 @@ func RunEvents(w http.ResponseWriter, r *http.Request) {
 			if _, err = fmt.Fprint(w, ": heartbeat\n\n"); err != nil {
 				return
 			}
-			flusher.Flush()
+			if controller.Flush() != nil {
+				return
+			}
 		}
 	}
 }

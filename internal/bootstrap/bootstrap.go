@@ -33,17 +33,9 @@ func BeanLifecycle() *bean.LifecycleManager {
 	bean.MustRegister[bean.Lifecycle](ctx, db.NewDBLifecycle())
 	// 定时任务
 	bean.MustRegister[job.CronScheduler](ctx, job.NewCronScheduler())
-	bean.MustRegister[bean.Lifecycle](ctx, job.NewWorkflowScheduler())
-	bean.MustRegister[bean.Lifecycle](ctx, job.NewRecordExportWorker())
-	bean.MustRegister[bean.Lifecycle](ctx, job.NewDocumentRetentionWorker())
 	// drission_rod
 	bean.MustRegisterPtr[drission_rod.DrissionRod](ctx, drission_rod.NewDrissionRod())
-	bean.MustRegister[bean.Lifecycle](ctx, trialworker.New())
-	bean.MustRegister[bean.Lifecycle](ctx, runworker.New())
-	bean.MustRegister[bean.Lifecycle](ctx, scheduleworker.New())
-	bean.MustRegister[bean.Lifecycle](ctx, exportworker.New())
-	bean.MustRegister[bean.Lifecycle](ctx, regressionworker.New())
-	bean.MustRegister[bean.Lifecycle](ctx, qualityworker.New())
+	registerControlWorkers(ctx)
 	pluginRegistry := plugin.NewRegistry()
 	delivery.RegisterBuiltins(pluginRegistry, bean.PtrFromContext[config.Config](ctx))
 	bean.MustRegisterPtr[plugin.Registry](ctx, pluginRegistry)
@@ -55,9 +47,23 @@ func BeanLifecycle() *bean.LifecycleManager {
 	bean.MustRegisterPtr[crawler.Manager](ctx, crawlerManager)
 	// 任务处理引擎
 	bean.MustRegisterPtr[crawler.Engine](ctx, crawler.NewCrawlerEngine())
-	// 通用声明式工作流执行器与旧 provider worker 分离，按 task_type=workflow 领取任务。
-	bean.MustRegister[bean.Lifecycle](ctx, workflowexec.NewWorker())
 	// http服务
 	bean.MustRegisterPtr[server.Server](ctx, server.NewHttpServer())
 	return bean.LifecycleFromContext(ctx)
+}
+
+func registerControlWorkers(ctx context.Context) {
+	// Registry keys are types. Each worker needs its own concrete key; registering
+	// them all as bean.Lifecycle replaces the lookup and only starts the first one.
+	bean.MustRegisterPtr[job.WorkflowScheduler](ctx, job.NewWorkflowScheduler())
+	bean.MustRegisterPtr[job.RecordExportWorker](ctx, job.NewRecordExportWorker())
+	bean.MustRegisterPtr[job.DocumentRetentionWorker](ctx, job.NewDocumentRetentionWorker())
+	bean.MustRegisterPtr[trialworker.Worker](ctx, trialworker.New())
+	bean.MustRegisterPtr[runworker.Worker](ctx, runworker.New())
+	bean.MustRegisterPtr[scheduleworker.Worker](ctx, scheduleworker.New())
+	bean.MustRegisterPtr[exportworker.Worker](ctx, exportworker.New())
+	bean.MustRegisterPtr[regressionworker.Worker](ctx, regressionworker.New())
+	bean.MustRegisterPtr[qualityworker.Worker](ctx, qualityworker.New())
+	// 通用声明式工作流执行器与旧 provider worker 分离，按 task_type=workflow 领取任务。
+	bean.MustRegisterPtr[workflowexec.Worker](ctx, workflowexec.NewWorker())
 }

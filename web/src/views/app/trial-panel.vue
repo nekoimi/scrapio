@@ -45,7 +45,11 @@
 			<button v-if="sampleCursor" @click="loadSamples">加载更多样例输入</button>
 		</template>
 		<div class="editor-actions">
-			<button class="primary-action" :disabled="busy || blocked || !draft.definition.output || !!pendingKey || (mode === 'live' && !confirmed)" @click="start">
+			<button
+				class="primary-action"
+				:disabled="busy || blocked || !draft.definition.output || !!pendingKey || (mode === 'live' && !confirmed)"
+				@click="start"
+			>
 				创建试采</button
 			><button v-if="pendingKey" :disabled="busy" @click="recover">查询原创建请求</button
 			><button v-if="pendingKey" :disabled="busy" @click="clearPending">结束本地等待</button
@@ -54,6 +58,7 @@
 			><button v-if="selected" @click="refreshSelected">刷新状态</button>
 		</div>
 		<p v-if="message" class="app-error" role="status">{{ message }}</p>
+		<p v-if="streamNotice" class="muted" role="status">{{ streamNotice }}</p>
 		<p class="muted">最近 20 次；每人最多 3 个活动试采、100 次历史。响应丢失时查询原请求，不自动重复执行。</p>
 		<ul>
 			<li v-for="item in history" :key="item.trial_id">
@@ -70,6 +75,10 @@
 				0
 			</p>
 			<p v-if="selected.collector_revision !== draft.revision" class="status-warn">草稿已变化，以下证据属于旧 revision，不能用来放行当前草稿。</p>
+			<p v-if="queueDelayed" class="status-warn">
+				本次试采尚未被后台执行器领取。可能在等待前面的任务，也可能执行器未启动或领取失败；请检查服务端 v22TrialWorker 的启动日志和领取错误。 页面会每
+				2 秒查询状态，不需要重复创建试采。可取消旧任务后再测试当前草稿；排队超过 10 分钟的任务会在领取时停止为 QUEUE_EXPIRED。
+			</p>
 			<p v-if="selected.summary.stop_reason">
 				停止原因：{{ selected.summary.stop_reason }} · {{ selected.summary.failed_step_id }} / {{ selected.summary.failed_stage }}
 			</p>
@@ -157,6 +166,8 @@ const history = ref<Trial[]>([]),
 	pendingKey = ref(''),
 	busy = ref(false),
 	resultsBusy = ref(false),
+	streamNotice = ref(''),
+	now = ref(Date.now()),
 	message = ref('');
 let disposed = false,
 	epoch = 0,
@@ -164,6 +175,7 @@ let disposed = false,
 	pollTimer: ReturnType<typeof setInterval> | undefined,
 	polling = false;
 const recordSteps = computed(() => (props.draft.definition.steps || []).filter((step: any) => ['record_set', 'json_records'].includes(step.type)));
+const queueDelayed = computed(() => selected.value?.status === 'queued' && now.value - Date.parse(selected.value.created_at) >= 30000);
 const availableInputs = computed(() => {
 	const items = samples.value.map((sample) => ({ capture_id: sample.capture_id, label: `${sample.name} · ${sample.step_id}/${sample.stage}` }));
 	if (props.capture?.status === 'succeeded') items.unshift({ capture_id: props.capture.capture_id, label: `当前快照 · ${props.capture.capture_id}` });
@@ -219,6 +231,8 @@ function stop() {
 }
 async function selectTrial(value: Trial) {
 	stop();
+	streamNotice.value = '';
+	now.value = Date.now();
 	selected.value = value;
 	documents.value = [];
 	events.value = [];
@@ -229,6 +243,7 @@ async function selectTrial(value: Trial) {
 	startEvents(value.trial_id, token);
 	if (!terminal(value.status))
 		pollTimer = setInterval(() => {
+			now.value = Date.now();
 			if (!polling) {
 				polling = true;
 				void refreshSelected().finally(() => (polling = false));
@@ -261,6 +276,7 @@ async function refreshSelected() {
 			const index = history.value.findIndex((item) => item.trial_id === id);
 			if (index >= 0) history.value[index] = value;
 			if (terminal(value.status)) {
+				streamNotice.value = '';
 				if (pollTimer) clearInterval(pollTimer);
 				pollTimer = undefined;
 				await loadResults(false, token);
@@ -282,13 +298,17 @@ function startEvents(id: string, token: number) {
 					if (token !== epoch || disposed) return;
 					if (!events.value.some((item) => item.sequence === event.sequence)) events.value.push(event);
 					failures = 0;
+					streamNotice.value = '';
 				});
 				await refreshSelected();
 				if (selected.value && terminal(selected.value.status)) return;
 			} catch (cause: any) {
 				if (own.signal.aborted) return;
 				if (cause?.terminal || ++failures >= 3) {
-					message.value = '事件流连接停止；可刷新状态和结果，运行继续。';
+					streamNotice.value =
+						selected.value && !terminal(selected.value.status)
+							? '事件流连接中断，已改为每 2 秒查询试采状态；是否执行以当前状态为准，也可手动刷新状态和结果。'
+							: '事件流连接中断，可手动刷新状态和结果。';
 					return;
 				}
 			}
@@ -358,7 +378,7 @@ async function recover() {
 	}
 }
 async function clearPending() {
-	if ((await confirmAction('结束本地等待不会取消服务器上可能已创建的试采，请先检查历史。确认？'))) {
+	if (await confirmAction('结束本地等待不会取消服务器上可能已创建的试采，请先检查历史。确认？')) {
 		pendingKey.value = '';
 		sessionStorage.removeItem(keyStorage());
 	}

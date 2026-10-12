@@ -56,15 +56,15 @@ func (m *LifecycleManager) StartAndServe() error {
 			defer func() {
 				if r := recover(); r != nil {
 					log.Errorf("[Lifecycle] failed to start %s panic: %v", life.Name(), r)
-				} else {
-					log.Infof("[Lifecycle] Start %s success!", life.Name())
 				}
 			}()
 
 			log.Infof("[Lifecycle] Starting: %s ...", life.Name())
 			if err := life.Start(ctx); err != nil {
 				log.Errorf("[Lifecycle] failed to start %s: %s", life.Name(), err)
+				return
 			}
+			log.Infof("[Lifecycle] Start %s success!", life.Name())
 		}(lifecycle, m.ctx)
 	}
 	m.waitForSignal()

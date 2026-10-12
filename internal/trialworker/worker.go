@@ -62,6 +62,7 @@ func (w *Worker) Start(ctx context.Context) error {
 					continue
 				}
 				if row != nil {
+					log.WithFields(log.Fields{"trial_id": row.Id, "collector_id": row.CollectorId, "revision": row.CollectorRevision}).Info("claimed v22 trial")
 					w.execute(runCtx, row, browser, cfg)
 				}
 			}
