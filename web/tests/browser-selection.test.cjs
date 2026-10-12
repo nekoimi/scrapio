@@ -48,6 +48,51 @@ function locatorResult(input) {
 }
 const settle = async () => { await Promise.resolve(); await vue.nextTick(); await Promise.resolve(); };
 
+test('collecting another record sample sends the first reference and requires full coverage',async()=>{
+ const calls=[];
+ const element=id=>({element_id:id,tag:'a',attributes:{href:'/movie/'+id},text:id,parent_id:'record',child_count:0});
+ const h=mount({inspectElement:async(_,input)=>{calls.push(input);const el=element(input.element_id||'one');return {page_state_id:input.page_state_id,element:el,locators:[{...locatorResult(input),locator:{strategy:'css',expression:'a.title'},kind:'shared'}],...(input.sample_element_ids?{sample_elements:[element('one'),el]}:{})};},checkLocator:async(_,input)=>({...locatorResult(input),sample_coverage:{selected:input.sample_element_ids?.length||0,matched:input.sample_element_ids?.length||0}})});
+ try{
+  h.props.recordScope={strategy:'css',expression:'.item'};await settle();
+  await h.state.inspect({element_id:'one'},'page-1');h.state.fieldName.value='电影';h.state.addExample();
+  assert.equal(h.state.addingExample.value,true);assert.equal(h.state.checkValid.value,false);
+  await h.state.inspect({element_id:'two'},'page-1');
+  assert.deepEqual(Array.from(calls[1].sample_element_ids),['one']);
+  assert.equal(h.state.sampleElements.value.length,2);assert.equal(h.state.fieldName.value,'电影');
+  h.state.check.value.sample_coverage.matched=1;h.state.saveRule('field');assert.equal(h.events.filter(e=>e[0]==='rule').length,0);
+  h.state.check.value.sample_coverage.matched=2;h.state.saveRule('field');assert.equal(h.events.filter(e=>e[0]==='rule').length,1);
+  h.props.session.page_state_id='new-page';await settle();assert.equal(h.state.sampleElements.value.length,0);assert.equal(h.state.fieldName.value,'电影');
+ }finally{h.unmount();}
+});
+test('missing or duplicate per-record hits require explicit review and new evidence clears it',async()=>{
+ const result=input=>({...locatorResult(input),record_check:{total:3,checked:3,missing:1,multiple:1,empty:0,truncated:false,rows:[]}});
+ const h=mount({checkLocator:async(_,input)=>result(input)});
+ try{
+  h.state.expression.value='.title';await h.state.validateLocator();
+  h.state.saveRule('field');assert.equal(h.events.filter(e=>e[0]==='rule').length,0);
+  h.state.reviewedRisks.value=true;h.state.saveRule('field');assert.equal(h.events.filter(e=>e[0]==='rule').length,1);
+  await h.state.validateLocator();assert.equal(h.state.reviewedRisks.value,false);
+  h.state.reviewedRisks.value=true;h.state.check.value.record_check.truncated=true;h.state.saveRule('field');assert.equal(h.events.filter(e=>e[0]==='rule').length,1);
+ }finally{h.unmount();}
+});
+test('older browser cannot silently treat a second sample as multi-sample validation',async()=>{
+ const h=mount({inspectElement:async(_,input)=>linkInspection({...input,element_id:'anchor'}),checkLocator:async(_,input)=>locatorResult(input)});
+ try{
+  h.props.recordScope={strategy:'css',expression:'.record'};await settle();await h.state.inspect({element_id:'anchor'},'page-1');
+  h.state.addExample();await h.state.inspect({element_id:'another'},'page-1');
+  assert.match(h.state.message.value,/同步升级 scrapio-browser/);assert.equal(h.state.checkValid.value,false);assert.equal(h.state.sampleElements.value.length,1);
+ }finally{h.unmount();}
+});
+test('attribute intent uses the named attribute in validation and the emitted field rule',async()=>{
+ let input;
+ const h=mount({checkLocator:async(_,value)=>{input=value;return locatorResult(value);}});
+ try{
+  h.state.extractKind.value='attribute';h.state.attributeName.value='data-code';h.state.expression.value='.value';await h.state.validateLocator();
+  assert.equal(input.extract,'attribute');assert.equal(input.attribute,'data-code');h.state.saveRule('field');
+  assert.equal(h.events.find(e=>e[0]==='rule')[1].attribute,'data-code');
+ }finally{h.unmount();}
+});
+
 function linkInspection(input) {
   const anchor={element_id:'anchor',tag:'a',attributes:{href:'/movie/1'},text:'电影',parent_id:'record',child_count:1};
   const element=input.element_id==='anchor'?anchor:{element_id:'title',tag:'span',attributes:{},text:'电影',parent_id:'anchor',child_count:0};

@@ -16,6 +16,9 @@ type Inspection struct {
 	PageStateID         string      `json:"page_state_id"`
 	Position            *Position   `json:"position,omitempty"`
 	ElementID           string      `json:"element_id,omitempty"`
+	SampleElementIDs    []string    `json:"sample_element_ids,omitempty"`
+	Extract             string      `json:"extract,omitempty"`
+	Attribute           string      `json:"attribute,omitempty"`
 	Mode                string      `json:"mode,omitempty"`
 	Relation            string      `json:"relation,omitempty"`
 	ChildIndex          int         `json:"child_index,omitempty"`
@@ -28,6 +31,22 @@ type Inspection struct {
 }
 
 func (i *Inspection) Validate(operation string) error {
+	if len(i.SampleElementIDs) > 5 || len(i.Attribute) > 128 {
+		return errors.New("at most five sample elements and a bounded attribute are allowed")
+	}
+	seen := map[string]bool{}
+	for _, id := range i.SampleElementIDs {
+		if id == "" || len(id) > 128 || seen[id] {
+			return errors.New("sample elements must be distinct valid references")
+		}
+		seen[id] = true
+	}
+	if i.Extract != "" && i.Extract != "text" && i.Extract != "link" && i.Extract != "image" && i.Extract != "attribute" {
+		return errors.New("invalid extraction intent")
+	}
+	if i.Extract == "attribute" && i.Attribute == "" {
+		return errors.New("attribute extraction requires an attribute name")
+	}
 	if i.Limit == 0 {
 		i.Limit = 50
 	}

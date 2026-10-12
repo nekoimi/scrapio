@@ -392,7 +392,7 @@ function applySelection(rule: SelectionRule) {
 			name,
 			extract: rule.extract || 'text',
 			locator: { ...rule.locator },
-			...(rule.extract === 'attribute' ? { attribute: 'data-id' } : {}),
+			...(rule.extract === 'attribute' ? { attribute: rule.attribute || 'data-id' } : {}),
 		};
 		if (replacing) replacing.locator = field.locator;
 		else fields.push(field);

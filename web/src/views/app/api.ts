@@ -89,25 +89,30 @@ export interface InspectedElement {
   parent_id: string; child_count: number; boundary: string;
 }
 export interface InspectionInput {
+  sample_element_ids?: string[];
+  extract?: FieldRule['extract'];
+  attribute?: string;
   frame_sequence?: number;
   page_state_id: string; position?: { x: number; y: number }; element_id?: string;
   mode?: 'record' | 'field'; relation?: 'self' | 'parent' | 'child'; child_index?: number;
   expand_similar?: boolean; scope?: EditorLocator; locator?: EditorLocator; previous_fingerprint?: string;
 }
 export interface LocatorCheck {
+  sample_coverage?: {selected:number;matched:number};
+  record_check?: {total:number;checked:number;missing:number;multiple:number;empty:number;truncated:boolean;rows:{index:number;record:InspectedElement;elements:InspectedElement[];values:string[];match_count:number;truncated:boolean}[]};
  state?: BrowserState;
   page_state_id: string; locator: EditorLocator; match_count: number; truncated: boolean;
   elements: InspectedElement[]; sample_values: string[]; fingerprint: string;
   link_sample_values?: string[];
   comparison: 'first-check' | 'unchanged' | 'changed'; warnings: string[]; scope_match_count: number;
 }
-export interface ElementInspection { state?: BrowserState; page_state_id: string; element: InspectedElement; enclosing_link?: InspectedElement; locators: (LocatorCheck & { kind: string; warning: string })[]; warnings: string[] }
+export interface ElementInspection { sample_elements?:InspectedElement[]; state?: BrowserState; page_state_id: string; element: InspectedElement; enclosing_link?: InspectedElement; locators: (LocatorCheck & { kind: string; warning: string })[]; warnings: string[] }
 export interface DOMChildren { page_state_id: string; root: InspectedElement; items: InspectedElement[]; next_offset: number | null; total: number; warnings: string[] }
 export interface PageHighlight { page_state_id: string; elements: InspectedElement[]; kind: 'hover' | 'selected' | 'similar' }
 export interface FieldOptions {field_key?:string;type?:'string'|'integer'|'number'|'boolean'|'date'|'datetime'|'json';required?:boolean;multiple?:boolean;clean?:'trim'|'whitespace';regex?:string;date_format?:string}
 export interface FieldRule extends FieldOptions { name:string; locator?:EditorLocator; extract:'text'|'link'|'image'|'attribute'; attribute?:string }
 export interface RecordPlan { mode:'single'|'repeated'; locator?:EditorLocator; max_records:number; fields:FieldRule[]; detail?:{locator:EditorLocator;return_strategy:'back'|'navigate-list';max_details:number}; detail_fields?:FieldRule[]; next_page?:{locator:EditorLocator;kind:'link'|'click'|'load_more';max_pages:number;wait_ms?:number} }
-export interface SelectionRule { target:'record'|'field'|'detail'|'next'; locator:EditorLocator; scope?:EditorLocator; extract?:FieldRule['extract']; name?:string; next_kind?:'link'|'click'|'load_more' }
+export interface SelectionRule { target:'record'|'field'|'detail'|'next'; locator:EditorLocator; scope?:EditorLocator; extract?:FieldRule['extract']; attribute?:string; name?:string; next_kind?:'link'|'click'|'load_more' }
 export interface FieldPreview { name:string;value:string;raw_values:string[];match_count:number;truncated:boolean;errors:string[];source?:{element_id:string;bounds:InspectedElement['bounds']} }
 export interface RecordPreview {page_state_id:string;stage:'list'|'detail';current_url:string;records:{index:number;fields:FieldPreview[];values:Record<string,string>}[];detail_urls:{record_index:number;url?:string;error?:string;raw_url:string}[];next_pages:{kind:'link'|'click'|'load_more';url?:string;error?:string;disabled:boolean}[];record_match_count:number;truncated:boolean;warnings:string[];network_accessed:boolean;dry_run:boolean}
 export interface HTTPEntryRequest {method:'GET'|'POST';query:Record<string,string>;headers:Record<string,string>;body?:unknown;credential_ref?:string;timeout_ms:number}
