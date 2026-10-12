@@ -2,10 +2,43 @@ package output
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/nekoimi/scrapio/internal/extraction"
 )
+
+func TestSchemaValidationIdentifiesFieldAndUniqueKeyProblems(t *testing.T) {
+	fields := []Field{}
+	for _, key := range []string{"a", "b", "c", "d", "e", "f"} {
+		fields = append(fields, Field{Key: key, Name: key, Type: "string"})
+	}
+	tests := []struct {
+		name    string
+		schema  Schema
+		message string
+	}{
+		{"no fields", Schema{}, "保存字段，当前为 0"},
+		{"too many fields", Schema{Fields: make([]Field, 31), UniqueKey: []string{"a"}}, "当前为 31"},
+		{"no unique key", Schema{Fields: fields}, "尚未选择唯一键"},
+		{"too many unique keys", Schema{Fields: fields, UniqueKey: []string{"a", "b", "c", "d", "e", "f"}}, "当前为 6"},
+		{"missing unique field", Schema{Fields: fields, UniqueKey: []string{"missing"}}, "唯一键字段 \"missing\" 无效"},
+		{"duplicate unique field", Schema{Fields: fields, UniqueKey: []string{"a", "a"}}, "唯一键字段 \"a\" 无效"},
+		{"multiple unique field", Schema{Fields: []Field{{Key: "a", Name: "a", Type: "string", Multiple: true}}, UniqueKey: []string{"a"}}, "单值字段"},
+		{"json unique field", Schema{Fields: []Field{{Key: "a", Name: "a", Type: "json"}}, UniqueKey: []string{"a"}}, "JSON 字段"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.schema.Validate()
+			if err == nil || !strings.Contains(err.Error(), tt.message) {
+				t.Fatalf("expected actionable error containing %q, got %v", tt.message, err)
+			}
+		})
+	}
+	if err := (Schema{Fields: fields, UniqueKey: []string{"a", "b", "c", "d", "e"}}).Validate(); err != nil {
+		t.Fatalf("valid five-field unique key rejected: %v", err)
+	}
+}
 
 func fixture() (Schema, []Mapping, Compatibility) {
 	s := Schema{Fields: []Field{{Key: "id", Name: "identifier", Type: "integer"}, {Key: "title", Name: "title", Type: "string", Nullable: true}, {Key: "flag", Name: "flag", Type: "boolean", Nullable: true}}, UniqueKey: []string{"id"}}

@@ -7,7 +7,12 @@
 		<p class="muted">先预演映射、唯一键和更新结果，再确认建表/绑定；此处只保存配置，不写正式记录。每个方案当前绑定一个输出步骤与页面角色。</p>
 		<p v-if="draft.definition.output" class="status-good">
 			已绑定表 {{ draft.definition.output.table_id }} · Schema {{ draft.definition.output.schema_version }} · {{ draft.definition.output.step_id }} /
-			{{ draft.definition.output.stage }}；更改规则后需重新预演。
+			{{ roleLabel(draft.definition.output.stage) }}；更改规则后需重新预演。
+		</p>
+		<p v-if="bindingChanged" class="status-warn">
+			当前正在配置{{
+				roleLabel(stage)
+			}}输出，与已绑定的步骤或页面角色不同。可重新映射已有表，或用当前字段新建表草案；确认后会替换原输出绑定，原表和记录保留。
 		</p>
 		<p v-if="message" class="app-error" role="status">{{ message }}</p>
 		<p v-if="pendingKey" class="status-warn">
@@ -41,11 +46,11 @@
 		</div>
 		<p class="muted">
 			固定输入 {{ capture?.capture_id || '未选择' }} · {{ stepId || '未选择步骤' }} /
-			{{ stage }}。同键同值重复项预计未变；同批同键不同值会冲突，不按顺序覆盖。
+			{{ roleLabel(stage) }}。请使用对应页面的固定快照。同键同值重复项预计未变；同批同键不同值会冲突，不按顺序覆盖。
 		</p>
 		<div class="editor-actions">
-			<button v-if="!tableId" :disabled="busy || blocked || !sources.length || !!pendingKey || !!pendingConfirm" @click="generate">
-				从已保存字段生成新表草案
+			<button :disabled="busy || blocked || !sources.length || !!pendingKey || !!pendingConfirm" @click="generate">
+				用{{ roleLabel(stage) }}已保存字段{{ tableId ? '新建表草案' : '生成新表草案' }}
 			</button>
 		</div>
 		<div class="record-preview-table">
@@ -78,7 +83,12 @@
 						<td>
 							<input
 								:checked="schema.unique_key.includes(field.field_key)"
-								:disabled="lockedSchema || field.multiple || field.type === 'json'"
+								:disabled="
+									lockedSchema ||
+									field.multiple ||
+									field.type === 'json' ||
+									(!schema.unique_key.includes(field.field_key) && schema.unique_key.length >= 5)
+								"
 								type="checkbox"
 								aria-label="唯一键"
 								@change="toggleKey(field.field_key, ($event.target as HTMLInputElement).checked)"
@@ -91,6 +101,12 @@
 								@change="mapField(field.field_key, ($event.target as HTMLSelectElement).value)"
 							>
 								<option value="">不映射（可空字段）</option>
+								<option
+									v-if="sourceFor(field.field_key) && !sources.some((source) => source.field_key === sourceFor(field.field_key))"
+									:value="sourceFor(field.field_key)"
+								>
+									{{ sourceFor(field.field_key) }} · 不属于当前页面字段，请重新映射
+								</option>
 								<option v-for="source in sources" :key="source.field_key" :value="source.field_key">
 									{{ source.name }} · {{ source.type || '动态类型' }}{{ source.multiple ? ' / 多值' : '' }}
 								</option>
@@ -104,15 +120,23 @@
 		<p v-if="!schema.fields.length" class="muted">尚未确认字段。可从提取规则生成表草案，也可选择已有表进行显式映射。</p>
 		<p v-if="tableId" class="muted">已有表 Schema 只读；所有非空字段和唯一键必须映射。未保存的来源字段会在预演中明确提示。</p>
 		<p>唯一键：{{ schema.unique_key.join(' + ') || '尚未选择，不能确认' }} · 复合键按所选顺序组合；0 和 false 是有效键值，空值不能作为键。</p>
+		<p class="muted">
+			请选择 1～5 个能稳定标识记录的单值字段，例如已提取的详情链接或站点 ID。标题通常不适合作为唯一键；详情页只有一条候选也需要唯一键。
+		</p>
+		<p v-if="configurationProblem" class="status-warn" role="status">{{ configurationProblem }}</p>
 		<div class="editor-actions">
 			<button
 				:disabled="
-					busy || blocked || !capture || capture.status !== 'succeeded' || !stepId || !!pendingKey || !!pendingConfirm || !schema.fields.length
+					busy || blocked || !capture || capture.status !== 'succeeded' || !stepId || !!pendingKey || !!pendingConfirm || !!configurationProblem
 				"
 				@click="runCheck"
 			>
 				{{ busy ? '处理中…' : '预演保存结果' }}</button
-			><button class="primary-action" :disabled="busy || blocked || !check || stale || !check.ready || !!pendingKey || !!pendingConfirm" @click="confirm">
+			><button
+				class="primary-action"
+				:disabled="busy || blocked || !check || stale || !check.ready || !!pendingKey || !!pendingConfirm"
+				@click="confirm"
+			>
 				确认保存输出配置{{ tableId ? '' : '并创建表' }}
 			</button>
 		</div>
@@ -229,6 +253,48 @@ const stale = computed(
 		Date.parse(check.value.expires_at) <= now.value
 );
 const lockedSchema = computed(() => !!tableId.value || busy.value || !!pendingKey.value || !!pendingConfirm.value);
+const bindingChanged = computed(() => {
+	const output = props.draft.definition.output;
+	return !!output && (output.step_id !== props.stepId || output.stage !== props.stage);
+});
+function roleLabel(stage: string) {
+	return stage === 'detail' ? '详情页' : '当前页 / 列表';
+}
+const configurationProblem = computed(() => {
+	if (!sources.value.length) return `${roleLabel(props.stage)}尚无已保存的提取字段，请先在「网页与规则」或 HTTP/JSON 配置中添加并保存字段。`;
+	if (!schema.value.fields.length) return `尚无保存字段，请用${roleLabel(props.stage)}已保存字段生成表草案，或选择已有表。`;
+	if (schema.value.fields.length > 30) return `保存字段最多 30 个，当前为 ${schema.value.fields.length} 个；请减少字段。`;
+	if (!tableId.value && !tableName.value.trim()) return '请填写新表名称。';
+	if (!tableId.value && Array.from(tableName.value.trim()).length > 160) return '新表名称最多 160 个字符。';
+	const keys = new Set<string>(),
+		names = new Set<string>();
+	for (const f of schema.value.fields) {
+		if (!/^[\p{L}\p{N}_-]{1,128}$/u.test(f.field_key) || keys.has(f.field_key)) return `保存字段「${f.name}」的字段键无效或重复，请检查字段键。`;
+		if (!/^[\p{L}_][\p{L}\p{N}_-]{0,63}$/u.test(f.name) || names.has(f.name))
+			return `保存字段名称「${f.name}」无效或重复；需以文字或下划线开头，仅包含文字、数字、下划线或连字符，最多 64 个字符。`;
+		if (!['string', 'integer', 'number', 'boolean', 'date', 'datetime', 'json'].includes(f.type)) return `保存字段「${f.name}」需要有效的数据类型。`;
+		keys.add(f.field_key);
+		names.add(f.name);
+	}
+	if (!schema.value.unique_key.length) return '尚未选择唯一键；请在上方「唯一键」列勾选 1～5 个能稳定标识记录的字段，再预演保存结果。';
+	if (schema.value.unique_key.length > 5) return '唯一键最多包含 5 个字段，请减少勾选项。';
+	const selected = new Set<string>();
+	for (const key of schema.value.unique_key) {
+		const field = schema.value.fields.find((f) => f.field_key === key);
+		if (!field || selected.has(key) || field.multiple || field.type === 'json')
+			return `唯一键「${key}」无效，请重新选择已存在且不重复的单值字段，不能使用多值或 JSON 字段。`;
+		selected.add(key);
+	}
+	for (const f of schema.value.fields) {
+		if (!f.nullable || selected.has(f.field_key)) {
+			const source = sourceFor(f.field_key);
+			if (!source || !sources.value.some((s) => s.field_key === source))
+				return `保存字段「${f.name}」${selected.has(f.field_key) ? '作为唯一键' : '不允许空值'}，请在「来源字段映射」中选择${roleLabel(props.stage)}的已保存字段。`;
+		}
+	}
+	if (!mapping.value.length) return '请至少配置一个来源字段映射。';
+	return '';
+});
 const sources = computed<TableField[]>(() => {
 	const step = props.draft.definition.steps?.find((s: any) => s.step_id === props.stepId);
 	const rules = step?.type === 'json_records' ? step.config?.fields : props.stage === 'detail' ? step?.config?.detail_fields : step?.config?.fields;
@@ -245,7 +311,11 @@ const sources = computed<TableField[]>(() => {
 const storageKey = () => `scrapio:v22:output-pending:${props.draft.id}`;
 const confirmKey = () => `scrapio:v22:output-confirm:${props.draft.id}`;
 function errorMessage(cause: any) {
-	return cause?.error?.message || cause?.message || '请求失败，本地配置已保留';
+	const message = cause?.error?.message || cause?.message || '请求失败，本地配置已保留';
+	if (message.includes('schema requires 1..30 fields and 1..5 unique-key fields')) {
+		return '保存字段或唯一键数量不符合要求；请检查保存字段为 1～30 个，并在「唯一键」列勾选 1～5 个字段，再重新预演。';
+	}
+	return message.replace(/^invalid output configuration:\s*/, '');
 }
 function issueLabel(code: string) {
 	return (
@@ -303,6 +373,7 @@ function mapField(key: string, source: string) {
 	if (source) mapping.value.push({ source_field_key: source, target_field_key: key });
 }
 function toggleKey(key: string, on: boolean) {
+	if (on && !schema.value.unique_key.includes(key) && schema.value.unique_key.length >= 5) return;
 	schema.value.unique_key = schema.value.unique_key.filter((k) => k !== key);
 	if (on) schema.value.unique_key.push(key);
 }
@@ -313,7 +384,25 @@ function removeField(index: number) {
 	mapping.value = mapping.value.filter((m) => m.target_field_key !== key);
 }
 async function generate() {
+	if (busy.value || props.blocked || pendingKey.value || pendingConfirm.value || !sources.value.length) return;
+	const signature = state(),
+		revision = props.draft.revision,
+		step = props.stepId,
+		role = props.stage;
 	if (dirty.value && schema.value.fields.length && !(await confirmAction('用保存字段重建新表草案会覆盖当前表配置，确认？'))) return;
+	if (
+		disposed ||
+		busy.value ||
+		props.blocked ||
+		pendingKey.value ||
+		pendingConfirm.value ||
+		signature !== state() ||
+		revision !== props.draft.revision ||
+		step !== props.stepId ||
+		role !== props.stage
+	)
+		return;
+	tableId.value = '';
 	schema.value = { fields: sources.value.map((f) => ({ ...f, type: f.type || 'json' })), unique_key: [] };
 	mapping.value = schema.value.fields.map((f) => ({ source_field_key: f.field_key, target_field_key: f.field_key }));
 	tableName.value ||= `${props.draft.name}数据`;
@@ -330,6 +419,7 @@ async function chooseTable() {
 		const value = await appApi.table(tableId.value);
 		if (!disposed) {
 			schema.value = JSON.parse(JSON.stringify(value.schema));
+			tables.value = [value, ...tables.value.filter((t) => t.table_id !== value.table_id)];
 			mapping.value = value.schema.fields.flatMap((f) => {
 				const source = sources.value.find((s) => s.field_key === f.field_key);
 				return source ? [{ source_field_key: source.field_key, target_field_key: f.field_key }] : [];
@@ -347,13 +437,32 @@ function acceptCheck(value: OutputCheck) {
 	message.value = value.ready ? '预演完成，请检查结果后确认保存。' : '预演存在阻断项，请修正后重新检查。';
 }
 async function runCheck() {
-	if (busy.value || props.blocked || pendingKey.value || pendingConfirm.value || !props.capture) return;
+	if (busy.value || props.blocked || pendingKey.value || pendingConfirm.value || props.capture?.status !== 'succeeded' || !props.stepId) return;
+	if (configurationProblem.value) {
+		message.value = configurationProblem.value;
+		return;
+	}
 	busy.value = true;
 	try {
+		const signature = state(),
+			revision = props.draft.revision,
+			inputID = props.capture.capture_id,
+			step = props.stepId,
+			role = props.stage;
+		const target = tables.value.find((t) => t.table_id === tableId.value) || (tableId.value ? await appApi.table(tableId.value) : undefined);
+		if (
+			disposed ||
+			signature !== state() ||
+			revision !== props.draft.revision ||
+			inputID !== props.capture?.capture_id ||
+			step !== props.stepId ||
+			role !== props.stage ||
+			props.blocked
+		)
+			return;
 		const key = crypto.randomUUID();
 		pendingKey.value = key;
 		sessionStorage.setItem(storageKey(), key);
-		const target = tables.value.find((t) => t.table_id === tableId.value) || (tableId.value ? await appApi.table(tableId.value) : undefined);
 		const input: OutputCheckInput = {
 			expected_revision: props.draft.revision,
 			capture_id: props.capture.capture_id,
@@ -366,14 +475,17 @@ async function runCheck() {
 				? { table_id: target.table_id, schema_version: target.schema_version }
 				: { proposed_table: { name: tableName.value, schema: schema.value } }),
 		};
-		const signature = state(),
-			revision = props.draft.revision,
-			inputID = props.capture.capture_id;
 		const value = await appApi.createOutputCheck(props.draft.id, input, key);
 		if (!disposed) {
 			pendingKey.value = '';
 			sessionStorage.removeItem(storageKey());
-			if (signature === state() && revision === props.draft.revision && inputID === props.capture?.capture_id) {
+			if (
+				signature === state() &&
+				revision === props.draft.revision &&
+				inputID === props.capture?.capture_id &&
+				step === props.stepId &&
+				role === props.stage
+			) {
 				acceptCheck(value);
 			} else {
 				check.value = value;
@@ -410,7 +522,7 @@ async function recoverCheck() {
 	}
 }
 async function clearPending() {
-	if ((await confirmAction('结束本地等待不删除服务器预演，确认？'))) {
+	if (await confirmAction('结束本地等待不删除服务器预演，确认？')) {
 		pendingKey.value = '';
 		sessionStorage.removeItem(storageKey());
 	}
@@ -425,7 +537,10 @@ function applyConfirmed(value: Collector) {
 async function confirm() {
 	if (busy.value || props.blocked || stale.value || !check.value?.ready || pendingConfirm.value) return;
 	const checked = check.value;
-	if (!(await confirmAction('确认保存字段映射、唯一键及更新策略？新表只在这次确认时创建，不写正式记录。'))) return;
+	const replacement = bindingChanged.value
+		? `当前方案已绑定${roleLabel(props.draft.definition.output.stage)}输出，此次确认将替换为${roleLabel(props.stage)}输出，原表和记录保留。\n\n`
+		: '';
+	if (!(await confirmAction(`${replacement}确认保存字段映射、唯一键及更新策略？新表只在这次确认时创建，不写正式记录。`))) return;
 	if (disposed || busy.value || props.blocked || stale.value || check.value !== checked || pendingConfirm.value) return;
 	busy.value = true;
 	const id = check.value.check_id;

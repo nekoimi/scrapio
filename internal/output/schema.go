@@ -60,23 +60,29 @@ func DecodeSchema(raw []byte) (Schema, error) {
 	return s, s.Validate()
 }
 func (s Schema) Validate() error {
-	if len(s.Fields) < 1 || len(s.Fields) > 30 || len(s.UniqueKey) < 1 || len(s.UniqueKey) > 5 {
-		return errors.New("schema requires 1..30 fields and 1..5 unique-key fields")
+	if len(s.Fields) < 1 || len(s.Fields) > 30 {
+		return fmt.Errorf("数据表需要 1～30 个保存字段，当前为 %d 个；请生成表草案或调整保存字段", len(s.Fields))
+	}
+	if len(s.UniqueKey) < 1 {
+		return errors.New("尚未选择唯一键；请在数据表的「唯一键」列勾选 1～5 个能稳定标识记录的字段，例如详情链接或站点 ID")
+	}
+	if len(s.UniqueKey) > 5 {
+		return fmt.Errorf("唯一键最多包含 5 个字段，当前为 %d 个；请减少「唯一键」勾选项", len(s.UniqueKey))
 	}
 	keys := map[string]Field{}
 	names := map[string]bool{}
 	for _, f := range s.Fields {
 		if err := (field.Options{Key: f.Key, Type: f.Type}).Validate(); err != nil || f.Key == "" {
-			return errors.New("invalid field key/type")
+			return fmt.Errorf("保存字段 %q 的字段键或类型无效；请检查字段键和数据类型", f.Name)
 		}
 		if !regexp.MustCompile(`^[\p{L}_][\p{L}\p{N}_-]{0,63}$`).MatchString(f.Name) || names[f.Name] {
-			return errors.New("field names must be valid and unique")
+			return fmt.Errorf("保存字段名称 %q 无效或重复；名称需以文字或下划线开头，仅包含文字、数字、下划线或连字符，最多 64 个字符", f.Name)
 		}
 		if _, has := keys[f.Key]; has {
-			return errors.New("duplicate field key")
+			return fmt.Errorf("保存字段键 %q 重复；每个保存字段需使用不同的字段键", f.Key)
 		}
 		if f.Type == "" {
-			return errors.New("explicit table field type required")
+			return fmt.Errorf("保存字段 %q 尚未指定数据类型", f.Name)
 		}
 		keys[f.Key] = f
 		names[f.Name] = true
@@ -85,7 +91,7 @@ func (s Schema) Validate() error {
 	for _, key := range s.UniqueKey {
 		f, has := keys[key]
 		if !has || seen[key] || f.Multiple || f.Type == "json" {
-			return errors.New("unique keys must reference distinct scalar fields")
+			return fmt.Errorf("唯一键字段 %q 无效；必须引用已存在且不重复的单值字段，不能使用多值或 JSON 字段", key)
 		}
 		seen[key] = true
 	}
