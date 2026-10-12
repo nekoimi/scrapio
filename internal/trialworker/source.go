@@ -88,13 +88,73 @@ func (s *source) Snapshot(ctx context.Context) (trial.FixedDocument, error) {
 	if s.plan.EntryType == "json" {
 		return s.document, ctx.Err()
 	}
-	if err := s.keepAlive(ctx); err != nil {
-		return trial.FixedDocument{}, err
+	if s.browser == nil {
+		return trial.FixedDocument{}, errors.New("BROWSER_UNAVAILABLE")
 	}
-	raw, err := s.browser.InspectEditorPage(ctx, s.id, uuid.NewString(), "snapshot", editor.Inspection{PageStateID: s.state.PageStateID})
-	if err != nil {
-		return trial.FixedDocument{}, browserFailure(err)
+	return s.snapshot(ctx, s.browser)
+}
+
+type snapshotBrowser interface {
+	GetEditorSession(context.Context, string) (drission_rod.EditorSessionState, error)
+	InspectEditorPage(context.Context, string, string, string, editor.Inspection) (json.RawMessage, error)
+}
+
+// Sampling is read-only: refresh the token of the page reached by the successful
+// action, but never adopt a different URL or replay the action. DOM updates and
+// restored scroll positions can invalidate a receipt's token after navigation.
+func (s *source) snapshot(ctx context.Context, browser snapshotBrowser) (trial.FixedDocument, error) {
+	ctx, cancel := context.WithTimeout(ctx, 6*time.Second)
+	defer cancel()
+	expectedURL := s.state.CurrentURL
+	for attempt := 0; attempt < 3; attempt++ {
+		if err := ctx.Err(); err != nil {
+			return trial.FixedDocument{}, err
+		}
+		state, err := browser.GetEditorSession(ctx, s.id)
+		if ctx.Err() != nil {
+			return trial.FixedDocument{}, ctx.Err()
+		}
+		if err != nil {
+			return trial.FixedDocument{}, browserFailure(err)
+		}
+		if state.SessionID != s.id {
+			return trial.FixedDocument{}, errors.New("INVALID_RESPONSE")
+		}
+		if !trial.Allowed(state.CurrentURL, s.input.Origins) {
+			return trial.FixedDocument{}, errors.New("ORIGIN_OUT_OF_SCOPE")
+		}
+		if state.CurrentURL != expectedURL {
+			return trial.FixedDocument{}, errors.New("RUN_PAGE_STATE_CHANGED")
+		}
+		s.state = state
+		if err := s.keepAlive(ctx); err != nil {
+			return trial.FixedDocument{}, err
+		}
+		raw, err := browser.InspectEditorPage(ctx, s.id, uuid.NewString(), "snapshot", editor.Inspection{PageStateID: s.state.PageStateID})
+		if ctx.Err() != nil {
+			return trial.FixedDocument{}, ctx.Err()
+		}
+		if err == nil {
+			return s.decodeSnapshot(raw, expectedURL)
+		}
+		var browserErr *drission_rod.BrowserError
+		if !errors.As(err, &browserErr) || browserErr.Code != "STALE_PAGE_STATE" {
+			return trial.FixedDocument{}, browserFailure(err)
+		}
+		if attempt < 2 {
+			timer := time.NewTimer(100 * time.Millisecond)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return trial.FixedDocument{}, ctx.Err()
+			case <-timer.C:
+			}
+		}
 	}
+	return trial.FixedDocument{}, errors.New("PAGE_NOT_STABLE")
+}
+
+func (s *source) decodeSnapshot(raw json.RawMessage, expectedURL string) (trial.FixedDocument, error) {
 	var snapshot struct {
 		HTML    string `json:"html"`
 		URL     string `json:"current_url"`
@@ -106,7 +166,10 @@ func (s *source) Snapshot(ctx context.Context) (trial.FixedDocument, error) {
 	if !trial.Allowed(snapshot.URL, s.input.Origins) {
 		return trial.FixedDocument{}, errors.New("ORIGIN_OUT_OF_SCOPE")
 	}
-	if _, err = capture.ValidateURL(snapshot.BaseURL); err != nil {
+	if snapshot.URL != expectedURL {
+		return trial.FixedDocument{}, errors.New("RUN_PAGE_STATE_CHANGED")
+	}
+	if _, err := capture.ValidateURL(snapshot.BaseURL); err != nil {
 		return trial.FixedDocument{}, errors.New("INVALID_BASE_URL")
 	}
 	content, err := capture.Sanitize(snapshot.HTML, "html", "")

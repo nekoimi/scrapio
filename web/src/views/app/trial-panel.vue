@@ -82,6 +82,9 @@
 			<p v-if="selected.summary.stop_reason">
 				停止原因：{{ selected.summary.stop_reason }} · {{ selected.summary.failed_step_id }} / {{ selected.summary.failed_stage }}
 			</p>
+			<p v-if="selected.summary.stop_reason === 'PAGE_NOT_STABLE'" class="status-warn">
+				网页持续变化，有限次数的只读采样仍未取得有效快照，因此停止。请核对网页是否仍在加载或安全检查中；本次没有重复执行返回或点击动作。
+			</p>
 			<button v-if="selected.summary.failed_step_id" :disabled="selected.collector_revision !== draft.revision" @click="focusFailure">
 				返回失败步骤
 			</button>
