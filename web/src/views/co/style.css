@@ -3,6 +3,54 @@
 	margin: 0 auto;
 	min-width: 0;
 }
+.co-toolbar {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 12px;
+	margin: 16px 0;
+}
+.co-toolbar > .el-input {
+	flex: 1;
+	min-width: 200px;
+	max-width: 440px;
+}
+.co-page .el-select {
+	width: 100%;
+}
+.co-budget-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+	gap: 12px 24px;
+}
+.co-page pre,
+.co-page code,
+.el-drawer pre {
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	font-size: 12px;
+	line-height: 1.6;
+}
+.co-page pre {
+	padding: 16px;
+	background: var(--el-fill-color-light);
+	border-radius: 8px;
+	max-height: 500px;
+	overflow: auto;
+}
+.co-events {
+	max-height: 340px;
+	overflow: auto;
+	padding: 0 0 0 24px;
+}
+.co-events li {
+	padding: 8px;
+	border-bottom: 1px solid var(--el-border-color-lighter);
+}
+.co-confirm.el-message-box {
+	width: 440px;
+	max-width: calc(100vw - 32px);
+}
 .co-heading {
 	display: flex;
 	justify-content: space-between;

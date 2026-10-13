@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/nekoimi/scrapio/internal/bean"
+	"github.com/nekoimi/scrapio/internal/co"
 	"github.com/nekoimi/scrapio/internal/exportworker"
 	"github.com/nekoimi/scrapio/internal/job"
 	"github.com/nekoimi/scrapio/internal/qualityworker"
@@ -25,6 +26,8 @@ func TestControlWorkersHaveIndependentRegistryKeys(t *testing.T) {
 		t.Fatal("background worker replaced the database lifecycle")
 	}
 	assertRegistered[job.WorkflowScheduler](t, ctx)
+	assertRegistered[co.Worker](t, ctx)
+	assertRegistered[co.TaskWorker](t, ctx)
 	assertRegistered[job.RecordExportWorker](t, ctx)
 	assertRegistered[job.DocumentRetentionWorker](t, ctx)
 	assertRegistered[trialworker.Worker](t, ctx)

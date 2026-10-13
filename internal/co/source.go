@@ -37,6 +37,7 @@ type Source struct {
 	document   collector.Document
 	sequence   int
 	Journal    func(string) error
+	Resolved   func(string) error
 	Uncertain  bool
 }
 
@@ -214,6 +215,12 @@ func (s *Source) Action(ctx context.Context, a collector.Action, value string) e
 			s.Uncertain = true
 		}
 		return collector.Fault(code, a.ID, "网页动作未完成，请检查原回执，command_id="+id)
+	}
+	if s.Resolved != nil {
+		if e := s.Resolved(id); e != nil {
+			s.Uncertain = true
+			return collector.Fault("OUTCOME_UNCERTAIN", a.ID, "动作已执行但持久回执记录失败，请查询原命令")
+		}
 	}
 	s.State.CurrentURL = result.FinalURL
 	s.State.PageStateID = result.AfterPageStateID

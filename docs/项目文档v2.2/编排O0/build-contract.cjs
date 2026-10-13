@@ -1,4 +1,4 @@
-// O0 canonical contract with O1 implemented extensions; O2+ remain planned.
+// O0 canonical contract with O1/O2 implemented extensions; O3+ remain planned.
 const fs = require('node:fs');
 const path = require('node:path');
 const ref = name => ({ $ref: '#/components/schemas/' + name });
@@ -95,7 +95,8 @@ route('get', '/operations/by-key', 'getCoOperationByKey', 'O1', undefined, 'Oper
 paths['/operations/by-key'].get.parameters.push(...['operation', 'key'].map(name => ({ name, in: 'query', required: true, schema: str({ minLength: 1 }) })));
 route('get', '/operations/{operation_id}', 'getCoOperation', 'O1', undefined, 'OperationEnvelope');
 require('./co-o1.cjs')(schemas,paths,{ref,obj,str,integer,arr,route});
-const openapi = { openapi: '3.1.0', jsonSchemaDialect: 'http://json-schema.org/draft-07/schema#', info: { title: 'scrapio independent collectors and tasks', version: 'co.contract.v1', description: 'O1 collector APIs are mounted under /api/v4. O2+ task/table/run APIs remain planned. Operations carry bounded polymorphic results; TestResult, SessionView and CollectorVersionView describe concrete projections. Real release verification pending.' }, servers: [{ url: '/api/v4' }], security: [{ SessionBearer: [] }], paths, components: { securitySchemes: { SessionBearer: { type: 'http', scheme: 'bearer' } }, schemas } };
+require('./co-o2.cjs')(schemas,paths,{ref,obj,str,integer,arr,route});
+const openapi = { openapi: '3.1.0', jsonSchemaDialect: 'http://json-schema.org/draft-07/schema#', info: { title: 'scrapio independent collectors and tasks', version: 'co.contract.v1', description: 'O1 collectors and O2 single-stage tasks/tables/runs are mounted under /api/v4. O3 graph and O4 sources remain planned. Operations carry bounded polymorphic results; TestResult, SessionView and CollectorVersionView describe concrete projections. Real release verification pending.' }, servers: [{ url: '/api/v4' }], security: [{ SessionBearer: [] }], paths, components: { securitySchemes: { SessionBearer: { type: 'http', scheme: 'bearer' } }, schemas } };
 
 // Artificial fixtures are deliberately hosted under the reserved example.test domain.
 const field = (key, type = 'string', required = true) => ({ key, type, required, nullable: false, multiple: false });
@@ -132,5 +133,5 @@ function generate() {
   fs.mkdirSync(path.join(__dirname, 'fixtures'), { recursive: true });
   fs.writeFileSync(path.join(__dirname, 'fixtures/baseline.json'), JSON.stringify(baseline, null, 2) + '\n');
 }
-if (require.main === module) { generate(); process.stdout.write('Generated planned OpenAPI and synthetic baseline.\n'); }
+if (require.main === module) { generate(); process.stdout.write('Generated O1/O2 OpenAPI and synthetic planned graph baseline.\n'); }
 module.exports = { openapi, baseline };

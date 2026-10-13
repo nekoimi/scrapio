@@ -29,6 +29,7 @@ type API struct {
 func Mount(r *mux.Router, browser *drission_rod.DrissionRod, cfg *config.Config) {
 	a := API{Browser: browser, Config: cfg}
 	v := r.PathPrefix("/v4").Subrouter()
+	a.mountTasks(v)
 	v.HandleFunc("/capabilities", a.capabilities).Methods("GET")
 	v.HandleFunc("/collectors", a.collectors).Methods("GET", "POST")
 	v.HandleFunc("/collectors/{collector_id}", a.item).Methods("GET")
@@ -61,7 +62,7 @@ func fail(w http.ResponseWriter, r *http.Request, e error) {
 		status = http.StatusNotFound
 		typed = &collector.Error{Code: "NOT_FOUND", Message: "资源不存在或不属于当前账号"}
 	} else if errors.As(e, &typed) {
-		if typed.Code == "CONFLICT" || typed.Code == "REVISION_CONFLICT" || typed.Code == "IDEMPOTENCY_CONFLICT" {
+		if typed.Code == "CONFLICT" || typed.Code == "REVISION_CONFLICT" || typed.Code == "IDEMPOTENCY_CONFLICT" || typed.Code == "SCHEMA_CONFLICT" {
 			status = http.StatusConflict
 		}
 		if typed.Code == "BROWSER_UNAVAILABLE" || typed.Code == "CAPABILITY_UNAVAILABLE" {
@@ -148,7 +149,7 @@ func (a API) capabilities(w http.ResponseWriter, r *http.Request) {
 			reason = ""
 		}
 	}
-	write(w, r, 200, map[string]any{"contract_version": "co.contract.v1", "definition_version": "collector.v1", "interpreter_version": collector.Interpreter, "publish_version": "co.publish.v1", "http_ready": true, "browser_ready": ready, "browser_protocol": "editor.isolated.v1", "reason": reason, "tasks_ready": false, "jsonpath_subset": "$, .key, [index], [*]", "test_limits": map[string]int{"pages": 3, "records": 100, "duration_ms": 60000}})
+	write(w, r, 200, map[string]any{"contract_version": "co.contract.v1", "definition_version": "collector.v1", "interpreter_version": collector.Interpreter, "publish_version": "co.publish.v1", "http_ready": true, "browser_ready": ready, "browser_protocol": "editor.isolated.v1", "reason": reason, "tasks_ready": true, "task_definition_version": "task.v1", "task_limits": map[string]any{"stages": 1, "source": "manual", "inputs": 100, "connections": false}, "jsonpath_subset": "$, .key, [index], [*]", "test_limits": map[string]int{"pages": 3, "records": 100, "duration_ms": 60000}})
 }
 func (a API) collectors(w http.ResponseWriter, r *http.Request) {
 	owner, ok := owner(w, r)

@@ -417,11 +417,9 @@
 							></el-table-column
 						></el-table
 					>
-					<p class="co-muted">发布后可在编排任务中使用；任务执行与数据表绑定将在后续版本开放。</p></el-card
+					<p class="co-muted">发布后可在编排任务中使用；在任务中确认输入、数据表与预算后执行。</p></el-card
 				>
-				<el-tooltip content="单阶段任务将在后续阶段开放，届时确认输入与数据表保存绑定后执行"
-					><el-button disabled>创建单阶段任务</el-button></el-tooltip
-				>
+				<el-button type="primary" :disabled="!versions.length || resource.archived" @click="router.push({path:'/app/co/tasks/new',query:{collector_id:resource.id}})">创建单阶段任务</el-button>
 				<el-button :disabled="busy || resource.archived" @click="archive">归档采集器</el-button>
 				<details>
 					<summary>高级：查看或替换定义JSON</summary>
@@ -436,7 +434,7 @@
 </template>
 <script setup lang="ts">
 import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue';
-import { useRoute, onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router';
+import { useRoute, useRouter, onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import BrowserSelection from '../app/browser-selection.vue';
 import { createBrowserFrame } from '../app/browser-frame';
@@ -460,6 +458,7 @@ import {
 	type Version,
 } from './api';
 const route = useRoute(),
+ router = useRouter(),
 	collectorID = String(route.params.id),
 	resource = ref<Collector>(),
 	definition = ref<Definition>(initialDefinition()),

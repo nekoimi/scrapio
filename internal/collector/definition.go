@@ -143,6 +143,26 @@ func OutputSchemaHash(d Definition) string {
 
 var keyPattern = regexp.MustCompile(`^[a-z][a-z0-9_]{0,63}$`)
 
+// ValidateSchema shares field and stable-identity semantics with logical tables.
+func ValidateSchema(fields []Field, identity []string) error {
+	keys, e := validateFields(fields, "schema.fields")
+	if e != nil {
+		return e
+	}
+	if len(identity) < 1 || len(identity) > 5 {
+		return Invalid("schema.unique_key", "需要1..5个唯一键字段")
+	}
+	seen := map[string]bool{}
+	for _, key := range identity {
+		f, ok := keys[key]
+		if !ok || seen[key] || f.Multiple || f.Nullable || !f.Required || f.Type == "json" {
+			return Invalid("schema.unique_key", "唯一键必须是非空必填标量")
+		}
+		seen[key] = true
+	}
+	return nil
+}
+
 func validateFields(fields []Field, path string) (map[string]Field, error) {
 	if len(fields) < 1 || len(fields) > 30 {
 		return nil, Invalid(path, "需要1..30个字段")

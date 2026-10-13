@@ -55,6 +55,7 @@ func BeanLifecycle() *bean.LifecycleManager {
 
 func registerControlWorkers(ctx context.Context) {
 	bean.MustRegisterPtr[co.Worker](ctx, co.NewWorker())
+	bean.MustRegisterPtr[co.TaskWorker](ctx, co.NewTaskWorker())
 	// Registry keys are types. Each worker needs its own concrete key; registering
 	// them all as bean.Lifecycle replaces the lookup and only starts the first one.
 	bean.MustRegisterPtr[job.WorkflowScheduler](ctx, job.NewWorkflowScheduler())

@@ -18,7 +18,7 @@
 					<button v-if="identityError" @click="loadIdentity">重试身份</button></span
 				>
 			</header>
-			<main class="app-content" tabindex="0" aria-label="页面内容"><router-view :key="['v22CollectorDetail','coCollectorWorkbench'].includes(String(route.name)) ? String(route.params.id) : undefined" /></main>
+			<main class="app-content" tabindex="0" aria-label="页面内容"><router-view :key="['v22CollectorDetail','coCollectorWorkbench','coTaskWorkbench','coRunDetail'].includes(String(route.name)) ? String(route.params.id) : undefined" /></main>
 		</div>
 	</div>
 </template>
@@ -49,6 +49,9 @@ async function loadIdentity() {
 onBeforeUnmount(() => epoch++);
 const nav = [
 	{ to: '/app/co/collectors', label: '独立采集器' },
+ { to: '/app/co/tasks', label: '编排任务' },
+ { to: '/app/co/runs', label: '任务运行' },
+ { to: '/app/co/data', label: '任务数据表' },
 	{ to: '/app/home', label: '首页' },
 	{ to: '/app/collectors', label: '采集方案' },
 	{ to: '/app/data', label: '数据' },

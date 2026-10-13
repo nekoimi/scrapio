@@ -85,6 +85,7 @@ export interface Candidate {
 	fields: Record<string, { status: string; match_count: number; message?: string }>;
 }
 export interface TestResult {
+	definition_hash?: string;
 	status: string;
 	mode: string;
 	reason?: string;
@@ -114,6 +115,7 @@ export interface Sample {
 	expected_outputs: Record<string, unknown>[];
 }
 export interface Version {
+	collector_id?: string;
 	id: string;
 	number: number;
 	revision: number;
@@ -155,6 +157,7 @@ export const coApi = {
 	tests: (id: string, cursor = '') => call<Page<Operation<TestResult>>>('/collectors/' + id + '/tests?limit=20&cursor=' + encodeURIComponent(cursor)),
 	samples: (id: string) => call<Page<Sample>>('/collectors/' + id + '/samples?limit=100'),
 	versions: (id: string) => call<Page<Version>>('/collectors/' + id + '/versions?limit=100'),
+	version: (id: string) => call<Version>('/collector-versions/' + id),
 	session: (id: string) => call<BrowserSession>('/sessions/' + id),
 	frame: (session: BrowserSession) =>
 		request({

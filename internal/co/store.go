@@ -91,7 +91,7 @@ type Version struct {
 
 func (Version) TableName() string { return "co_collector_versions" }
 func (v Version) View() any {
-	return map[string]any{"id": v.ID, "number": v.Number, "revision": v.Revision, "definition": json.RawMessage(v.Definition), "definition_hash": v.DefinitionHash, "input_schema_hash": v.InputSchemaHash, "output_schema_hash": v.OutputSchemaHash, "interpreter_version": v.InterpreterVersion, "publish_version": v.PublishVersion, "requirements": json.RawMessage(v.Requirements), "evidence_id": v.EvidenceID, "created_at": v.CreatedAt}
+	return map[string]any{"id": v.ID, "collector_id": v.CollectorID, "number": v.Number, "revision": v.Revision, "definition": json.RawMessage(v.Definition), "definition_hash": v.DefinitionHash, "input_schema_hash": v.InputSchemaHash, "output_schema_hash": v.OutputSchemaHash, "interpreter_version": v.InterpreterVersion, "publish_version": v.PublishVersion, "requirements": json.RawMessage(v.Requirements), "evidence_id": v.EvidenceID, "created_at": v.CreatedAt}
 }
 
 type Session struct {
@@ -105,8 +105,11 @@ type Session struct {
 	CreatedAt   time.Time
 }
 
-func (Session) TableName() string               { return "co_sessions" }
-func session(ctx context.Context) *xorm.Session { return db.Instance().NewSession().Context(ctx) }
+func (Session) TableName() string { return "co_sessions" }
+
+var databaseEngine = db.Instance
+
+func session(ctx context.Context) *xorm.Session { return databaseEngine().NewSession().Context(ctx) }
 func getCollector(s *xorm.Session, owner int64, id string, lock bool) (*Collector, error) {
 	c := new(Collector)
 	q := "SELECT * FROM co_collectors WHERE owner_id=? AND id=?"

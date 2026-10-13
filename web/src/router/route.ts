@@ -1363,6 +1363,12 @@ export const staticRoutes: Array<RouteRecordRaw> = [
 		component: () => import('/@/views/app/layout.vue'),
 		redirect: '/app/home',
 		children: [
+			{ path: 'co/tasks', name: 'coTasks', component: () => import('/@/views/co/tasks.vue'), meta: { title: '编排任务' } },
+			{ path: 'co/tasks/new', name: 'coTaskCreate', component: () => import('/@/views/co/task-edit.vue'), meta: { title: '创建单阶段任务' } },
+			{ path: 'co/tasks/:id', name: 'coTaskWorkbench', component: () => import('/@/views/co/task-edit.vue'), meta: { title: '编排任务' } },
+			{ path: 'co/runs', name: 'coRuns', component: () => import('/@/views/co/runs.vue'), meta: { title: '任务运行' } },
+			{ path: 'co/runs/:id', name: 'coRunDetail', component: () => import('/@/views/co/run-detail.vue'), meta: { title: '任务运行详情' } },
+			{ path: 'co/data', name: 'coData', component: () => import('/@/views/co/data.vue'), meta: { title: '任务数据表' } },
 			{ path: 'co/collectors', name: 'coCollectors', component: () => import('/@/views/co/collectors.vue'), meta: { title: '独立采集器' } },
 			{ path: 'co/collectors/:id', name: 'coCollectorWorkbench', component: () => import('/@/views/co/workbench.vue'), meta: { title: '独立采集器工作台' } },
 			{ path: 'home', name: 'v22Home', component: () => import('/@/views/app/home.vue'), meta: { title: '首页' } },

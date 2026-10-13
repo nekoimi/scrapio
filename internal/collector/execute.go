@@ -15,12 +15,20 @@ type Source interface {
 	Close()
 }
 type Checkpoint struct {
-	NextURL        string `json:"next_url,omitempty"`
-	Cursor         string `json:"cursor,omitempty"`
-	Resume         string `json:"resume"`
-	Pages          int    `json:"pages"`
-	InputHash      string `json:"input_hash"`
-	DefinitionHash string `json:"definition_hash"`
+	NextURL        string   `json:"next_url,omitempty"`
+	Cursor         string   `json:"cursor,omitempty"`
+	Resume         string   `json:"resume"`
+	Pages          int      `json:"pages"`
+	Records        int      `json:"records"`
+	Done           bool     `json:"done"`
+	FinalStatus    string   `json:"final_status,omitempty"`
+	FinalReason    string   `json:"final_reason,omitempty"`
+	SeenPages      []string `json:"seen_pages,omitempty"`
+	CurrentURL     string   `json:"current_url,omitempty"`
+	ContentHash    string   `json:"content_hash,omitempty"`
+	EmptyVerified  bool     `json:"empty_verified,omitempty"`
+	InputHash      string   `json:"input_hash"`
+	DefinitionHash string   `json:"definition_hash"`
 }
 type PageEvidence struct {
 	URL           string `json:"url"`
@@ -52,8 +60,18 @@ func AsError(e error) *Error {
 	return &Error{Code: "EXECUTION_FAILED", Message: "执行失败，请检查连接或页面状态", Retryable: false}
 }
 
+type DurableOptions struct {
+	Checkpoint Checkpoint
+	Commit     func(context.Context, []Candidate, Checkpoint) error
+}
+
 // Execute is shared by isolated tests and future O2 work items. It never saves business records.
-func Execute(ctx context.Context, d Definition, input map[string]any, mode string, source Source) (result Result) {
+func Execute(ctx context.Context, d Definition, input map[string]any, mode string, source Source) Result {
+	return ExecuteDurable(ctx, d, input, mode, source, DurableOptions{})
+}
+
+// ExecuteDurable flushes each bounded page before opening its successor.
+func ExecuteDurable(ctx context.Context, d Definition, input map[string]any, mode string, source Source, options DurableOptions) (result Result) {
 	result = Result{Status: "failed", Mode: mode, InterpreterVersion: Interpreter, DefinitionHash: Hash(d), Input: map[string]any{}, Candidates: []Candidate{}, Pages: []PageEvidence{}, Warnings: []string{}, Snapshots: []Document{}}
 	fail := func(e error) Result {
 		result.Error = AsError(e)
@@ -99,11 +117,68 @@ func Execute(ctx context.Context, d Definition, input map[string]any, mode strin
 	defer cancel()
 	defer source.Close()
 	result.Checkpoint = Checkpoint{Resume: d.Pagination.Resume, InputHash: Hash(normalized), DefinitionHash: Hash(d)}
+	startPage := 1
+	resume := options.Checkpoint
+	if resume.DefinitionHash != "" && (resume.DefinitionHash != Hash(d) || resume.InputHash != Hash(normalized)) {
+		return fail(Fault("CHECKPOINT_CONFLICT", "checkpoint", "检查点不属于当前冻结定义或输入"))
+	}
+	if resume.Done {
+		result.Checkpoint = resume
+		result.Status = resume.FinalStatus
+		result.Reason = resume.FinalReason
+		return result
+	}
+	continued := resume.Pages > 0 && resume.NextURL != "" && d.Pagination.Resume == "url_or_cursor" && len(d.Actions) == 0 && d.Fetch.Method != "POST"
+	if continued {
+		result.Checkpoint = resume
+		startPage = resume.Pages + 1
+		r.URL = resume.NextURL
+		parsed, err := url.Parse(r.URL)
+		if err != nil {
+			return fail(err)
+		}
+		for k := range parsed.Query() {
+			delete(r.HTTP.Query, k)
+		}
+		if d.Pagination.Kind == "cursor" {
+			r.HTTP.Query[d.Pagination.CursorParameter] = resume.Cursor
+		}
+	}
+	pending := []Candidate{}
+	total := result.Checkpoint.Records
+	flush := func(final bool) error {
+		if options.Commit == nil {
+			return nil
+		}
+		cp := result.Checkpoint
+		cp.Records = total
+		if final {
+			cp.Done = true
+			cp.FinalStatus = result.Status
+			cp.FinalReason = result.Reason
+		}
+		if e := options.Commit(ctx, pending, cp); e != nil {
+			return e
+		}
+		result.Checkpoint = cp
+		pending = nil
+		result.Candidates = nil
+		return nil
+	}
+	finish := func() Result {
+		if e := flush(true); e != nil {
+			return fail(e)
+		}
+		return result
+	}
 	doc, e := source.Open(ctx, r)
 	if e != nil {
 		return fail(e)
 	}
 	for i, a := range d.Actions {
+		if continued {
+			break
+		}
 		if mode == "offline" {
 			result.Warnings = append(result.Warnings, "OFFLINE_ACTION_NOT_EXECUTED:"+a.ID)
 			continue
@@ -117,10 +192,13 @@ func Execute(ctx context.Context, d Definition, input map[string]any, mode strin
 		}
 	}
 	seenPage := map[string]bool{}
+	for _, hash := range result.Checkpoint.SeenPages {
+		seenPage[hash] = true
+	}
 	seenIdentity := map[string]string{}
 	invalid := 0
 	byteCount := 0
-	for page := 1; page <= d.Pagination.MaxPages; page++ {
+	for page := startPage; page <= d.Pagination.MaxPages; page++ {
 		if ctx.Err() != nil {
 			return fail(Fault("DURATION_BUDGET", "fetch", "已达到时长预算或执行被停止"))
 		}
@@ -136,8 +214,12 @@ func Execute(ctx context.Context, d Definition, input map[string]any, mode strin
 			return fail(Fault("REPEATED_PAGE", "pagination", "页面记录重复，已停止分页；请核对下一页规则"))
 		}
 		seenPage[p.Hash] = true
+		result.Checkpoint.SeenPages = append(result.Checkpoint.SeenPages, p.Hash)
 		result.Pages = append(result.Pages, PageEvidence{URL: doc.URL, ContentHash: Hash(doc.Content), RecordCount: len(p.Candidates), EmptyVerified: p.EmptyVerified})
 		result.Checkpoint.Pages = page
+		result.Checkpoint.CurrentURL = doc.URL
+		result.Checkpoint.ContentHash = Hash(doc.Content)
+		result.Checkpoint.EmptyVerified = p.EmptyVerified
 		if len(result.Snapshots) < 3 && len(doc.Content) <= 256*1024 {
 			result.Snapshots = append(result.Snapshots, doc)
 		}
@@ -148,13 +230,13 @@ func Execute(ctx context.Context, d Definition, input map[string]any, mode strin
 			if c.Valid && seenIdentity[c.Identity] == Hash(c.Values) {
 				continue
 			}
-			if len(result.Candidates) >= d.Pagination.MaxRecords || byteCount+len(JSON(c)) > 1024*1024 {
+			if total >= d.Pagination.MaxRecords || byteCount+len(JSON(c)) > 1024*1024 {
 				result.Status = "limited"
 				result.Reason = "RECORD_OR_EVIDENCE_BUDGET"
 				if invalid > 0 {
 					result.Status = "partial"
 				}
-				return result
+				return finish()
 			}
 			c.Page = page
 			if !c.Valid {
@@ -173,6 +255,8 @@ func Execute(ctx context.Context, d Definition, input map[string]any, mode strin
 			}
 			byteCount += len(JSON(c))
 			result.Candidates = append(result.Candidates, c)
+			pending = append(pending, c)
+			total++
 		}
 		pconf := d.Pagination
 		if p.Truncated {
@@ -181,7 +265,7 @@ func Execute(ctx context.Context, d Definition, input map[string]any, mode strin
 			if invalid > 0 {
 				result.Status = "partial"
 			}
-			return result
+			return finish()
 		}
 		ended := pconf.Kind == "none" || pconf.EndCondition == "empty_verified" && len(p.Candidates) == 0 && p.EmptyVerified || pconf.EndCondition == "next_missing" && !p.HasNext
 		if ended {
@@ -194,7 +278,7 @@ func Execute(ctx context.Context, d Definition, input map[string]any, mode strin
 				result.Status = "limited"
 				result.Reason = "OFFLINE_ACTIONS_UNCOVERED"
 			}
-			return result
+			return finish()
 		}
 		if !p.HasNext {
 			return fail(Fault("END_CONDITION_UNVERIFIED", "pagination", "未找到下一页但约定空态结束尚未确认"))
@@ -230,19 +314,25 @@ func Execute(ctx context.Context, d Definition, input map[string]any, mode strin
 				r.HTTP.Query[pconf.CursorParameter] = p.Next
 			}
 		}
-		if page == pconf.MaxPages || len(result.Candidates) >= pconf.MaxRecords {
+		if page == pconf.MaxPages || total >= pconf.MaxRecords {
 			result.Status = "limited"
 			result.Reason = "PAGINATION_BUDGET"
 			if invalid > 0 {
 				result.Status = "partial"
 			}
-			return result
+			return finish()
+		}
+		if e = flush(false); e != nil {
+			return fail(e)
+		}
+		if options.Commit != nil {
+			byteCount = 0
 		}
 		if pconf.Kind == "click" || pconf.Kind == "load_more" {
 			if mode == "offline" {
 				result.Status = "limited"
 				result.Reason = "OFFLINE_PAGINATION_UNCOVERED"
-				return result
+				return finish()
 			}
 			a := Action{ID: fmt.Sprintf("page_%d", page), Kind: "click", Locator: pconf.Next, TimeoutMS: 10000, ReplayClass: "receipt_required"}
 			if e = source.Action(ctx, a, ""); e == nil {

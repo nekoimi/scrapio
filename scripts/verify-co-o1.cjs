@@ -10,6 +10,11 @@ const Ajv = require(path.join(web, "node_modules/ajv"));
 const files = [
   "web/src/views/co/collectors.vue",
   "web/src/views/co/workbench.vue",
+ "web/src/views/co/tasks.vue",
+ "web/src/views/co/task-edit.vue",
+ "web/src/views/co/runs.vue",
+ "web/src/views/co/run-detail.vue",
+ "web/src/views/co/data.vue",
   "web/src/views/app/browser-selection.vue",
   "web/src/views/app/layout.vue",
 ];
@@ -139,7 +144,7 @@ for (const item of Object.values(contract.paths))
   for (const op of Object.values(item))
     assert.equal(
       op["x-implementation-status"],
-      op["x-delivery-phase"] === "O1" ? "implemented" : "planned",
+      ["O1","O2"].includes(op["x-delivery-phase"]) ? "implemented" : "planned",
     );
 const router = fs.readFileSync(path.join(web, "src/router/route.ts"), "utf8");
 assert.ok(router.includes("path: 'co/collectors/:id'"));
@@ -151,5 +156,5 @@ assert.ok(!/\b(?:window\.)?(alert|prompt)\s*\(/.test(workbench));
 assert.ok(workbench.includes("onBeforeRouteLeave"));
 assert.ok(workbench.includes("selectionApi"));
 process.stdout.write(
-  "OK O1 contract, planned O2+ isolation, routes and template controls\n",
+  "OK O1/O2 contract, planned O3+ isolation, routes and template controls\n",
 );

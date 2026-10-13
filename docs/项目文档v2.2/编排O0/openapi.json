@@ -4,7 +4,7 @@
   "info": {
     "title": "scrapio independent collectors and tasks",
     "version": "co.contract.v1",
-    "description": "O1 collector APIs are mounted under /api/v4. O2+ task/table/run APIs remain planned. Operations carry bounded polymorphic results; TestResult, SessionView and CollectorVersionView describe concrete projections. Real release verification pending."
+    "description": "O1 collectors and O2 single-stage tasks/tables/runs are mounted under /api/v4. O3 graph and O4 sources remain planned. Operations carry bounded polymorphic results; TestResult, SessionView and CollectorVersionView describe concrete projections. Real release verification pending."
   },
   "servers": [
     {
@@ -676,566 +676,6 @@
           },
           "503": {
             "description": "Required capability unavailable"
-          }
-        }
-      }
-    },
-    "/tasks": {
-      "get": {
-        "operationId": "listTask",
-        "tags": [
-          "O2"
-        ],
-        "x-implementation-status": "planned",
-        "x-delivery-phase": "O2",
-        "parameters": [
-          {
-            "name": "cursor",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 100
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Envelope"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Contract or input invalid",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "403": {
-            "description": "Owner/resource denied"
-          },
-          "409": {
-            "description": "Revision, idempotency, version or write conflict",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "operationId": "createTask",
-        "tags": [
-          "O2"
-        ],
-        "x-implementation-status": "planned",
-        "x-delivery-phase": "O2",
-        "parameters": [
-          {
-            "name": "Idempotency-Key",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 128
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Envelope"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Contract or input invalid",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "403": {
-            "description": "Owner/resource denied"
-          },
-          "409": {
-            "description": "Revision, idempotency, version or write conflict",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateResource"
-              }
-            }
-          }
-        }
-      }
-    },
-    "/tasks/{task_id}": {
-      "get": {
-        "operationId": "getTask",
-        "tags": [
-          "O2"
-        ],
-        "x-implementation-status": "planned",
-        "x-delivery-phase": "O2",
-        "parameters": [
-          {
-            "name": "task_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Envelope"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Contract or input invalid",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "403": {
-            "description": "Owner/resource denied"
-          },
-          "409": {
-            "description": "Revision, idempotency, version or write conflict",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/tasks/{task_id}/draft": {
-      "get": {
-        "operationId": "getTaskDraft",
-        "tags": [
-          "O2"
-        ],
-        "x-implementation-status": "planned",
-        "x-delivery-phase": "O2",
-        "parameters": [
-          {
-            "name": "task_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Envelope"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Contract or input invalid",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "403": {
-            "description": "Owner/resource denied"
-          },
-          "409": {
-            "description": "Revision, idempotency, version or write conflict",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      },
-      "put": {
-        "operationId": "saveTaskDraft",
-        "tags": [
-          "O2"
-        ],
-        "x-implementation-status": "planned",
-        "x-delivery-phase": "O2",
-        "parameters": [
-          {
-            "name": "task_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          {
-            "name": "Idempotency-Key",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 128
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Envelope"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Contract or input invalid",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "403": {
-            "description": "Owner/resource denied"
-          },
-          "409": {
-            "description": "Revision, idempotency, version or write conflict",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TaskDraftWrite"
-              }
-            }
-          }
-        }
-      }
-    },
-    "/tasks/{task_id}/publish-checks": {
-      "post": {
-        "operationId": "checkTaskPublication",
-        "tags": [
-          "O2"
-        ],
-        "x-implementation-status": "planned",
-        "x-delivery-phase": "O2",
-        "parameters": [
-          {
-            "name": "task_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          {
-            "name": "Idempotency-Key",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 128
-            }
-          }
-        ],
-        "responses": {
-          "202": {
-            "description": "Accepted; query original operation",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OperationEnvelope"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Contract or input invalid",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "403": {
-            "description": "Owner/resource denied"
-          },
-          "409": {
-            "description": "Revision, idempotency, version or write conflict",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CheckRequest"
-              }
-            }
-          }
-        }
-      }
-    },
-    "/tasks/{task_id}/versions": {
-      "post": {
-        "operationId": "publishTask",
-        "tags": [
-          "O2"
-        ],
-        "x-implementation-status": "planned",
-        "x-delivery-phase": "O2",
-        "parameters": [
-          {
-            "name": "task_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          {
-            "name": "Idempotency-Key",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 128
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Envelope"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Contract or input invalid",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "403": {
-            "description": "Owner/resource denied"
-          },
-          "409": {
-            "description": "Revision, idempotency, version or write conflict",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PublishRequest"
-              }
-            }
-          }
-        }
-      },
-      "get": {
-        "operationId": "listTaskVersions",
-        "tags": [
-          "O2"
-        ],
-        "x-implementation-status": "planned",
-        "x-delivery-phase": "O2",
-        "parameters": [
-          {
-            "name": "task_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          {
-            "name": "cursor",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 100
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Envelope"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Contract or input invalid",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "403": {
-            "description": "Owner/resource denied"
-          },
-          "409": {
-            "description": "Revision, idempotency, version or write conflict",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
           }
         }
       }
@@ -2095,1039 +1535,6 @@
         }
       }
     },
-    "/tasks/{task_id}/input-checks": {
-      "post": {
-        "operationId": "checkCoTaskinputChecks",
-        "tags": [
-          "O2"
-        ],
-        "x-implementation-status": "planned",
-        "x-delivery-phase": "O2",
-        "parameters": [
-          {
-            "name": "task_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          {
-            "name": "Idempotency-Key",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 128
-            }
-          }
-        ],
-        "responses": {
-          "202": {
-            "description": "Accepted; query original operation",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OperationEnvelope"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Contract or input invalid",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "403": {
-            "description": "Owner/resource denied"
-          },
-          "409": {
-            "description": "Revision, idempotency, version or write conflict",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/InputCheckRequest"
-              }
-            }
-          }
-        }
-      }
-    },
-    "/tasks/{task_id}/output-checks": {
-      "post": {
-        "operationId": "checkCoTaskoutputChecks",
-        "tags": [
-          "O2"
-        ],
-        "x-implementation-status": "planned",
-        "x-delivery-phase": "O2",
-        "parameters": [
-          {
-            "name": "task_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          {
-            "name": "Idempotency-Key",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 128
-            }
-          }
-        ],
-        "responses": {
-          "202": {
-            "description": "Accepted; query original operation",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OperationEnvelope"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Contract or input invalid",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "403": {
-            "description": "Owner/resource denied"
-          },
-          "409": {
-            "description": "Revision, idempotency, version or write conflict",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/OutputCheckRequest"
-              }
-            }
-          }
-        }
-      }
-    },
-    "/tasks/{task_id}/trials": {
-      "post": {
-        "operationId": "createCotrials",
-        "tags": [
-          "O2"
-        ],
-        "x-implementation-status": "planned",
-        "x-delivery-phase": "O2",
-        "parameters": [
-          {
-            "name": "task_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          {
-            "name": "Idempotency-Key",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 128
-            }
-          }
-        ],
-        "responses": {
-          "202": {
-            "description": "Accepted; query original operation",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OperationEnvelope"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Contract or input invalid",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "403": {
-            "description": "Owner/resource denied"
-          },
-          "409": {
-            "description": "Revision, idempotency, version or write conflict",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TaskTrialRequest"
-              }
-            }
-          }
-        }
-      }
-    },
-    "/tasks/{task_id}/runs": {
-      "post": {
-        "operationId": "createCoruns",
-        "tags": [
-          "O2"
-        ],
-        "x-implementation-status": "planned",
-        "x-delivery-phase": "O2",
-        "parameters": [
-          {
-            "name": "task_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          {
-            "name": "Idempotency-Key",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 128
-            }
-          }
-        ],
-        "responses": {
-          "202": {
-            "description": "Accepted; query original operation",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OperationEnvelope"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Contract or input invalid",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "403": {
-            "description": "Owner/resource denied"
-          },
-          "409": {
-            "description": "Revision, idempotency, version or write conflict",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TriggerRequest"
-              }
-            }
-          }
-        }
-      }
-    },
-    "/runs": {
-      "get": {
-        "operationId": "listCoRuns",
-        "tags": [
-          "O2"
-        ],
-        "x-implementation-status": "planned",
-        "x-delivery-phase": "O2",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "Result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Envelope"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Contract or input invalid",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "403": {
-            "description": "Owner/resource denied"
-          },
-          "409": {
-            "description": "Revision, idempotency, version or write conflict",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/runs/{run_id}": {
-      "get": {
-        "operationId": "getCoRun",
-        "tags": [
-          "O2"
-        ],
-        "x-implementation-status": "planned",
-        "x-delivery-phase": "O2",
-        "parameters": [
-          {
-            "name": "run_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Envelope"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Contract or input invalid",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "403": {
-            "description": "Owner/resource denied"
-          },
-          "409": {
-            "description": "Revision, idempotency, version or write conflict",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/runs/{run_id}/stages": {
-      "get": {
-        "operationId": "listCoRunstages",
-        "tags": [
-          "O2"
-        ],
-        "x-implementation-status": "planned",
-        "x-delivery-phase": "O2",
-        "parameters": [
-          {
-            "name": "run_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          {
-            "name": "cursor",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 100
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Envelope"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Contract or input invalid",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "403": {
-            "description": "Owner/resource denied"
-          },
-          "409": {
-            "description": "Revision, idempotency, version or write conflict",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/runs/{run_id}/work-items": {
-      "get": {
-        "operationId": "listCoRunworkItems",
-        "tags": [
-          "O2"
-        ],
-        "x-implementation-status": "planned",
-        "x-delivery-phase": "O2",
-        "parameters": [
-          {
-            "name": "run_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          {
-            "name": "cursor",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 100
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Envelope"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Contract or input invalid",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "403": {
-            "description": "Owner/resource denied"
-          },
-          "409": {
-            "description": "Revision, idempotency, version or write conflict",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/runs/{run_id}/outputs": {
-      "get": {
-        "operationId": "listCoRunoutputs",
-        "tags": [
-          "O2"
-        ],
-        "x-implementation-status": "planned",
-        "x-delivery-phase": "O2",
-        "parameters": [
-          {
-            "name": "run_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          {
-            "name": "cursor",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 100
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Envelope"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Contract or input invalid",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "403": {
-            "description": "Owner/resource denied"
-          },
-          "409": {
-            "description": "Revision, idempotency, version or write conflict",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/runs/{run_id}/events": {
-      "get": {
-        "operationId": "listCoRunevents",
-        "tags": [
-          "O2"
-        ],
-        "x-implementation-status": "planned",
-        "x-delivery-phase": "O2",
-        "parameters": [
-          {
-            "name": "run_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          {
-            "name": "cursor",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 100
-            }
-          },
-          {
-            "name": "Last-Event-ID",
-            "in": "header",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Envelope"
-                }
-              },
-              "text/event-stream": {
-                "schema": {
-                  "type": "string"
-                },
-                "x-event-payload": "Ordered metadata only; no frame bytes"
-              }
-            }
-          },
-          "400": {
-            "description": "Contract or input invalid",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "403": {
-            "description": "Owner/resource denied"
-          },
-          "409": {
-            "description": "Revision, idempotency, version or write conflict",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/runs/{run_id}/control": {
-      "post": {
-        "operationId": "controlCoRun",
-        "tags": [
-          "O2"
-        ],
-        "x-implementation-status": "planned",
-        "x-delivery-phase": "O2",
-        "parameters": [
-          {
-            "name": "run_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          {
-            "name": "Idempotency-Key",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 128
-            }
-          }
-        ],
-        "responses": {
-          "202": {
-            "description": "Accepted; query original operation",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OperationEnvelope"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Contract or input invalid",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "403": {
-            "description": "Owner/resource denied"
-          },
-          "409": {
-            "description": "Revision, idempotency, version or write conflict",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ControlRequest"
-              }
-            }
-          }
-        }
-      }
-    },
-    "/runs/{run_id}/replay-checks": {
-      "post": {
-        "operationId": "checkCoReplay",
-        "tags": [
-          "O2"
-        ],
-        "x-implementation-status": "planned",
-        "x-delivery-phase": "O2",
-        "parameters": [
-          {
-            "name": "run_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          {
-            "name": "Idempotency-Key",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 128
-            }
-          }
-        ],
-        "responses": {
-          "202": {
-            "description": "Accepted; query original operation",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OperationEnvelope"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Contract or input invalid",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "403": {
-            "description": "Owner/resource denied"
-          },
-          "409": {
-            "description": "Revision, idempotency, version or write conflict",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ReplayRequest"
-              }
-            }
-          }
-        }
-      }
-    },
-    "/runs/{run_id}/replays": {
-      "post": {
-        "operationId": "replayCoRun",
-        "tags": [
-          "O2"
-        ],
-        "x-implementation-status": "planned",
-        "x-delivery-phase": "O2",
-        "parameters": [
-          {
-            "name": "run_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          {
-            "name": "Idempotency-Key",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 128
-            }
-          }
-        ],
-        "responses": {
-          "202": {
-            "description": "Accepted; query original operation",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OperationEnvelope"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Contract or input invalid",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "403": {
-            "description": "Owner/resource denied"
-          },
-          "409": {
-            "description": "Revision, idempotency, version or write conflict",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ReplayRequest"
-              }
-            }
-          }
-        }
-      }
-    },
-    "/work-items/{work_item_id}": {
-      "get": {
-        "operationId": "getCoWorkItem",
-        "tags": [
-          "O2"
-        ],
-        "x-implementation-status": "planned",
-        "x-delivery-phase": "O2",
-        "parameters": [
-          {
-            "name": "work_item_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Envelope"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Contract or input invalid",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "403": {
-            "description": "Owner/resource denied"
-          },
-          "409": {
-            "description": "Revision, idempotency, version or write conflict",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/work-items/{work_item_id}/lineage": {
       "get": {
         "operationId": "getCoLineage",
@@ -3139,333 +1546,6 @@
         "parameters": [
           {
             "name": "work_item_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Envelope"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Contract or input invalid",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "403": {
-            "description": "Owner/resource denied"
-          },
-          "409": {
-            "description": "Revision, idempotency, version or write conflict",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/tables": {
-      "get": {
-        "operationId": "listCotables",
-        "tags": [
-          "O2"
-        ],
-        "x-implementation-status": "planned",
-        "x-delivery-phase": "O2",
-        "parameters": [
-          {
-            "name": "cursor",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 100
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Envelope"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Contract or input invalid",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "403": {
-            "description": "Owner/resource denied"
-          },
-          "409": {
-            "description": "Revision, idempotency, version or write conflict",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "operationId": "createCoDataTable",
-        "tags": [
-          "O2"
-        ],
-        "x-implementation-status": "planned",
-        "x-delivery-phase": "O2",
-        "parameters": [
-          {
-            "name": "Idempotency-Key",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 128
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Envelope"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Contract or input invalid",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "403": {
-            "description": "Owner/resource denied"
-          },
-          "409": {
-            "description": "Revision, idempotency, version or write conflict",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TableCreateRequest"
-              }
-            }
-          }
-        }
-      }
-    },
-    "/tables/{table_id}/records": {
-      "get": {
-        "operationId": "listCotablestableidrecords",
-        "tags": [
-          "O2"
-        ],
-        "x-implementation-status": "planned",
-        "x-delivery-phase": "O2",
-        "parameters": [
-          {
-            "name": "table_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          {
-            "name": "cursor",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 100
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Envelope"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Contract or input invalid",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "403": {
-            "description": "Owner/resource denied"
-          },
-          "409": {
-            "description": "Revision, idempotency, version or write conflict",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/tables/{table_id}/schema": {
-      "get": {
-        "operationId": "getCoTableSchema",
-        "tags": [
-          "O2"
-        ],
-        "x-implementation-status": "planned",
-        "x-delivery-phase": "O2",
-        "parameters": [
-          {
-            "name": "table_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Envelope"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Contract or input invalid",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "403": {
-            "description": "Owner/resource denied"
-          },
-          "409": {
-            "description": "Revision, idempotency, version or write conflict",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/records/{record_id}/observations": {
-      "get": {
-        "operationId": "getCoObservations",
-        "tags": [
-          "O2"
-        ],
-        "x-implementation-status": "planned",
-        "x-delivery-phase": "O2",
-        "parameters": [
-          {
-            "name": "record_id",
             "in": "path",
             "required": true,
             "schema": {
@@ -4187,6 +2267,2050 @@
               "type": "string",
               "minLength": 1,
               "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "404": {
+            "description": "Missing resource or owner denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Required capability unavailable"
+          }
+        }
+      }
+    },
+    "/collector-versions/{version_id}": {
+      "get": {
+        "operationId": "getCoCollectorVersion",
+        "tags": [
+          "O2"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O2",
+        "parameters": [
+          {
+            "name": "version_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectorVersionEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "404": {
+            "description": "Missing resource or owner denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Required capability unavailable"
+          }
+        }
+      }
+    },
+    "/tasks": {
+      "get": {
+        "operationId": "listCoTasks",
+        "tags": [
+          "O2"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O2",
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "404": {
+            "description": "Missing resource or owner denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Required capability unavailable"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createCoTask",
+        "tags": [
+          "O2"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O2",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "404": {
+            "description": "Missing resource or owner denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Required capability unavailable"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskCreateRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tasks/{task_id}": {
+      "get": {
+        "operationId": "getCoTask",
+        "tags": [
+          "O2"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O2",
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "404": {
+            "description": "Missing resource or owner denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Required capability unavailable"
+          }
+        }
+      }
+    },
+    "/tasks/{task_id}/draft": {
+      "get": {
+        "operationId": "getCoTaskDraft",
+        "tags": [
+          "O2"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O2",
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "404": {
+            "description": "Missing resource or owner denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Required capability unavailable"
+          }
+        }
+      },
+      "put": {
+        "operationId": "saveCoTaskDraft",
+        "tags": [
+          "O2"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O2",
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "404": {
+            "description": "Missing resource or owner denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Required capability unavailable"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskDraftWrite"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tasks/{task_id}/versions": {
+      "get": {
+        "operationId": "listCoTaskVersions",
+        "tags": [
+          "O2"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O2",
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "404": {
+            "description": "Missing resource or owner denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Required capability unavailable"
+          }
+        }
+      },
+      "post": {
+        "operationId": "publishCoTask",
+        "tags": [
+          "O2"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O2",
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "404": {
+            "description": "Missing resource or owner denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Required capability unavailable"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskPublishRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tasks/input-preview": {
+      "post": {
+        "operationId": "previewCoTaskInputs",
+        "tags": [
+          "O2"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O2",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "404": {
+            "description": "Missing resource or owner denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Required capability unavailable"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskInputPreviewRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tasks/save-preview": {
+      "post": {
+        "operationId": "previewCoTaskSave",
+        "tags": [
+          "O2"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O2",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "404": {
+            "description": "Missing resource or owner denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Required capability unavailable"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskSavePreviewRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tasks/{task_id}/runs": {
+      "post": {
+        "operationId": "startCoTaskRun",
+        "tags": [
+          "O2"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O2",
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "404": {
+            "description": "Missing resource or owner denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Required capability unavailable"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskRunRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tables": {
+      "get": {
+        "operationId": "listCoTaskTables",
+        "tags": [
+          "O2"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O2",
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "404": {
+            "description": "Missing resource or owner denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Required capability unavailable"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createCoTaskTable",
+        "tags": [
+          "O2"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O2",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "404": {
+            "description": "Missing resource or owner denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Required capability unavailable"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TableCreateRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tables/{table_id}": {
+      "get": {
+        "operationId": "getCoTaskTable",
+        "tags": [
+          "O2"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O2",
+        "parameters": [
+          {
+            "name": "table_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "404": {
+            "description": "Missing resource or owner denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Required capability unavailable"
+          }
+        }
+      }
+    },
+    "/tables/{table_id}/records": {
+      "get": {
+        "operationId": "listCoTaskRecords",
+        "tags": [
+          "O2"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O2",
+        "parameters": [
+          {
+            "name": "table_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "404": {
+            "description": "Missing resource or owner denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Required capability unavailable"
+          }
+        }
+      }
+    },
+    "/records/{record_id}": {
+      "get": {
+        "operationId": "getCoTaskRecordHistory",
+        "tags": [
+          "O2"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O2",
+        "parameters": [
+          {
+            "name": "record_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "404": {
+            "description": "Missing resource or owner denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Required capability unavailable"
+          }
+        }
+      }
+    },
+    "/runs": {
+      "get": {
+        "operationId": "listCoTaskRuns",
+        "tags": [
+          "O2"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O2",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "404": {
+            "description": "Missing resource or owner denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Required capability unavailable"
+          }
+        }
+      }
+    },
+    "/runs/{run_id}": {
+      "get": {
+        "operationId": "getCoTaskRun",
+        "tags": [
+          "O2"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O2",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "summary",
+            "in": "query",
+            "schema": {
+              "enum": [
+                "1"
+              ]
+            },
+            "description": "Status/counters only; omit frozen manifest during polling."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "404": {
+            "description": "Missing resource or owner denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Required capability unavailable"
+          }
+        }
+      }
+    },
+    "/runs/{run_id}/work-items": {
+      "get": {
+        "operationId": "listCoTaskRunworkItems",
+        "tags": [
+          "O2"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O2",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "404": {
+            "description": "Missing resource or owner denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Required capability unavailable"
+          }
+        }
+      }
+    },
+    "/runs/{run_id}/outputs": {
+      "get": {
+        "operationId": "listCoTaskRunoutputs",
+        "tags": [
+          "O2"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O2",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "404": {
+            "description": "Missing resource or owner denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Required capability unavailable"
+          }
+        }
+      }
+    },
+    "/runs/{run_id}/observations": {
+      "get": {
+        "operationId": "listCoTaskRunobservations",
+        "tags": [
+          "O2"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O2",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "404": {
+            "description": "Missing resource or owner denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Required capability unavailable"
+          }
+        }
+      }
+    },
+    "/runs/{run_id}/events": {
+      "get": {
+        "operationId": "listCoTaskRunEvents",
+        "tags": [
+          "O2"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O2",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "404": {
+            "description": "Missing resource or owner denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Required capability unavailable"
+          }
+        },
+        "description": "Bounded ordered JSON polling, at most 100 metadata events; next_sequence resumes after disconnect. No SSE dependency or automatic trigger."
+      }
+    },
+    "/runs/{run_id}/control": {
+      "post": {
+        "operationId": "controlCoTaskRun",
+        "tags": [
+          "O2"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O2",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "404": {
+            "description": "Missing resource or owner denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Required capability unavailable"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ControlRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/runs/{run_id}/retry-failed": {
+      "post": {
+        "operationId": "retryCoTaskFailedInputs",
+        "tags": [
+          "O2"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O2",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "404": {
+            "description": "Missing resource or owner denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Required capability unavailable"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FailedRetryRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/runs/{run_id}/work-items/{item_id}": {
+      "get": {
+        "operationId": "getCoTaskWorkItem",
+        "tags": [
+          "O2"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O2",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "404": {
+            "description": "Missing resource or owner denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Required capability unavailable"
+          }
+        }
+      }
+    },
+    "/runs/{run_id}/work-items/{item_id}/resolve": {
+      "post": {
+        "operationId": "resolveCoTaskWorkItem",
+        "tags": [
+          "O2"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O2",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "404": {
+            "description": "Missing resource or owner denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Required capability unavailable"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ItemResolutionRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/runs/{run_id}/work-items/{item_id}/attempts/{attempt_id}/commands/{command_id}": {
+      "get": {
+        "operationId": "getCoTaskOriginalReceipt",
+        "tags": [
+          "O2"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O2",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "attempt_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "command_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
             }
           }
         ],
@@ -4991,7 +5115,7 @@
             "maximum": 2147483647
           },
           "definition": {
-            "$ref": "#/components/schemas/TaskDefinition"
+            "$ref": "#/components/schemas/SingleStageTaskDefinition"
           }
         },
         "required": [
@@ -5387,28 +5511,13 @@
             "minLength": 1,
             "maxLength": 64
           },
-          "fields": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Field"
-            },
-            "minItems": 1,
-            "maxItems": 30
-          },
-          "unique_key": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "pattern": "^[a-z][a-z0-9_]{0,63}$"
-            },
-            "minItems": 1,
-            "maxItems": 5
+          "schema": {
+            "$ref": "#/components/schemas/TableSchema"
           }
         },
         "required": [
           "name",
-          "fields",
-          "unique_key"
+          "schema"
         ]
       },
       "SourceCheckRequest": {
@@ -6081,6 +6190,9 @@
           },
           "created_at": {
             "type": "string"
+          },
+          "collector_id": {
+            "type": "string"
           }
         },
         "required": [
@@ -6388,6 +6500,252 @@
         },
         "required": [
           "expected_revision"
+        ]
+      },
+      "SingleStageTaskDefinition": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/TaskDefinition"
+          },
+          {
+            "properties": {
+              "stages": {
+                "minItems": 1,
+                "maxItems": 1
+              },
+              "edges": {
+                "maxItems": 0
+              },
+              "source": {
+                "properties": {
+                  "kind": {
+                    "const": "manual"
+                  }
+                },
+                "required": [
+                  "inputs"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "TaskCreateRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "definition": {
+            "$ref": "#/components/schemas/SingleStageTaskDefinition"
+          }
+        },
+        "required": [
+          "name",
+          "definition"
+        ]
+      },
+      "TaskPublishRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          }
+        },
+        "required": [
+          "expected_revision"
+        ]
+      },
+      "TableSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "fields": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Field"
+            },
+            "minItems": 1,
+            "maxItems": 30
+          },
+          "unique_key": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "maxItems": 5
+          }
+        },
+        "required": [
+          "fields",
+          "unique_key"
+        ]
+      },
+      "TaskInputPreviewRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "collector_version_id": {
+            "type": "string"
+          },
+          "inputs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BoundedObject"
+            },
+            "minItems": 1,
+            "maxItems": 100
+          }
+        },
+        "required": [
+          "collector_version_id",
+          "inputs"
+        ]
+      },
+      "TaskSavePreviewRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "collector_version_id": {
+            "type": "string"
+          },
+          "save": {
+            "$ref": "#/components/schemas/SaveBinding"
+          },
+          "candidates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Candidate"
+            },
+            "minItems": 0,
+            "maxItems": 100
+          }
+        },
+        "required": [
+          "collector_version_id",
+          "save",
+          "candidates"
+        ]
+      },
+      "TaskRunRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "task_version_id": {
+            "type": "string"
+          },
+          "namespace": {
+            "enum": [
+              "formal",
+              "trial"
+            ]
+          }
+        },
+        "required": [
+          "task_version_id",
+          "namespace"
+        ]
+      },
+      "FailedRetryRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "confirmed": {
+            "const": true
+          }
+        },
+        "required": [
+          "confirmed"
+        ]
+      },
+      "ItemResolutionRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "enum": [
+              "fail",
+              "restart"
+            ]
+          },
+          "confirmed": {
+            "const": true
+          }
+        },
+        "required": [
+          "action",
+          "confirmed"
+        ]
+      },
+      "TaskRunStatus": {
+        "enum": [
+          "preparing",
+          "running",
+          "pausing",
+          "paused",
+          "awaiting_confirmation",
+          "succeeded",
+          "partial",
+          "limited",
+          "failed",
+          "cancelled"
+        ]
+      },
+      "TaskView": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "definition": {
+            "$ref": "#/components/schemas/SingleStageTaskDefinition"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "revision",
+          "definition",
+          "created_at",
+          "updated_at"
+        ]
+      },
+      "TaskEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TaskView"
+          },
+          "request_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
         ]
       }
     }
