@@ -33,15 +33,15 @@ const contract = JSON.parse(
 let routes = 0;
 for (const [url, methods] of Object.entries(contract.paths))
   for (const [method, op] of Object.entries(methods))
-    if (["O2", "O3"].includes(op["x-delivery-phase"])) {
+    if (["O2", "O3", "O4"].includes(op["x-delivery-phase"])) {
       assert.ok(
         mounted.has(method + " " + url),
         "unmounted contract: " + method + " " + url,
       );
       routes++;
     }
-assert.equal(routes, mounted.size, "mounted O2/O3 API missing from contract");
-process.stdout.write("OK " + routes + " mounted O2/O3 route/method contracts\n");
+assert.equal(routes, mounted.size, "mounted O2/O3/O4 API missing from contract");
+process.stdout.write("OK " + routes + " mounted O2/O3/O4 route/method contracts\n");
 const Ajv = require(path.join(root, "web/node_modules/ajv"));
 const ajv = new Ajv({ strict: false });
 for (const [name, schema] of Object.entries(contract.components.schemas))

@@ -24,6 +24,16 @@ func RunDetail(ctx context.Context, owner int64, id string, summary ...bool) (an
 	if e != nil {
 		return nil, e
 	}
+	var runView map[string]any
+	_ = json.Unmarshal(rows[0], &runView)
+	taskRows, e := s.QueryString("SELECT task_id FROM co_task_versions WHERE id=?", runView["task_version_id"])
+	if e != nil {
+		return nil, e
+	}
+	if len(taskRows) > 0 {
+		runView["task_id"] = taskRows[0]["task_id"]
+	}
+	rows[0] = json.RawMessage(collector.JSON(runView))
 	stages, e := views(s, `SELECT st.*,
  (SELECT COUNT(*) FROM co_work_items w WHERE w.stage_run_id=st.id) AS input_count,
  (SELECT COUNT(*) FROM co_run_outputs o JOIN co_work_items w ON w.id=o.item_id WHERE w.stage_run_id=st.id) AS output_count,

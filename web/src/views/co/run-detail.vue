@@ -8,6 +8,7 @@
 					{{ run.preparing_cursor }}/{{ run.input_count }} · 有效输出 {{ run.output_count }}
 				</p>
 			</div>
+			<ReplayStage v-if="run && !active" :run="run" :stages="stages" :items="items" :outputs="outputs" />
 			<el-button :loading="busy" @click="refresh">刷新原运行</el-button>
 		</header>
 		<el-alert v-if="problem" :title="problem" type="error" :closable="false" /><el-alert
@@ -29,9 +30,10 @@
 				><el-button :disabled="busy" @click="recover">查询上次控制操作</el-button>
 			</div>
 			<p v-if="run.retry_of">
-				本次复用原版本，补采 {{ run.retry_scope.length }} 个失败输入。原运行：<router-link :to="'/app/co/runs/' + run.retry_of">{{
-					run.retry_of
-				}}</router-link>
+				本次为有限补采；冻结任务版本 {{ run.task_version_id }}，范围 {{ run.retry_scope.join('、') }}。原运行：<router-link
+					:to="'/app/co/runs/' + run.retry_of"
+					>{{ run.retry_of }}</router-link
+				>
 			</p>
 			<div class="co-toolbar">
 				<el-tag v-for="c in counts" :key="c.status">{{ statusLabel(c.status) }} {{ c.count }}</el-tag>
@@ -185,6 +187,7 @@ import { ElMessageBox } from 'element-plus';
 import { call, describe } from './api';
 import { taskApi, taskMutation, recoverTaskMutation, type Run, type WorkItem } from './tasks-api';
 import { statusLabel } from './status';
+import ReplayStage from './replay-stage.vue';
 const route = useRoute(),
 	router = useRouter(),
 	id = String(route.params.id),

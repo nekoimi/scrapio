@@ -9,6 +9,15 @@ import (
 )
 
 func (a API) mountTasks(v *mux.Router) {
+	v.HandleFunc("/governance", a.governance).Methods("GET")
+	v.HandleFunc("/sources/preview", a.sourcePreview).Methods("POST")
+	v.HandleFunc("/sources/{source_id}", a.sourceDetail).Methods("GET")
+	v.HandleFunc("/tasks/{task_id}/schedule", a.schedule).Methods("GET", "POST")
+	v.HandleFunc("/tasks/{task_id}/upgrade-preview", a.upgradePreview).Methods("POST")
+	v.HandleFunc("/tasks/{task_id}/archive", a.archiveTask).Methods("POST")
+	v.HandleFunc("/runs/{run_id}/replay", a.replay).Methods("POST")
+	v.HandleFunc("/tables/{table_id}/export", a.exportTable).Methods("POST")
+	v.HandleFunc("/tables/{table_id}/schema", a.upgradeSchema).Methods("POST")
 	v.HandleFunc("/collector-versions/{version_id}", a.collectorVersion).Methods("GET")
 	v.HandleFunc("/tables/{table_id}", a.tableView).Methods("GET")
 	v.HandleFunc("/tasks", a.tasks).Methods("GET", "POST")

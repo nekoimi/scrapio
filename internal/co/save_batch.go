@@ -280,6 +280,9 @@ func CommitBatch(ctx context.Context, c *WorkClaim, candidates []collector.Candi
 			return collector.Fault("OUTPUT_BUDGET", "budget", "达到输出预算；本页未提交，之前保存的数据保留")
 		}
 		out := SavedOutput{ID: uuid.NewString(), RunID: r.ID, ItemID: item.ID, Namespace: r.Namespace, OutputIdentity: identity, Values: collector.JSON(candidate.Values), SchemaHash: binding.SchemaHash, ContentHash: collector.Hash(candidate.Values), ObservationID: observation, Decision: decision.Decision, Source: collector.JSON(map[string]any{"input_id": item.InputID, "source_key": item.SourceKey, "stage_id": c.StageID, "collector_version_id": c.Manifest.Collector.ID, "page": candidate.Page, "page_url": cp.CurrentURL, "content_hash": cp.ContentHash, "port": "records", "attempt_id": c.Attempt.ID}), CreatedAt: time.Now()}
+		if e = reserveStorage(s, r.OwnerID, "output_bytes", int64(len(out.Values)+len(out.Source))); e != nil {
+			return e
+		}
 		if _, e = s.Insert(&out); e != nil {
 			return e
 		}

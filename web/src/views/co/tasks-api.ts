@@ -21,6 +21,15 @@ export interface TaskStage {
 	collector_version_id: string;
 	save: SaveBinding;
 	on_error: string;
+	refresh_seconds?: number;
+}
+export interface TaskSource {
+	kind: 'manual' | 'table' | 'file';
+	inputs: Record<string, unknown>[];
+	snapshot_id?: string;
+	snapshot_hash?: string;
+	count?: number;
+	accept_partial?: boolean;
 }
 export interface TaskEdge {
 	id: string;
@@ -35,7 +44,7 @@ export interface TaskEdge {
 export interface TaskDefinition {
 	definition_version: 'task.v1';
 	entry_stage: string;
-	source: { kind: 'manual'; inputs: Record<string, unknown>[] };
+	source: TaskSource;
 	stages: TaskStage[];
 	edges: TaskEdge[];
 	budget: {
@@ -56,6 +65,8 @@ export interface Task {
 	updated_at: string;
 }
 export interface TaskSummary {
+	archived: boolean;
+	source_kind: string;
 	stage_count: number;
 	id: string;
 	name: string;
@@ -78,6 +89,7 @@ export interface TaskVersion {
 	manifest: Manifest;
 }
 export interface Run {
+	task_id?: string;
 	id: string;
 	status: string;
 	namespace: string;

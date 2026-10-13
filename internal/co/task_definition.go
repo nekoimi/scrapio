@@ -18,8 +18,12 @@ type TaskDefinition struct {
 	OverlapPolicy     string       `json:"overlap_policy"`
 }
 type ManualSource struct {
-	Kind   string           `json:"kind"`
-	Inputs []map[string]any `json:"inputs"`
+	Kind          string           `json:"kind"`
+	Inputs        []map[string]any `json:"inputs"`
+	SnapshotID    string           `json:"snapshot_id,omitempty"`
+	SnapshotHash  string           `json:"snapshot_hash,omitempty"`
+	Count         int              `json:"count,omitempty"`
+	AcceptPartial bool             `json:"accept_partial,omitempty"`
 }
 type TaskStage struct {
 	ID                 string      `json:"id"`
@@ -27,6 +31,7 @@ type TaskStage struct {
 	CollectorVersionID string      `json:"collector_version_id"`
 	Save               SaveBinding `json:"save"`
 	OnError            string      `json:"on_error"`
+	RefreshSeconds     int         `json:"refresh_seconds,omitempty"`
 }
 type SaveBinding struct {
 	TableID       string                       `json:"table_id"`
@@ -104,14 +109,19 @@ func (d TaskDefinition) Validate() error {
 	if e := d.validateGraph(); e != nil {
 		return e
 	}
-	if d.Source.Kind != "manual" || len(d.Source.Inputs) < 1 || len(d.Source.Inputs) > 100 || len(collector.JSON(d.Source.Inputs)) > 512*1024 {
-		return collector.Invalid("source", "仅支持1..100条手动输入，每批最多512KiB")
+	if e := validateTaskSource(d.Source); e != nil {
+		return e
+	}
+	for _, st := range d.Stages {
+		if st.RefreshSeconds < 0 || st.RefreshSeconds > 2592000 {
+			return collector.Invalid("stages."+st.ID+".refresh_seconds", "刷新间隔为0..30天；0表示每次访问")
+		}
 	}
 	if d.OverlapPolicy != "skip" {
 		return collector.Invalid("policy", "需要skip及continue/pause_stage策略")
 	}
 	b := d.Budget
-	if b.MaxDispatches < 0 || b.MaxDispatches > 10000 || b.MaxWorkItems < 1 || b.MaxWorkItems > 10000 || b.MaxWorkItems < len(d.Source.Inputs) || b.MaxOutputs < 1 || b.MaxOutputs > 100000 || b.MaxPending < 1 || b.MaxPending > 10000 || b.BrowserSlots < 1 || b.BrowserSlots > 8 || b.MaxDurationMS < 1000 || b.MaxDurationMS > 86400000 {
+	if b.MaxDispatches < 0 || b.MaxDispatches > 10000 || b.MaxWorkItems < 1 || b.MaxWorkItems > 10000 || b.MaxWorkItems < sourceCount(d.Source) || b.MaxOutputs < 1 || b.MaxOutputs > 100000 || b.MaxPending < 1 || b.MaxPending > 10000 || b.BrowserSlots < 1 || b.BrowserSlots > 8 || b.MaxDurationMS < 1000 || b.MaxDurationMS > 86400000 {
 		return collector.Invalid("budget", "工作项/输出/队列/浏览器槽位或时长预算无效")
 	}
 	return nil

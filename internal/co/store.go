@@ -198,6 +198,9 @@ func ByKey(ctx context.Context, owner int64, operation, resource, key string) (*
 
 // Mutate journals owner+operation+resource+key and performs only short database work.
 func Mutate(ctx context.Context, owner int64, operation, resource, key string, payload any, queued bool, fn func(*xorm.Session, *Operation) (any, error)) (*Operation, error) {
+	return mutate(ctx, owner, operation, resource, key, payload, queued, false, fn)
+}
+func mutate(ctx context.Context, owner int64, operation, resource, key string, payload any, queued, snapshot bool, fn func(*xorm.Session, *Operation) (any, error)) (*Operation, error) {
 	if key == "" || len(key) > 128 || strings.ContainsAny(key, "\r\n") {
 		return nil, collector.Invalid("Idempotency-Key", "需要1..128字符幂等键")
 	}
@@ -207,6 +210,14 @@ func Mutate(ctx context.Context, owner int64, operation, resource, key string, p
 		return nil, e
 	}
 	defer s.Rollback()
+	if snapshot {
+		if _, e := s.Exec("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ"); e != nil {
+			return nil, e
+		}
+		if _, e := s.Exec("SET LOCAL statement_timeout='8000ms'"); e != nil {
+			return nil, e
+		}
+	}
 	if e := idempotency.Lock(s, owner, "co:"+operation+":"+resource, key); e != nil {
 		return nil, e
 	}
@@ -505,6 +516,13 @@ func Archive(ctx context.Context, owner int64, id, key string, revision int) (*O
 		}
 		if active > 0 {
 			return nil, conflict("存在活动操作，稍后归档")
+		}
+		n, e := s.SQL(`SELECT COUNT(*) FROM co_task_versions tv WHERE tv.owner_id=? AND EXISTS(SELECT 1 FROM jsonb_array_elements(tv.manifest -> 'definition' -> 'stages') st JOIN co_collector_versions cv ON cv.id=st ->> 'collector_version_id' WHERE cv.collector_id=?)`, owner, id).Count(new(TaskVersion))
+		if e != nil {
+			return nil, e
+		}
+		if n > 0 {
+			return nil, conflict("采集器被已发布任务引用；保留版本及来源，不能归档")
 		}
 		c.Archived = true
 		c.UpdatedAt = time.Now()

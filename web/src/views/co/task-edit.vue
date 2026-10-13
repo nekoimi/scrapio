@@ -64,27 +64,42 @@
 					</el-form>
 				</el-card>
 				<el-card v-if="selectedID === entryID"
-					><template #header>入口 · 手动输入快照</template>
-					<el-radio-group v-model="inputMode"
-						><el-radio-button label="urls">网址列表</el-radio-button><el-radio-button label="json">结构化 JSON</el-radio-button></el-radio-group
+					><template #header>入口 · 输入来源与快照</template>
+					<el-radio-group v-model="sourceKind"
+						><el-radio-button label="manual">手动输入</el-radio-button><el-radio-button label="table">数据表输入</el-radio-button
+						><el-radio-button label="file">文件输入</el-radio-button></el-radio-group
 					>
-					<p class="co-muted">最多100行。网址列表每行一个地址；有其他必填参数时使用JSON对象数组。相同网址的不同输入保留独立来源。</p>
-					<el-input
-						v-model="inputText"
-						type="textarea"
-						:rows="6"
-						:placeholder="inputMode === 'urls' ? 'https://example.com/page' : JSON.stringify([{ url: 'https://example.com/page', movie_id: 'm001' }])"
+					<SourcePicker
+						v-if="sourceKind !== 'manual'"
+						v-model="frozenSource"
+						:kind="sourceKind"
+						:version-i-d="versionID"
+						:fields="version?.definition.input_fields || []"
 					/>
-					<el-button :disabled="!versionID || busy" @click="previewInputs">检查输入</el-button>
-					<el-table v-if="inputPreview.length" :data="inputPreview"
-						><el-table-column label="行" width="70"
-							><template #default="{ row }">{{ row.ordinal + 1 }}</template></el-table-column
-						><el-table-column label="检查结果"
-							><template #default="{ row }"
-								>{{ row.error?.message || '有效' }}<code>{{ JSON.stringify(row.values) }}</code></template
-							></el-table-column
-						></el-table
-					>
+					<template v-else>
+						<el-radio-group v-model="inputMode"
+							><el-radio-button label="urls">网址列表</el-radio-button><el-radio-button label="json">结构化 JSON</el-radio-button></el-radio-group
+						>
+						<p class="co-muted">最多100行。网址列表每行一个地址；有其他必填参数时使用JSON对象数组。相同网址的不同输入保留独立来源。</p>
+						<el-input
+							v-model="inputText"
+							type="textarea"
+							:rows="6"
+							:placeholder="
+								inputMode === 'urls' ? 'https://example.com/page' : JSON.stringify([{ url: 'https://example.com/page', movie_id: 'm001' }])
+							"
+						/>
+						<el-button :disabled="!versionID || busy" @click="previewInputs">检查输入</el-button>
+						<el-table v-if="inputPreview.length" :data="inputPreview"
+							><el-table-column label="行" width="70"
+								><template #default="{ row }">{{ row.ordinal + 1 }}</template></el-table-column
+							><el-table-column label="检查结果"
+								><template #default="{ row }"
+									>{{ row.error?.message || '有效' }}<code>{{ JSON.stringify(row.values) }}</code></template
+								></el-table-column
+							></el-table
+						>
+					</template>
 				</el-card>
 				<el-card v-if="incoming && version">
 					<template #header>上游连接 · {{ incoming.from }} → {{ selectedID }}</template>
@@ -211,6 +226,9 @@
 					><template #header>4 · 预算与失败策略</template
 					><el-form label-position="top"
 						><div class="co-budget-grid">
+							<el-form-item label="当前阶段成功输入刷新间隔（秒；0每次访问）"
+								><el-input-number v-model="refreshSeconds" :min="0" :max="2592000"
+							/></el-form-item>
 							<el-form-item label="最多待分发元素"><el-input-number v-model="budget.max_dispatches" :min="1" :max="10000" /></el-form-item
 							><el-form-item label="最多工作项"><el-input-number v-model="budget.max_work_items" :min="1" :max="10000" /></el-form-item>
 							<el-form-item label="最多输出"><el-input-number v-model="budget.max_outputs" :min="1" :max="100000" /></el-form-item>
@@ -231,6 +249,15 @@
 			<el-button type="primary" :loading="busy" :disabled="!version || !table" @click="saveDraft">保存任务草稿</el-button
 			><el-button :disabled="busy || !task || dirty" @click="publish">发布当前 revision</el-button>
 		</div>
+		<TaskDaily
+			v-if="task"
+			:task="task"
+			:versions="taskVersions"
+			:selected-stage="selectedID"
+			:collector-version="versionID"
+			:dirty="dirty"
+			@upgraded="reloadTask"
+		/>
 		<el-card v-if="task"
 			><template #header>5 · 使用已发布版本执行</template
 			><el-select v-model="taskVersionID"
@@ -258,6 +285,9 @@
 import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue';
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router';
 import { ElMessageBox } from 'element-plus';
+import SourcePicker from './source-picker.vue';
+import TaskDaily from './task-daily.vue';
+import type { TaskSource } from './tasks-api';
 import { call, coApi, describe, type Collector, type Version, type Candidate, type Binding } from './api';
 import {
 	taskApi,
@@ -294,6 +324,9 @@ const route = useRoute(),
 	taskVersions = ref<TaskVersion[]>([]),
 	taskVersionID = ref(''),
 	onError = ref('continue');
+const sourceKind = ref<'manual' | 'table' | 'file'>(route.query.source_table ? 'table' : 'manual'),
+	frozenSource = ref<TaskSource>({ kind: 'table', inputs: [] }),
+	refreshSeconds = ref(0);
 const save = ref<SaveBinding>({
 		table_id: '',
 		schema_version: 1,
@@ -352,6 +385,7 @@ function selectedStage(): TaskStage {
 		collector_version_id: versionID.value,
 		save: { ...save.value, mapping },
 		on_error: onError.value,
+		refresh_seconds: refreshSeconds.value,
 	};
 }
 function persistSelected() {
@@ -362,7 +396,7 @@ function definition(): TaskDefinition {
 	return {
 		definition_version: 'task.v1',
 		entry_stage: entryID.value,
-		source: { kind: 'manual', inputs: inputs() },
+		source: sourceKind.value === 'manual' ? { kind: 'manual', inputs: inputs() } : { ...frozenSource.value, kind: sourceKind.value },
 		stages: stageDefs.value.map((st) => (st.id === selectedID.value ? selectedStage() : st)),
 		edges: edges.value,
 		budget: budget.value,
@@ -397,6 +431,7 @@ async function selectStage(id: string) {
 	stageName.value = st.name;
 	save.value = JSON.parse(JSON.stringify(st.save));
 	onError.value = st.on_error;
+	refreshSeconds.value = st.refresh_seconds || 0;
 	mappingKeys.value = Object.fromEntries(
 		Object.entries(st.save.mapping)
 			.filter(([, b]) => b.kind === 'field')
@@ -746,6 +781,10 @@ function beforeUnload(event: BeforeUnloadEvent) {
 		event.returnValue = '';
 	}
 }
+function reloadTask() {
+	baseline.value = JSON.stringify({name:name.value,definition:version.value?definition():null});
+	window.location.reload();
+}
 window.addEventListener('beforeunload', beforeUnload);
 onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload));
 onBeforeRouteLeave(async () => !dirty.value || (await confirm('有未保存的任务修改，确认离开？')));
@@ -783,8 +822,11 @@ onMounted(() =>
 			);
 			budget.value = { ...d.budget, max_dispatches: d.budget.max_dispatches || 10000 };
 			onError.value = all.on_error;
+			refreshSeconds.value = all.refresh_seconds || 0;
+			sourceKind.value = d.source.kind;
+			frozenSource.value = d.source;
 			inputMode.value = 'json';
-			inputText.value = JSON.stringify(d.source.inputs, null, 2);
+			inputText.value = JSON.stringify(d.source.inputs || [], null, 2);
 			taskVersionID.value = versions[0]?.id || '';
 		} else if (collectorID.value) {
 			await loadVersions();

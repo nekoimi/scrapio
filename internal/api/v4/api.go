@@ -149,7 +149,7 @@ func (a API) capabilities(w http.ResponseWriter, r *http.Request) {
 			reason = ""
 		}
 	}
-	write(w, r, 200, map[string]any{"contract_version": "co.contract.v1", "definition_version": "collector.v1", "interpreter_version": collector.Interpreter, "publish_version": "co.publish.v1", "http_ready": true, "browser_ready": ready, "browser_protocol": "editor.isolated.v1", "reason": reason, "tasks_ready": true, "task_definition_version": "task.v1", "task_limits": map[string]any{"stages": 20, "source": "manual", "inputs": 100, "connections": true, "single_parent": true, "max_dispatches": 10000, "same_table_stages": false}, "jsonpath_subset": "$, .key, [index], [*]", "test_limits": map[string]int{"pages": 3, "records": 100, "duration_ms": 60000}})
+	write(w, r, 200, map[string]any{"contract_version": "co.contract.v1", "definition_version": "collector.v1", "interpreter_version": collector.Interpreter, "publish_version": "co.publish.v1", "http_ready": true, "browser_ready": ready, "browser_protocol": "editor.isolated.v1", "reason": reason, "tasks_ready": true, "task_definition_version": "task.v1", "task_limits": map[string]any{"stages": 20, "source": []string{"manual", "table", "file"}, "inputs": 100, "snapshot_inputs": 1000, "file_formats": []string{"csv", "json"}, "schedules": "fixed_interval", "scoped_replay": true, "governance": true, "connections": true, "single_parent": true, "max_dispatches": 10000, "same_table_stages": false}, "jsonpath_subset": "$, .key, [index], [*]", "test_limits": map[string]int{"pages": 3, "records": 100, "duration_ms": 60000}})
 }
 func (a API) collectors(w http.ResponseWriter, r *http.Request) {
 	owner, ok := owner(w, r)

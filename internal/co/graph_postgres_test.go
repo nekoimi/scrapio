@@ -360,4 +360,29 @@ func checkO3Postgres(t *testing.T, ctx context.Context, root string, engine *xor
 	}
 	_, e = ControlRun(ctx, 1, expandID, "o3-expand-cancel", "cancel")
 	must(e)
+	// O4 consumes a real immutable upstream output at a new intermediate entry,
+	// retaining its mapping and excluding both the original root and other branch.
+	s = engine.NewSession()
+	historical, e := s.QueryString(`SELECT o.id,o.run_id FROM co_run_outputs o JOIN co_work_items w ON w.id=o.item_id JOIN co_stage_runs st ON st.id=w.stage_run_id JOIN co_runs r ON r.id=o.run_id JOIN co_task_versions v ON v.id=r.task_version_id WHERE v.task_id=? AND st.stage_id='movie' AND r.namespace='formal' AND r.status IN ('succeeded','partial') ORDER BY o.created_at LIMIT 1`, taskID)
+	s.Close()
+	must(e)
+	if len(historical) != 1 {
+		t.Fatal("missing graph output for O4 replay")
+	}
+	o, e = ReplayStage(ctx, 1, historical[0]["run_id"], "o4-graph-output-replay", ReplayRequest{StageID: "comment", OutputIDs: []string{historical[0]["id"]}, Confirmed: true})
+	must(e)
+	replayID := result(o)["id"].(string)
+	must(PrepareRuns(ctx))
+	if count("SELECT COUNT(*) FROM co_stage_runs WHERE run_id=? AND stage_id='comment'", replayID) != 1 || count("SELECT COUNT(*) FROM co_stage_runs WHERE run_id=?", replayID) != 1 {
+		t.Fatal("local replay recreated upstream/branch")
+	}
+	s = engine.NewSession()
+	rootInput, e := s.QueryString("SELECT source,values_json FROM co_run_inputs WHERE run_id=?", replayID)
+	s.Close()
+	must(e)
+	if len(rootInput) != 1 || !strings.Contains(rootInput[0]["source"], historical[0]["id"]) || !strings.Contains(rootInput[0]["values_json"], "comments") {
+		t.Fatal("historical mapping not frozen", rootInput)
+	}
+	_, e = ControlRun(ctx, 1, replayID, "o4-graph-replay-cancel", "cancel")
+	must(e)
 }

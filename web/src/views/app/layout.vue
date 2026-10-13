@@ -1,7 +1,7 @@
 <template>
 	<div class="scrapio-app">
 		<aside class="app-side">
-			<router-link class="app-brand" to="/app/home"
+			<router-link class="app-brand" to="/app/co/home"
 				><span class="brand-mark">S</span><span>scrapio<small>采集工作台</small></span></router-link
 			>
 			<div class="nav-caption">工作区</div>
@@ -48,11 +48,12 @@ async function loadIdentity() {
 }
 onBeforeUnmount(() => epoch++);
 const nav = [
+	{ to: '/app/co/home', label: '采集工作台' },
 	{ to: '/app/co/collectors', label: '独立采集器' },
  { to: '/app/co/tasks', label: '编排任务' },
  { to: '/app/co/runs', label: '任务运行' },
  { to: '/app/co/data', label: '任务数据表' },
-	{ to: '/app/home', label: '首页' },
+	{ to: '/app/home', label: '旧采集方案首页' },
 	{ to: '/app/collectors', label: '采集方案' },
 	{ to: '/app/data', label: '数据' },
 	{ to: '/app/runs', label: '运行' },

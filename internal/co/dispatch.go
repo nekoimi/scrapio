@@ -95,7 +95,7 @@ func registerOutput(s *xorm.Session, r *Run, c *WorkClaim, out SavedOutput) erro
 func DispatchRuns(ctx context.Context) error {
 	s := session(ctx)
 	defer s.Close()
-	rows, e := s.QueryString(`SELECT id FROM co_runs WHERE status IN ('preparing','running') ORDER BY created_at LIMIT 20`)
+	rows, e := s.QueryString(`SELECT id FROM co_runs WHERE status IN ('preparing','running') ORDER BY last_dispatch_at NULLS FIRST,created_at LIMIT 20`)
 	if e != nil {
 		return e
 	}
@@ -119,6 +119,9 @@ func dispatchRun(ctx context.Context, id string) error {
 	}
 	if r.Status != "running" && r.Status != "preparing" {
 		return s.Commit()
+	}
+	if _, e = s.Exec("UPDATE co_runs SET last_dispatch_at=NOW() WHERE id=?", id); e != nil {
+		return e
 	}
 	var m TaskManifest
 	if e = collector.Strict([]byte(r.Manifest), &m); e != nil {
@@ -314,7 +317,7 @@ func graphSettle(s *xorm.Session, r *Run) error {
 			if counts["limited"] > 0 || limited > 0 || reason == "upstream_limited" {
 				status = "limited"
 			}
-			if counts["partial"] > 0 || bad-limited > 0 || reason == "upstream_partial" || reason == "upstream_failed" {
+			if counts["partial"] > 0 || counts["skipped"] > 0 || bad-limited > 0 || reason == "upstream_partial" || reason == "upstream_failed" {
 				status = "partial"
 			}
 			if counts["failed"] > 0 {
@@ -355,6 +358,9 @@ func graphSettle(s *xorm.Session, r *Run) error {
 	} else if r.Status == "running" || r.Status == "preparing" {
 		if allDone {
 			next = "succeeded"
+			if aggregate["skipped"] > 0 {
+				next = "partial"
+			}
 			for _, status := range states {
 				if status == "limited" && next == "succeeded" {
 					next = "limited"

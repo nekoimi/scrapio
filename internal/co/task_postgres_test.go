@@ -25,6 +25,7 @@ import (
 // Opt-in, short PostgreSQL invariant check. All tables live in a disposable
 // schema; application/public tables and real sites are never accessed.
 func TestCOO2Postgres(t *testing.T) {
+	t.Setenv("SCRAPIO_CO_SITE_INTERVAL_MS", "0")
 	if os.Getenv("SCRAPIO_CO_O2_DB_TEST") != "1" {
 		t.Skip("opt-in disposable PostgreSQL schema check")
 	}
@@ -70,7 +71,7 @@ func TestCOO2Postgres(t *testing.T) {
 	exec("SET search_path TO " + schema)
 	exec("CREATE TABLE admin(id BIGINT PRIMARY KEY)")
 	exec("INSERT INTO admin(id) VALUES(1),(2)")
-	for _, name := range []string{"migrate_co_o1.go", "migrate_co_o2.go", "migrate_co_o3.go"} {
+	for _, name := range []string{"migrate_co_o1.go", "migrate_co_o2.go", "migrate_co_o3.go", "migrate_co_o4.go"} {
 		tree, e := parser.ParseFile(token.NewFileSet(), filepath.Join(root, "internal/db/migrate", name), nil, 0)
 		if e != nil {
 			t.Fatal(e)
@@ -386,6 +387,10 @@ func TestCOO2Postgres(t *testing.T) {
 	if _, e = RunEvents(ctx, 2, runID, 0); e != ErrNotFound {
 		t.Fatal("event owner isolation", e)
 	}
-	checkO3Postgres(t, ctx, root, engine)
+	if os.Getenv("SCRAPIO_CO_O4_DB_TEST") == "1" {
+		checkO4Postgres(t, ctx, engine, taskID, taskVersion)
+	} else {
+		checkO3Postgres(t, ctx, root, engine)
+	}
 	must(ctx.Err())
 }

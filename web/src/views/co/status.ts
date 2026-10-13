@@ -3,6 +3,9 @@ export function statusLabel(status: string) {
 		(
 			{
 				preparing: '准备输入',
+				skipped: '刷新间隔内跳过',
+				skipped_overlap: '已有运行，跳过触发',
+				started: '已触发运行',
 				waiting_upstream: '等待上游',
 				dispatching: '正在分发',
 				backpressured: '等待下游消化积压',

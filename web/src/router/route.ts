@@ -1361,9 +1361,10 @@ export const staticRoutes: Array<RouteRecordRaw> = [
 		path: '/app',
 		name: 'v22App',
 		component: () => import('/@/views/app/layout.vue'),
-		redirect: '/app/home',
+		redirect: '/app/co/home',
 		children: [
 			{ path: 'co/tasks', name: 'coTasks', component: () => import('/@/views/co/tasks.vue'), meta: { title: '编排任务' } },
+			{ path: 'co/home', name: 'coHome', component: () => import('/@/views/co/home.vue'), meta: { title: '采集工作台' } },
 			{ path: 'co/tasks/new', name: 'coTaskCreate', component: () => import('/@/views/co/task-edit.vue'), meta: { title: '创建单阶段任务' } },
 			{ path: 'co/tasks/:id', name: 'coTaskWorkbench', component: () => import('/@/views/co/task-edit.vue'), meta: { title: '编排任务' } },
 			{ path: 'co/runs', name: 'coRuns', component: () => import('/@/views/co/runs.vue'), meta: { title: '任务运行' } },

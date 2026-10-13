@@ -3,7 +3,6 @@ package co
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"github.com/google/uuid"
 	"github.com/nekoimi/scrapio/internal/collector"
 	"strings"
@@ -19,11 +18,12 @@ type Task struct {
 	Definition string    `xorm:"jsonb definition" json:"-"`
 	CreatedAt  time.Time `json:"created_at"`
 	UpdatedAt  time.Time `json:"updated_at"`
+	Archived   bool      `json:"archived"`
 }
 
 func (Task) TableName() string { return "co_tasks" }
 func (t Task) View() any {
-	return map[string]any{"id": t.ID, "name": t.Name, "revision": t.Revision, "definition": json.RawMessage(t.Definition), "created_at": t.CreatedAt, "updated_at": t.UpdatedAt}
+	return map[string]any{"id": t.ID, "name": t.Name, "revision": t.Revision, "definition": json.RawMessage(t.Definition), "created_at": t.CreatedAt, "updated_at": t.UpdatedAt, "archived": t.Archived}
 }
 
 type TaskVersion struct {
@@ -144,15 +144,18 @@ func buildManifest(s *xorm.Session, owner int64, d TaskDefinition) (TaskManifest
 		}
 	}
 	root := m.Stages[d.EntryStage]
-	rows, e := PreviewInputs(root.Definition, d.Source.Inputs)
+	rows, e := frozenSourceInputs(s, owner, d.Source, root.Definition)
 	if e != nil {
 		return m, e
 	}
-	for _, row := range rows {
-		if row.Error != nil {
-			return m, &collector.Error{Code: "INPUT_FIELD_INVALID", Message: fmt.Sprintf("输入第%d行：%s", row.Ordinal+1, row.Error.Message), Location: row.Error.Location}
+	for i, row := range rows {
+		if d.Source.Kind == "manual" {
+			var values map[string]any
+			if e = collector.Strict([]byte(row.Values), &values); e != nil {
+				return m, e
+			}
+			d.Source.Inputs[i] = values
 		}
-		d.Source.Inputs[row.Ordinal] = row.Values
 	}
 	m.Definition = d
 	m.Collector, m.CollectorDefinition, m.Schema = root.Collector, root.Definition, root.Schema
@@ -188,6 +191,9 @@ func SaveTask(ctx context.Context, owner int64, id string, revision int, d TaskD
 	if t.Revision != revision {
 		return nil, &collector.Error{Code: "REVISION_CONFLICT", Message: "任务草稿已变化，请保留本地修改后重新加载", Details: map[string]any{"latest_revision": t.Revision}}
 	}
+	if t.Archived {
+		return nil, conflict("任务已归档")
+	}
 	m, e := buildManifest(s, owner, d)
 	if e != nil {
 		return nil, e
@@ -210,6 +216,9 @@ func PublishTask(ctx context.Context, owner int64, id, key string, revision int)
 		}
 		if t.Revision != revision {
 			return nil, conflict("任务草稿revision已变化")
+		}
+		if t.Archived {
+			return nil, conflict("任务已归档")
 		}
 		var d TaskDefinition
 		if e = collector.Strict([]byte(t.Definition), &d); e != nil {
@@ -275,7 +284,7 @@ func domainList(ctx context.Context, owner int64, table, cursor string, limit in
 	defer s.Close()
 	projection := "*"
 	if table == "co_tasks" {
-		projection = "id,name,revision,created_at,updated_at,jsonb_array_length(definition -> 'stages') AS stage_count,jsonb_array_length(definition -> 'source' -> 'inputs') AS input_count,(SELECT st -> 'save' ->> 'table_id' FROM jsonb_array_elements(definition -> 'stages') st WHERE st ->> 'id'=definition ->> 'entry_stage') AS table_id,(SELECT st -> 'save' ->> 'schema_version' FROM jsonb_array_elements(definition -> 'stages') st WHERE st ->> 'id'=definition ->> 'entry_stage') AS schema_version"
+		projection = "id,name,revision,archived,created_at,updated_at,jsonb_array_length(definition -> 'stages') AS stage_count,definition -> 'source' ->> 'kind' AS source_kind,CASE WHEN definition -> 'source' ->> 'kind'='manual' THEN jsonb_array_length(definition -> 'source' -> 'inputs') ELSE CAST(definition -> 'source' ->> 'count' AS INT) END AS input_count,(SELECT st -> 'save' ->> 'table_id' FROM jsonb_array_elements(definition -> 'stages') st WHERE st ->> 'id'=definition ->> 'entry_stage') AS table_id,(SELECT st -> 'save' ->> 'schema_version' FROM jsonb_array_elements(definition -> 'stages') st WHERE st ->> 'id'=definition ->> 'entry_stage') AS schema_version"
 	}
 	if table == "co_runs" {
 		projection = "id,task_version_id,namespace,status,control_epoch,preparing_cursor,input_count,output_count,event_seq,retry_of,retry_scope,created_at,finished_at"

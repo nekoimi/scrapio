@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"sync"
 	"time"
+	xormlog "xorm.io/xorm/log"
 )
 
 // TaskWorker has its own concrete lifecycle key, distinct from O1 operations.
@@ -30,6 +31,7 @@ func slots(name string, fallback int) int {
 }
 func (w *TaskWorker) Start(ctx context.Context) error {
 	run, cancel := context.WithCancel(context.Background())
+	run = context.WithValue(run, xormlog.SessionShowSQLKey, false)
 	w.cancel = cancel
 	w.done = make(chan struct{})
 	browser := bean.PtrFromContext[drission_rod.DrissionRod](ctx)
@@ -41,12 +43,22 @@ func (w *TaskWorker) Start(ctx context.Context) error {
 		go func() {
 			defer group.Done()
 			ticker := time.NewTicker(time.Second)
+			nextCleanup := time.Now().Add(time.Minute)
 			defer ticker.Stop()
 			for {
 				select {
 				case <-run.Done():
 					return
 				case <-ticker.C:
+					if time.Now().After(nextCleanup) {
+						if e := CleanupSources(run); e != nil && run.Err() == nil {
+							log.WithError(e).Warn("retain independent source evidence")
+						}
+						nextCleanup = time.Now().Add(time.Hour)
+					}
+					if e := TickSchedules(run); e != nil && run.Err() == nil {
+						log.WithError(e).Warn("schedule independent tasks")
+					}
 					if e := PrepareRuns(run); e != nil && run.Err() == nil {
 						log.WithError(e).Warn("prepare independent task inputs")
 					}

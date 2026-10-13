@@ -4,7 +4,7 @@
   "info": {
     "title": "scrapio independent collectors and tasks",
     "version": "co.contract.v1",
-    "description": "O1 collectors, O2 durable tasks/tables and O3 multi-stage graphs/dispatches are mounted under /api/v4. O4 sources remain planned. Operations carry bounded polymorphic results; TestResult, SessionView and CollectorVersionView describe concrete projections. Real release verification pending."
+    "description": "O1 collectors, O2 durable tasks/tables and O3 multi-stage graphs/dispatches are mounted under /api/v4. O4 finite sources, interval schedules, scoped replay and governance are mounted. Operations carry bounded polymorphic results; TestResult, SessionView and CollectorVersionView describe concrete projections. Real release verification pending."
   },
   "servers": [
     {
@@ -1531,282 +1531,6 @@
           },
           "503": {
             "description": "Required capability unavailable"
-          }
-        }
-      }
-    },
-    "/source-checks": {
-      "post": {
-        "operationId": "checkCoSource",
-        "tags": [
-          "O4"
-        ],
-        "x-implementation-status": "planned",
-        "x-delivery-phase": "O4",
-        "parameters": [
-          {
-            "name": "Idempotency-Key",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 128
-            }
-          }
-        ],
-        "responses": {
-          "202": {
-            "description": "Accepted; query original operation",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OperationEnvelope"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Contract or input invalid",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "403": {
-            "description": "Owner/resource denied"
-          },
-          "409": {
-            "description": "Revision, idempotency, version or write conflict",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SourceCheckRequest"
-              }
-            }
-          }
-        }
-      }
-    },
-    "/imports": {
-      "post": {
-        "operationId": "createCoImport",
-        "tags": [
-          "O4"
-        ],
-        "x-implementation-status": "planned",
-        "x-delivery-phase": "O4",
-        "parameters": [
-          {
-            "name": "Idempotency-Key",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 128
-            }
-          }
-        ],
-        "responses": {
-          "202": {
-            "description": "Accepted; query original operation",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OperationEnvelope"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Contract or input invalid",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "403": {
-            "description": "Owner/resource denied"
-          },
-          "409": {
-            "description": "Revision, idempotency, version or write conflict",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ImportRequest"
-              }
-            }
-          }
-        }
-      }
-    },
-    "/tasks/{task_id}/schedule": {
-      "get": {
-        "operationId": "getCoSchedule",
-        "tags": [
-          "O4"
-        ],
-        "x-implementation-status": "planned",
-        "x-delivery-phase": "O4",
-        "parameters": [
-          {
-            "name": "task_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Envelope"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Contract or input invalid",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "403": {
-            "description": "Owner/resource denied"
-          },
-          "409": {
-            "description": "Revision, idempotency, version or write conflict",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      },
-      "put": {
-        "operationId": "saveCoSchedule",
-        "tags": [
-          "O4"
-        ],
-        "x-implementation-status": "planned",
-        "x-delivery-phase": "O4",
-        "parameters": [
-          {
-            "name": "task_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          {
-            "name": "Idempotency-Key",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 128
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Envelope"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Contract or input invalid",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "403": {
-            "description": "Owner/resource denied"
-          },
-          "409": {
-            "description": "Revision, idempotency, version or write conflict",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ScheduleRequest"
-              }
-            }
           }
         }
       }
@@ -4041,7 +3765,7 @@
             }
           }
         },
-        "description": "Single-stage original-version failed-only replay. Multi-stage scoped replay returns SCOPED_RETRY_REQUIRED until O4."
+        "description": "Single-stage original-version failed-only replay. Use /runs/{run_id}/replay for explicit multi-stage scope or repaired version."
       }
     },
     "/runs/{run_id}/work-items/{item_id}": {
@@ -4444,6 +4168,736 @@
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/governance": {
+      "get": {
+        "operationId": "getCoGovernance",
+        "tags": [
+          "O4"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O4",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sources/preview": {
+      "post": {
+        "operationId": "previewCoSourceSnapshot",
+        "tags": [
+          "O4"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O4",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SourcePreviewRequest"
+              }
+            }
+          }
+        },
+        "description": "Finite REPEATABLE READ table snapshot or CSV/JSON file preview. At most1000 rows,4MiB frozen evidence,file768KiB,request1MiB. Confirm fingerprint/count and partial input in task source; retries query original key. No latest reads on resume."
+      }
+    },
+    "/sources/{source_id}": {
+      "get": {
+        "operationId": "getCoSourceSnapshot",
+        "tags": [
+          "O4"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O4",
+        "parameters": [
+          {
+            "name": "source_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tasks/{task_id}/schedule": {
+      "get": {
+        "operationId": "getCoIntervalSchedule",
+        "tags": [
+          "O4"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O4",
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "saveCoIntervalSchedule",
+        "tags": [
+          "O4"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O4",
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScheduleRequest"
+              }
+            }
+          }
+        },
+        "description": "Fixed UTC interval60s..30days, explicit task version, revision CAS. Original due-time durable key, overlap skipped, downtime coalesced. Confirmed source snapshots reused; no implicit live table subscription."
+      }
+    },
+    "/tasks/{task_id}/upgrade-preview": {
+      "post": {
+        "operationId": "previewCoTaskUpgrade",
+        "tags": [
+          "O4"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O4",
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpgradePreviewRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tasks/{task_id}/archive": {
+      "post": {
+        "operationId": "archiveCoTask",
+        "tags": [
+          "O4"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O4",
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArchiveTaskRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/runs/{run_id}/replay": {
+      "post": {
+        "operationId": "replayCoStage",
+        "tags": [
+          "O4"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O4",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplayStageRequest"
+              }
+            }
+          }
+        },
+        "description": "New finite run from explicit stage and descendants. Original item inputs, historical output+mapping or confirmed table snapshot. Task version same task; retry_of and unexecuted stage scope retained; missing evidence blocks. No full regression claim."
+      }
+    },
+    "/tables/{table_id}/export": {
+      "post": {
+        "operationId": "exportCoTable",
+        "tags": [
+          "O4"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O4",
+        "parameters": [
+          {
+            "name": "table_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportTableRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tables/{table_id}/schema": {
+      "post": {
+        "operationId": "upgradeCoTableSchema",
+        "tags": [
+          "O4"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O4",
+        "parameters": [
+          {
+            "name": "table_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SchemaUpgradeRequest"
               }
             }
           }
@@ -4956,6 +5410,11 @@
               "continue",
               "pause_stage"
             ]
+          },
+          "refresh_seconds": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2592000
           }
         },
         "required": [
@@ -5082,32 +5541,7 @@
             "pattern": "^[a-z][a-z0-9_]{0,63}$"
           },
           "source": {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "kind": {
-                "enum": [
-                  "manual",
-                  "table",
-                  "file"
-                ]
-              },
-              "inputs": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/BoundedObject"
-                },
-                "minItems": 1,
-                "maxItems": 100
-              },
-              "source_check_id": {
-                "type": "string",
-                "minLength": 1
-              }
-            },
-            "required": [
-              "kind"
-            ]
+            "$ref": "#/components/schemas/TaskSource"
           },
           "stages": {
             "type": "array",
@@ -5714,36 +6148,29 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
-          "expected_revision": {
-            "type": "integer",
-            "minimum": 0,
-            "maximum": 2147483647
-          },
           "task_version_id": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
+          },
+          "interval_seconds": {
+            "type": "integer",
+            "minimum": 60,
+            "maximum": 2592000
           },
           "enabled": {
             "type": "boolean"
           },
-          "cron": {
-            "type": "string",
-            "maxLength": 128
-          },
-          "timezone": {
-            "type": "string",
-            "maxLength": 64
-          },
-          "overlap_policy": {
-            "const": "skip"
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2147483647
           }
         },
         "required": [
-          "expected_revision",
           "task_version_id",
+          "interval_seconds",
           "enabled",
-          "cron",
-          "timezone",
-          "overlap_policy"
+          "expected_revision"
         ]
       },
       "ControlRequest": {
@@ -6605,21 +7032,11 @@
           {
             "properties": {
               "stages": {
-                "minItems": 1,
-                "maxItems": 1
+                "maxItems": 1,
+                "minItems": 1
               },
               "edges": {
                 "maxItems": 0
-              },
-              "source": {
-                "properties": {
-                  "kind": {
-                    "const": "manual"
-                  }
-                },
-                "required": [
-                  "inputs"
-                ]
               }
             }
           }
@@ -6819,6 +7236,9 @@
           },
           "updated_at": {
             "type": "string"
+          },
+          "archived": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -6924,20 +7344,6 @@
         "allOf": [
           {
             "$ref": "#/components/schemas/TaskDefinition"
-          },
-          {
-            "properties": {
-              "source": {
-                "properties": {
-                  "kind": {
-                    "const": "manual"
-                  }
-                },
-                "required": [
-                  "inputs"
-                ]
-              }
-            }
           }
         ]
       },
@@ -7015,6 +7421,348 @@
           "edge",
           "input",
           "output"
+        ]
+      },
+      "TaskSource": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "const": "manual"
+              },
+              "inputs": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/BoundedObject"
+                },
+                "minItems": 1,
+                "maxItems": 100
+              }
+            },
+            "required": [
+              "kind",
+              "inputs"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "enum": [
+                  "table",
+                  "file"
+                ]
+              },
+              "inputs": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/BoundedObject"
+                },
+                "minItems": 0,
+                "maxItems": 0
+              },
+              "snapshot_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "snapshot_hash": {
+                "type": "string",
+                "minLength": 1
+              },
+              "count": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1000
+              },
+              "accept_partial": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "kind",
+              "inputs",
+              "snapshot_id",
+              "snapshot_hash",
+              "count"
+            ]
+          }
+        ]
+      },
+      "SourcePreviewRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "enum": [
+              "table",
+              "file"
+            ]
+          },
+          "collector_version_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "table_id": {
+            "type": "string"
+          },
+          "schema_version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100000
+          },
+          "record_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 0,
+            "maxItems": 1000
+          },
+          "filter": {
+            "$ref": "#/components/schemas/BoundedObject"
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000
+          },
+          "format": {
+            "enum": [
+              "csv",
+              "json"
+            ]
+          },
+          "content": {
+            "type": "string",
+            "maxLength": 786432
+          },
+          "mapping": {
+            "type": "object",
+            "minProperties": 1,
+            "maxProperties": 30,
+            "additionalProperties": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "required": [
+          "kind",
+          "collector_version_id",
+          "mapping"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "table"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "table_id",
+                "schema_version",
+                "limit"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "file"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "format",
+                "content"
+              ]
+            }
+          }
+        ]
+      },
+      "UpgradePreviewRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "stage_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "collector_version_id": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "stage_id",
+          "collector_version_id"
+        ]
+      },
+      "ArchiveTaskRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          }
+        },
+        "required": [
+          "expected_revision"
+        ]
+      },
+      "ReplayStageRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "stage_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "task_version_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "item_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1,
+            "maxItems": 100
+          },
+          "output_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1,
+            "maxItems": 100
+          },
+          "source": {
+            "$ref": "#/components/schemas/TaskSource"
+          },
+          "confirmed": {
+            "const": true
+          }
+        },
+        "required": [
+          "stage_id",
+          "confirmed"
+        ],
+        "oneOf": [
+          {
+            "required": [
+              "item_ids"
+            ],
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "output_ids"
+                  ]
+                },
+                {
+                  "required": [
+                    "source"
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "required": [
+              "output_ids"
+            ],
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "item_ids"
+                  ]
+                },
+                {
+                  "required": [
+                    "source"
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "required": [
+              "source"
+            ],
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "item_ids"
+                  ]
+                },
+                {
+                  "required": [
+                    "output_ids"
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "ExportTableRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "record_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 0,
+            "maxItems": 1000
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000
+          }
+        },
+        "required": [
+          "limit"
+        ]
+      },
+      "SchemaUpgradeRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "expected_version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100000
+          },
+          "schema": {
+            "$ref": "#/components/schemas/TableSchema"
+          },
+          "confirmed": {
+            "const": true
+          }
+        },
+        "required": [
+          "expected_version",
+          "schema",
+          "confirmed"
         ]
       }
     }

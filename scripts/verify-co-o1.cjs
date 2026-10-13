@@ -15,6 +15,10 @@ const files = [
  "web/src/views/co/runs.vue",
  "web/src/views/co/run-detail.vue",
  "web/src/views/co/data.vue",
+ "web/src/views/co/source-picker.vue",
+ "web/src/views/co/task-daily.vue",
+ "web/src/views/co/replay-stage.vue",
+ "web/src/views/co/home.vue",
   "web/src/views/app/browser-selection.vue",
   "web/src/views/app/layout.vue",
 ];
@@ -144,7 +148,7 @@ for (const item of Object.values(contract.paths))
   for (const op of Object.values(item))
     assert.equal(
       op["x-implementation-status"],
-      ["O1","O2","O3"].includes(op["x-delivery-phase"]) ? "implemented" : "planned",
+      ["O1","O2","O3","O4"].includes(op["x-delivery-phase"]) ? "implemented" : "planned",
     );
 const router = fs.readFileSync(path.join(web, "src/router/route.ts"), "utf8");
 assert.ok(router.includes("path: 'co/collectors/:id'"));
@@ -156,5 +160,5 @@ assert.ok(!/\b(?:window\.)?(alert|prompt)\s*\(/.test(workbench));
 assert.ok(workbench.includes("onBeforeRouteLeave"));
 assert.ok(workbench.includes("selectionApi"));
 process.stdout.write(
-  "OK O1/O2/O3 contract, planned O4+ isolation, routes and template controls\n",
+  "OK O1/O2/O3/O4 contract, new-domain isolation, routes and template controls\n",
 );
