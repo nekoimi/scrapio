@@ -11,6 +11,7 @@ export function statusLabel(status: string) {
 				backpressured: '等待下游消化积压',
 				filtered: '已过滤',
 				delivered: '已派发',
+				merged: '合并到已有工作项',
 				ready: '有效输入',
 				invalid: '映射无效',
 				queued: '排队',

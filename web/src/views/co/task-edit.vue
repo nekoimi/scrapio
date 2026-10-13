@@ -229,6 +229,14 @@
 							<el-form-item label="当前阶段成功输入刷新间隔（秒；0每次访问）"
 								><el-input-number v-model="refreshSeconds" :min="0" :max="2592000"
 							/></el-form-item>
+							<el-form-item label="当前阶段重复输入">
+								<el-select v-model="inputPolicy"
+									><el-option label="全部独立执行（默认）" value="keep_all" /><el-option label="相同完整输入只执行一次" value="merge_identical"
+								/></el-select>
+							</el-form-item>
+							<p class="co-muted">
+								合并限本次运行、本阶段、相同采集器版本与全部输入参数；所有来源保留，共享一次执行、失败与下游结果，不会为每个来源再执行下游。需要每次访问都独立执行时请选择默认策略。
+							</p>
 							<el-form-item label="最多待分发元素"><el-input-number v-model="budget.max_dispatches" :min="1" :max="10000" /></el-form-item
 							><el-form-item label="最多工作项"><el-input-number v-model="budget.max_work_items" :min="1" :max="10000" /></el-form-item>
 							<el-form-item label="最多输出"><el-input-number v-model="budget.max_outputs" :min="1" :max="100000" /></el-form-item>
@@ -326,7 +334,8 @@ const route = useRoute(),
 	onError = ref('continue');
 const sourceKind = ref<'manual' | 'table' | 'file'>(route.query.source_table ? 'table' : 'manual'),
 	frozenSource = ref<TaskSource>({ kind: 'table', inputs: [] }),
-	refreshSeconds = ref(0);
+	refreshSeconds = ref(0),
+	inputPolicy = ref<'keep_all' | 'merge_identical'>('keep_all');
 const save = ref<SaveBinding>({
 		table_id: '',
 		schema_version: 1,
@@ -386,6 +395,7 @@ function selectedStage(): TaskStage {
 		save: { ...save.value, mapping },
 		on_error: onError.value,
 		refresh_seconds: refreshSeconds.value,
+		input_policy: inputPolicy.value,
 	};
 }
 function persistSelected() {
@@ -432,6 +442,7 @@ async function selectStage(id: string) {
 	save.value = JSON.parse(JSON.stringify(st.save));
 	onError.value = st.on_error;
 	refreshSeconds.value = st.refresh_seconds || 0;
+	inputPolicy.value = st.input_policy || 'keep_all';
 	mappingKeys.value = Object.fromEntries(
 		Object.entries(st.save.mapping)
 			.filter(([, b]) => b.kind === 'field')
@@ -782,7 +793,7 @@ function beforeUnload(event: BeforeUnloadEvent) {
 	}
 }
 function reloadTask() {
-	baseline.value = JSON.stringify({name:name.value,definition:version.value?definition():null});
+	baseline.value = JSON.stringify({ name: name.value, definition: version.value ? definition() : null });
 	window.location.reload();
 }
 window.addEventListener('beforeunload', beforeUnload);
@@ -823,6 +834,7 @@ onMounted(() =>
 			budget.value = { ...d.budget, max_dispatches: d.budget.max_dispatches || 10000 };
 			onError.value = all.on_error;
 			refreshSeconds.value = all.refresh_seconds || 0;
+			inputPolicy.value = all.input_policy || 'keep_all';
 			sourceKind.value = d.source.kind;
 			frozenSource.value = d.source;
 			inputMode.value = 'json';

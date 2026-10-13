@@ -46,12 +46,25 @@
 							>{{ statusLabel(row.status) }}<small>{{ row.blocked_reason || row.close_reason }}</small></template
 						></el-table-column
 					>
-					<el-table-column prop="input_count" label="输入" width="70" /><el-table-column prop="output_count" label="输出" width="70" />
+					<el-table-column prop="source_count" label="来源输入" width="90" /><el-table-column
+						prop="input_count"
+						label="工作项"
+						width="80"
+					/><el-table-column prop="merged_inputs" label="合并减少" width="90" /><el-table-column prop="output_count" label="输出" width="70" />
+					<el-table-column label="输入策略"
+						><template #default="{ row }">{{
+							run.manifest.definition.stages.find((s) => s.id === row.stage_id)?.input_policy === 'merge_identical' ? '相同输入合并' : '全部独立执行'
+						}}</template></el-table-column
+					>
 					<el-table-column prop="delivered" label="已派发" width="80" /><el-table-column
 						prop="pending_dispatches"
 						label="待派发"
 						width="80"
-					/><el-table-column prop="filtered" label="过滤" width="70" /><el-table-column prop="dispatch_errors" label="分发异常" width="90" />
+					/><el-table-column prop="merged_dispatches" label="分发合并" width="90" /><el-table-column
+						prop="filtered"
+						label="过滤"
+						width="70"
+					/><el-table-column prop="dispatch_errors" label="分发异常" width="90" />
 					<el-table-column label="工作项 / 保存决策"
 						><template #default="{ row }"
 							><code>{{ JSON.stringify(row.counters) }} / {{ JSON.stringify(row.save_decisions) }}</code></template
@@ -115,11 +128,9 @@
 					></el-tab-pane
 				><el-tab-pane label="分发与映射诊断" name="dispatches"
 					><el-table :data="dispatches">
-						<el-table-column prop="edge_id" label="连接" /><el-table-column prop="status" label="结果" /><el-table-column
-							prop="expansion_ordinal"
-							label="展开序号"
-							width="90"
-						/>
+						<el-table-column prop="edge_id" label="连接" /><el-table-column label="结果"
+							><template #default="{ row }">{{ statusLabel(row.status) }}</template></el-table-column
+						><el-table-column prop="expansion_ordinal" label="展开序号" width="90" />
 						<el-table-column label="冻结下游输入 / 错误"
 							><template #default="{ row }"
 								><code>{{ JSON.stringify(row.input_snapshot) }}</code>
@@ -152,9 +163,23 @@
 			><template v-if="selected"
 				><p>{{ statusLabel(selected.item.status) }} · {{ selected.item.error?.message }}</p>
 				<pre>{{ JSON.stringify(selected.input, null, 2) }}</pre>
+				<h3>全部输入来源 · 相同输入共享此工作项及结果</h3>
+				<el-table :data="selected.sources"
+					><el-table-column prop="source_key" label="来源身份" /><el-table-column label="处理方式"
+						><template #default="{ row }">{{ row.merged ? '合并到此工作项' : '创建此工作项' }}</template></el-table-column
+					><el-table-column label="冻结来源"
+						><template #default="{ row }"
+							><code>{{ JSON.stringify(row.source) }}</code></template
+						></el-table-column
+					></el-table
+				>
+				<el-button v-if="selected.next_source_cursor" :disabled="busy" @click="moreSources">继续加载来源（每页100条）</el-button>
 				<h3>来源链 · 向上游追溯</h3>
+				<p v-if="selected.lineage_has_more">此处展示前100条上游关系；可从输入来源和上游工作项继续追溯，完整证据仍保留。</p>
 				<p v-if="!selected.lineage?.length">此项来自入口快照。</p>
-				<el-card v-for="link in selected.lineage" :key="link.source_output_id"
+				<el-card
+					v-for="link in selected.lineage"
+					:key="[link.target_item_id, link.source_output_id, link.edge_id, link.element_key, link.depth].join(':')"
 					><template #header>{{ link.depth }} · {{ link.source_stage }} → {{ link.edge_id }}</template>
 					<p>映射 {{ link.mapping_hash }} · 元素 {{ link.element_key }}</p>
 					<p>来源输入</p>
@@ -296,6 +321,14 @@ async function openItem(item: string) {
 		selected.value = await taskApi.item(id, item);
 		receiptValue.value = undefined;
 		drawer.value = true;
+	});
+}
+async function moreSources() {
+	if (!selected.value?.next_source_cursor) return;
+	await guarded(async () => {
+		const current = selected.value!;
+		const page = await taskApi.item(id, current.item.id, current.next_source_cursor);
+		if (selected.value?.item.id === current.item.id) selected.value = { ...page, sources: [...current.sources, ...page.sources] };
 	});
 }
 async function resolve(action: string) {

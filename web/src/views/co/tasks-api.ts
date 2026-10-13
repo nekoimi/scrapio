@@ -22,6 +22,7 @@ export interface TaskStage {
 	save: SaveBinding;
 	on_error: string;
 	refresh_seconds?: number;
+	input_policy?: 'keep_all' | 'merge_identical';
 }
 export interface TaskSource {
 	kind: 'manual' | 'table' | 'file';
@@ -188,13 +189,16 @@ export const taskApi = {
 		call<{ run: Run; stages: any[]; counts: { status: string; count: number }[] }>('/runs/' + id + (summary ? '?summary=1' : '')),
 	runPage: <T = any>(id: string, kind: string, cursor = '') =>
 		call<Page<T>>('/runs/' + id + '/' + kind + '?limit=50&cursor=' + encodeURIComponent(cursor)),
-	item: (run: string, id: string) =>
+	item: (run: string, id: string, sourceCursor = '') =>
 		call<{
 			item: WorkItem;
 			attempts: { id: string; number: number; status: string; command_refs: { command_id: string; status: string }[]; error: any }[];
 			input: any[];
+			sources: any[];
+			next_source_cursor: string;
 			lineage: any[];
-		}>('/runs/' + run + '/work-items/' + id),
+			lineage_has_more: boolean;
+		}>('/runs/' + run + '/work-items/' + id + '?source_cursor=' + encodeURIComponent(sourceCursor)),
 	events: (id: string, after: number) =>
 		call<{ items: { sequence: number; type: string; item_id?: string; data: unknown }[]; next_sequence: number; latest_sequence: number }>(
 			'/runs/' + id + '/events?after=' + after

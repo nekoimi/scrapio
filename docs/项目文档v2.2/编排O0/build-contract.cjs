@@ -98,6 +98,7 @@ require('./co-o1.cjs')(schemas,paths,{ref,obj,str,integer,arr,route});
 require('./co-o2.cjs')(schemas,paths,{ref,obj,str,integer,arr,route});
 require('./co-o3.cjs')(schemas,paths,{ref,obj,str,integer,arr,route});
 require('./co-o4.cjs')(schemas,paths,{ref,obj,str,integer,arr,route});
+require('./co-o5.cjs')(schemas,paths,{ref,obj,str,integer,arr,route});
 const openapi = { openapi: '3.1.0', jsonSchemaDialect: 'http://json-schema.org/draft-07/schema#', info: { title: 'scrapio independent collectors and tasks', version: 'co.contract.v1', description: 'O1 collectors, O2 durable tasks/tables and O3 multi-stage graphs/dispatches are mounted under /api/v4. O4 finite sources, interval schedules, scoped replay and governance are mounted. Operations carry bounded polymorphic results; TestResult, SessionView and CollectorVersionView describe concrete projections. Real release verification pending.' }, servers: [{ url: '/api/v4' }], security: [{ SessionBearer: [] }], paths, components: { securitySchemes: { SessionBearer: { type: 'http', scheme: 'bearer' } }, schemas } };
 
 // Artificial fixtures are deliberately hosted under the reserved example.test domain.

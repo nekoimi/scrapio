@@ -174,22 +174,35 @@ func dispatchRun(ctx context.Context, id string) error {
 				problem = row.Error
 			}
 			if status == "ready" {
-				if int(total)+r.InputCount-r.PreparingCursor >= m.Definition.Budget.MaxWorkItems {
+				childID, err := mergedItem(s, id, stage.ID, m.Stage(p.ToStage), collector.JSON(row.Values))
+				if err != nil {
+					return err
+				}
+				merged := childID != ""
+				if !merged && int(total)+r.InputCount-r.PreparingCursor >= m.Definition.Budget.MaxWorkItems {
 					status = "limited"
 					problem = map[string]string{"code": "WORK_ITEM_BUDGET"}
 				}
-				if status == "ready" && capacity <= 0 {
+				if status == "ready" && !merged && capacity <= 0 {
 					break
 				}
 				if status == "ready" {
 					sourceKey := p.EdgeID + ":" + p.OutputID + ":" + row.ElementKey
-					childID, inputID := uuid.NewString(), uuid.NewString()
+					inputID := uuid.NewString()
 					source := map[string]any{"kind": "output", "output_id": p.OutputID, "edge_id": p.EdgeID, "mapping_hash": p.MappingHash, "element_key": row.ElementKey}
 					// Root ordinals stay [0,input_count); child ordinals are assigned under the run lock.
 					if _, e = s.Exec(`INSERT INTO co_run_inputs(id,run_id,ordinal,source_key,values_json,source,materialized_at) SELECT ?,?,COALESCE(MAX(ordinal),-1)+1,?,CAST(? AS jsonb),CAST(? AS jsonb),NOW() FROM co_run_inputs WHERE run_id=?`, inputID, id, sourceKey, collector.JSON(row.Values), collector.JSON(source), id); e != nil {
 						return e
 					}
-					if _, e = s.Exec(`INSERT INTO co_work_items(id,run_id,stage_run_id,input_id,source_key,input_values,input_hash,site_key) VALUES(?,?,?,?,?,CAST(? AS jsonb),?,?)`, childID, id, stage.ID, inputID, sourceKey, collector.JSON(row.Values), collector.Hash(row.Values), executionSite(m.ForStage(p.ToStage).CollectorDefinition, row.Values)); e != nil {
+					if !merged {
+						childID, e = createInputItem(s, id, stage.ID, m.Stage(p.ToStage), m.ForStage(p.ToStage).CollectorDefinition, RunInput{ID: inputID, SourceKey: sourceKey, Values: collector.JSON(row.Values)})
+						if e != nil {
+							return e
+						}
+						capacity--
+						total++
+					}
+					if e = attachInputSource(s, id, childID, inputID, merged); e != nil {
 						return e
 					}
 					if _, e = s.Exec(`INSERT INTO co_lineage(target_item_id,run_id,source_item_id,source_output_id,namespace,edge_id,mapping_hash,element_key) SELECT ?,?,item_id,id,namespace,?,?,? FROM co_run_outputs WHERE run_id=? AND namespace=? AND id=?`, childID, id, p.EdgeID, p.MappingHash, row.ElementKey, id, r.Namespace, p.OutputID); e != nil {
@@ -197,8 +210,9 @@ func dispatchRun(ctx context.Context, id string) error {
 					}
 					child = childID
 					status = "delivered"
-					capacity--
-					total++
+					if merged {
+						status = "merged"
+					}
 				}
 			}
 			if _, e = s.Exec(`INSERT INTO co_dispatches(id,run_id,plan_id,output_id,edge_id,expansion_ordinal,element_key,status,input_snapshot,error,child_item_id) VALUES(?,?,?,?,?,?,?,?,CAST(? AS jsonb),CAST(? AS jsonb),?) ON CONFLICT(output_id,edge_id,expansion_ordinal) DO NOTHING`, uuid.NewString(), id, p.ID, p.OutputID, p.EdgeID, p.NextOrdinal, row.ElementKey, status, collector.JSON(row.Values), collector.JSON(problem), child); e != nil {

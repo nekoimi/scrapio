@@ -3,6 +3,7 @@ package co
 import (
 	"context"
 	"encoding/json"
+	"github.com/google/uuid"
 	"github.com/nekoimi/scrapio/internal/collector"
 	"time"
 )
@@ -36,9 +37,12 @@ func RunDetail(ctx context.Context, owner int64, id string, summary ...bool) (an
 	rows[0] = json.RawMessage(collector.JSON(runView))
 	stages, e := views(s, `SELECT st.*,
  (SELECT COUNT(*) FROM co_work_items w WHERE w.stage_run_id=st.id) AS input_count,
+ (SELECT COUNT(*) FROM co_item_sources src JOIN co_work_items w ON w.id=src.item_id WHERE w.stage_run_id=st.id) AS source_count,
+ (SELECT COUNT(*) FROM co_item_sources src JOIN co_work_items w ON w.id=src.item_id WHERE w.stage_run_id=st.id AND src.merged) AS merged_inputs,
  (SELECT COUNT(*) FROM co_run_outputs o JOIN co_work_items w ON w.id=o.item_id WHERE w.stage_run_id=st.id) AS output_count,
  (SELECT COALESCE(SUM(p.total-p.next_ordinal),0) FROM co_dispatch_plans p WHERE p.run_id=st.run_id AND p.from_stage=st.stage_id AND p.status='pending') AS pending_dispatches,
  (SELECT COUNT(*) FROM co_dispatches d JOIN co_dispatch_plans p ON p.id=d.plan_id WHERE p.run_id=st.run_id AND p.from_stage=st.stage_id AND d.status='delivered') AS delivered,
+ (SELECT COUNT(*) FROM co_dispatches d JOIN co_dispatch_plans p ON p.id=d.plan_id WHERE p.run_id=st.run_id AND p.from_stage=st.stage_id AND d.status='merged') AS merged_dispatches,
  (SELECT COUNT(*) FROM co_dispatches d JOIN co_dispatch_plans p ON p.id=d.plan_id WHERE p.run_id=st.run_id AND p.from_stage=st.stage_id AND d.status='filtered') AS filtered,
  (SELECT COUNT(*) FROM co_dispatches d JOIN co_dispatch_plans p ON p.id=d.plan_id WHERE p.run_id=st.run_id AND p.from_stage=st.stage_id AND d.status IN ('invalid','limited')) AS dispatch_errors,
  (SELECT COALESCE(jsonb_object_agg(decision,n),'{}') FROM (SELECT o.decision,COUNT(*) AS n FROM co_observations o JOIN co_work_items w ON w.id=o.item_id WHERE w.stage_run_id=st.id GROUP BY o.decision) decisions) AS save_decisions
@@ -100,7 +104,16 @@ func RunPage(ctx context.Context, owner int64, id, kind, cursor string, limit in
 	}
 	return map[string]any{"items": rows, "next_cursor": next}, nil
 }
-func ItemDetail(ctx context.Context, owner int64, runID, itemID string) (any, error) {
+func ItemDetail(ctx context.Context, owner int64, runID, itemID string, sourceCursors ...string) (any, error) {
+	cursor := ""
+	if len(sourceCursors) > 0 {
+		cursor = sourceCursors[0]
+	}
+	if cursor != "" {
+		if _, e := uuid.Parse(cursor); e != nil {
+			return nil, collector.Invalid("source_cursor", "来源游标无效")
+		}
+	}
 	s := session(ctx)
 	defer s.Close()
 	if _, e := getRun(s, owner, runID, false); e != nil {
@@ -121,12 +134,27 @@ func ItemDetail(ctx context.Context, owner int64, runID, itemID string) (any, er
 	if e != nil {
 		return nil, e
 	}
+	sources, e := views(s, `SELECT i.*,i.values_json AS values,src.merged FROM co_item_sources src JOIN co_run_inputs i ON i.id=src.input_id WHERE src.run_id=? AND src.item_id=? AND i.id>? ORDER BY i.id LIMIT 101`, runID, itemID, cursor)
+	if e != nil {
+		return nil, e
+	}
+	next := ""
+	if len(sources) > 100 {
+		sources = sources[:100]
+		var last struct{ ID string }
+		_ = json.Unmarshal(sources[99], &last)
+		next = last.ID
+	}
 	lineage, e := views(s, `WITH RECURSIVE chain AS (
  SELECT l.*,1 AS depth FROM co_lineage l WHERE l.run_id=? AND l.target_item_id=?
- UNION ALL SELECT l.*,c.depth+1 FROM co_lineage l JOIN chain c ON l.target_item_id=c.source_item_id AND l.run_id=c.run_id WHERE c.depth<20
+ UNION SELECT l.*,c.depth+1 FROM co_lineage l JOIN chain c ON l.target_item_id=c.source_item_id AND l.run_id=c.run_id WHERE c.depth<20
  ) SELECT c.*,o.values_json AS output_values,o.output_identity,o.source,w.input_values AS source_input,st.stage_id AS source_stage
- FROM chain c JOIN co_run_outputs o ON o.id=c.source_output_id JOIN co_work_items w ON w.id=c.source_item_id JOIN co_stage_runs st ON st.id=w.stage_run_id ORDER BY depth`, runID, itemID)
-	return map[string]any{"item": rows[0], "attempts": attempts, "input": input, "lineage": lineage}, e
+ FROM chain c JOIN co_run_outputs o ON o.id=c.source_output_id JOIN co_work_items w ON w.id=c.source_item_id JOIN co_stage_runs st ON st.id=w.stage_run_id ORDER BY depth,c.source_output_id,c.edge_id,c.element_key LIMIT 101`, runID, itemID)
+	more := len(lineage) > 100
+	if more {
+		lineage = lineage[:100]
+	}
+	return map[string]any{"item": rows[0], "attempts": attempts, "input": input, "sources": sources, "next_source_cursor": next, "lineage": lineage, "lineage_has_more": more}, e
 }
 func RunEvents(ctx context.Context, owner int64, id string, after int64) (any, error) {
 	if after < 0 {

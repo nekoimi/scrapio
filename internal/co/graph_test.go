@@ -11,6 +11,15 @@ func TestCOO3GraphAndMapping(t *testing.T) {
 	if e := d.Validate(); e != nil {
 		t.Fatal(e)
 	}
+	d.Stages[1].InputPolicy = "merge_identical"
+	if e := d.Validate(); e != nil {
+		t.Fatal(e)
+	}
+	d.Stages[1].InputPolicy = "url_only"
+	if d.Validate() == nil {
+		t.Fatal("unsafe URL-only merge accepted")
+	}
+	d.Stages[1].InputPolicy = ""
 	invalid := d
 	invalid.Edges = []TaskEdge{{ID: "edge", From: "child", To: "root", Port: "records", Emit: "valid"}}
 	if invalid.Validate() == nil {

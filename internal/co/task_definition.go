@@ -32,6 +32,7 @@ type TaskStage struct {
 	Save               SaveBinding `json:"save"`
 	OnError            string      `json:"on_error"`
 	RefreshSeconds     int         `json:"refresh_seconds,omitempty"`
+	InputPolicy        string      `json:"input_policy,omitempty"`
 }
 type SaveBinding struct {
 	TableID       string                       `json:"table_id"`
@@ -113,6 +114,9 @@ func (d TaskDefinition) Validate() error {
 		return e
 	}
 	for _, st := range d.Stages {
+		if st.InputPolicy != "" && st.InputPolicy != "keep_all" && st.InputPolicy != "merge_identical" {
+			return collector.Invalid("stages."+st.ID+".input_policy", "输入策略需keep_all或merge_identical；缺省保留独立工作项")
+		}
 		if st.RefreshSeconds < 0 || st.RefreshSeconds > 2592000 {
 			return collector.Invalid("stages."+st.ID+".refresh_seconds", "刷新间隔为0..30天；0表示每次访问")
 		}

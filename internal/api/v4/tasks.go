@@ -307,7 +307,7 @@ func (a API) workItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	vars := mux.Vars(r)
-	v, e := co.ItemDetail(r.Context(), owner, vars["run_id"], vars["item_id"])
+	v, e := co.ItemDetail(r.Context(), owner, vars["run_id"], vars["item_id"], r.URL.Query().Get("source_cursor"))
 	respond(w, r, v, e)
 }
 func (a API) resolveItem(w http.ResponseWriter, r *http.Request) {

@@ -585,25 +585,42 @@ func prepareRun(ctx context.Context, id string) error {
 	if capacity > 10 {
 		capacity = 10
 	}
-	if capacity > 0 && stage.BlockedReason == "" {
+	if stage.BlockedReason == "" {
 		inputs := []RunInput{}
-		if e = s.Where("run_id=? AND ordinal>=? AND ordinal<?", id, r.PreparingCursor, r.InputCount).OrderBy("ordinal").Limit(capacity).Find(&inputs); e != nil {
+		if e = s.Where("run_id=? AND ordinal>=? AND ordinal<?", id, r.PreparingCursor, r.InputCount).OrderBy("ordinal").Limit(10).Find(&inputs); e != nil {
 			return e
 		}
+		prepared := 0
 		for _, in := range inputs {
-			item := WorkItem{ID: uuid.NewString(), RunID: id, StageRunID: stage.ID, InputID: in.ID, SourceKey: in.SourceKey, InputValues: in.Values, InputHash: canonicalHash(in.Values), Status: "queued", Checkpoint: "{}", Error: "{}", CreatedAt: time.Now()}
-			if _, e = s.Exec(`INSERT INTO co_work_items(id,run_id,stage_run_id,input_id,source_key,input_values,input_hash,site_key) VALUES(?,?,?,?,?,CAST(? AS jsonb),?,?) ON CONFLICT(run_id,stage_run_id,source_key) DO NOTHING`, item.ID, id, stage.ID, in.ID, in.SourceKey, in.Values, item.InputHash, executionSiteInput(m.ForStage(m.Definition.EntryStage).CollectorDefinition, in.Values)); e != nil {
+			st := m.Stage(stage.StageID)
+			itemID, err := mergedItem(s, id, stage.ID, st, in.Values)
+			if err != nil {
+				return err
+			}
+			merged := itemID != ""
+			if !merged {
+				if capacity <= 0 {
+					break
+				}
+				itemID, e = createInputItem(s, id, stage.ID, st, m.ForStage(stage.StageID).CollectorDefinition, in)
+				if e != nil {
+					return e
+				}
+				capacity--
+			}
+			if e = attachInputSource(s, id, itemID, in.ID, merged); e != nil {
 				return e
 			}
 			if _, e = s.Exec("UPDATE co_run_inputs SET materialized_at=COALESCE(materialized_at,NOW()) WHERE id=?", in.ID); e != nil {
 				return e
 			}
 			r.PreparingCursor = in.Ordinal + 1
+			prepared++
 		}
 		if _, e = s.Exec("UPDATE co_runs SET preparing_cursor=? WHERE id=?", r.PreparingCursor, id); e != nil {
 			return e
 		}
-		if len(inputs) > 0 {
+		if prepared > 0 {
 			if e = event(s, r, "inputs_materialized", "", map[string]int{"prepared": r.PreparingCursor, "total": r.InputCount}); e != nil {
 				return e
 			}

@@ -3292,7 +3292,7 @@
             "description": "Required capability unavailable"
           }
         },
-        "description": "Run and per-stage status, input/work counts, immutable outputs, save decisions, filtered/delivered/remaining dispatches and pause reason."
+        "description": "Run and per-stage status, input/work counts, immutable outputs, save decisions, filtered/delivered/remaining dispatches and pause reason. Selected O5-01 adds per-stage input policy, source_count, actual input_count, merged_inputs and outgoing merged_dispatches. Merged is dispatch receipt status, never a synthetic work item or independent success."
       }
     },
     "/runs/{run_id}/work-items": {
@@ -3794,6 +3794,14 @@
               "type": "string",
               "minLength": 1
             }
+          },
+          {
+            "name": "source_cursor",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 36
+            }
           }
         ],
         "responses": {
@@ -3840,7 +3848,7 @@
             "description": "Required capability unavailable"
           }
         },
-        "description": "Frozen input, attempts and bounded recursive lineage (up to 20 upstream stages)."
+        "description": "Canonical input, attempts, sources (100 per page, next_source_cursor) and upstream lineage (20 stages, first100 relations, lineage_has_more). Each retained source has its own snapshot and merged receipt. Follow upstream items to inspect remaining ancestry."
       }
     },
     "/runs/{run_id}/work-items/{item_id}/resolve": {
@@ -5415,6 +5423,13 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 2592000
+          },
+          "input_policy": {
+            "enum": [
+              "keep_all",
+              "merge_identical"
+            ],
+            "description": "Optional; absent means keep_all. Merge only within one run and stage, using the complete normalized input and frozen collector version. All source snapshots retained. Shared outcome and one downstream delivery, including late sources."
           }
         },
         "required": [
