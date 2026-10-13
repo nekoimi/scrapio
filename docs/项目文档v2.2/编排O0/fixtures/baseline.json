@@ -1,0 +1,700 @@
+{
+  "provenance": "synthetic; not captured from Douban; no network calls",
+  "created_at": "2026-10-13",
+  "real_targets": {
+    "list": "https://movie.douban.com/top250",
+    "detail": "https://movie.douban.com/subject/1292052/",
+    "short_comments": "https://movie.douban.com/subject/1292052/comments",
+    "verification": "pending; login, selectors, comment IDs and pagination not confirmed"
+  },
+  "collectors": [
+    {
+      "id": "ranking",
+      "version_id": "ranking_v1",
+      "definition": {
+        "definition_version": "collector.v1",
+        "interpreter_version": "co.interpreter.v1",
+        "input_fields": [
+          {
+            "key": "url",
+            "type": "url",
+            "required": true,
+            "nullable": false,
+            "multiple": false
+          }
+        ],
+        "fetch": {
+          "kind": "browser",
+          "url": {
+            "kind": "field",
+            "path": "input.url"
+          },
+          "allowed_origins": [
+            "https://fixture.example.test"
+          ]
+        },
+        "actions": [],
+        "records": {
+          "strategy": "css",
+          "expression": ".movie"
+        },
+        "output": {
+          "port": "records",
+          "fields": [
+            {
+              "key": "movie_id",
+              "type": "string",
+              "required": true,
+              "nullable": false,
+              "multiple": false
+            },
+            {
+              "key": "title",
+              "type": "string",
+              "required": true,
+              "nullable": false,
+              "multiple": false
+            },
+            {
+              "key": "rank",
+              "type": "integer",
+              "required": true,
+              "nullable": false,
+              "multiple": false
+            },
+            {
+              "key": "detail_url",
+              "type": "url",
+              "required": true,
+              "nullable": false,
+              "multiple": false
+            }
+          ],
+          "identity_fields": [
+            "movie_id"
+          ],
+          "mapping": [
+            {
+              "key": "movie_id",
+              "source": "element",
+              "locator": {
+                "strategy": "css",
+                "expression": "a.title"
+              },
+              "extract": "attribute",
+              "clean": "trim",
+              "attribute": "data-movie-id"
+            },
+            {
+              "key": "title",
+              "source": "element",
+              "locator": {
+                "strategy": "css",
+                "expression": "a.title"
+              },
+              "extract": "text",
+              "clean": "trim"
+            },
+            {
+              "key": "rank",
+              "source": "element",
+              "locator": {
+                "strategy": "css",
+                "expression": ".rank"
+              },
+              "extract": "text",
+              "clean": "trim"
+            },
+            {
+              "key": "detail_url",
+              "source": "element",
+              "locator": {
+                "strategy": "css",
+                "expression": "a.title"
+              },
+              "extract": "link",
+              "clean": "trim"
+            }
+          ]
+        },
+        "pagination": {
+          "kind": "url",
+          "next": {
+            "strategy": "css",
+            "expression": ".next"
+          },
+          "end_condition": "next_missing",
+          "resume": "url_or_cursor",
+          "max_pages": 2,
+          "max_records": 10,
+          "max_duration_ms": 30000
+        }
+      }
+    },
+    {
+      "id": "movie",
+      "version_id": "movie_v1",
+      "definition": {
+        "definition_version": "collector.v1",
+        "interpreter_version": "co.interpreter.v1",
+        "input_fields": [
+          {
+            "key": "url",
+            "type": "url",
+            "required": true,
+            "nullable": false,
+            "multiple": false
+          },
+          {
+            "key": "movie_id",
+            "type": "string",
+            "required": true,
+            "nullable": false,
+            "multiple": false
+          }
+        ],
+        "fetch": {
+          "kind": "browser",
+          "url": {
+            "kind": "field",
+            "path": "input.url"
+          },
+          "allowed_origins": [
+            "https://fixture.example.test"
+          ]
+        },
+        "actions": [],
+        "records": {
+          "strategy": "css",
+          "expression": "main"
+        },
+        "output": {
+          "port": "records",
+          "fields": [
+            {
+              "key": "movie_id",
+              "type": "string",
+              "required": true,
+              "nullable": false,
+              "multiple": false
+            },
+            {
+              "key": "title",
+              "type": "string",
+              "required": true,
+              "nullable": false,
+              "multiple": false
+            },
+            {
+              "key": "rating",
+              "type": "number",
+              "required": true,
+              "nullable": false,
+              "multiple": false
+            },
+            {
+              "key": "comments_url",
+              "type": "url",
+              "required": true,
+              "nullable": false,
+              "multiple": false
+            }
+          ],
+          "identity_fields": [
+            "movie_id"
+          ],
+          "mapping": [
+            {
+              "key": "movie_id",
+              "source": "input",
+              "input_key": "movie_id"
+            },
+            {
+              "key": "title",
+              "source": "element",
+              "locator": {
+                "strategy": "css",
+                "expression": "h1"
+              },
+              "extract": "text",
+              "clean": "trim"
+            },
+            {
+              "key": "rating",
+              "source": "element",
+              "locator": {
+                "strategy": "css",
+                "expression": ".rating"
+              },
+              "extract": "text",
+              "clean": "trim"
+            },
+            {
+              "key": "comments_url",
+              "source": "element",
+              "locator": {
+                "strategy": "css",
+                "expression": ".comments"
+              },
+              "extract": "link",
+              "clean": "trim"
+            }
+          ]
+        },
+        "pagination": {
+          "kind": "none",
+          "end_condition": "single_page",
+          "resume": "url_or_cursor",
+          "max_pages": 1,
+          "max_records": 10,
+          "max_duration_ms": 30000
+        }
+      }
+    },
+    {
+      "id": "comment",
+      "version_id": "comment_v1",
+      "definition": {
+        "definition_version": "collector.v1",
+        "interpreter_version": "co.interpreter.v1",
+        "input_fields": [
+          {
+            "key": "url",
+            "type": "url",
+            "required": true,
+            "nullable": false,
+            "multiple": false
+          },
+          {
+            "key": "movie_id",
+            "type": "string",
+            "required": true,
+            "nullable": false,
+            "multiple": false
+          }
+        ],
+        "fetch": {
+          "kind": "browser",
+          "url": {
+            "kind": "field",
+            "path": "input.url"
+          },
+          "allowed_origins": [
+            "https://fixture.example.test"
+          ]
+        },
+        "actions": [],
+        "records": {
+          "strategy": "css",
+          "expression": ".comment"
+        },
+        "output": {
+          "port": "records",
+          "fields": [
+            {
+              "key": "movie_id",
+              "type": "string",
+              "required": true,
+              "nullable": false,
+              "multiple": false
+            },
+            {
+              "key": "comment_id",
+              "type": "string",
+              "required": true,
+              "nullable": false,
+              "multiple": false
+            },
+            {
+              "key": "author",
+              "type": "string",
+              "required": true,
+              "nullable": false,
+              "multiple": false
+            },
+            {
+              "key": "content",
+              "type": "string",
+              "required": true,
+              "nullable": false,
+              "multiple": false
+            }
+          ],
+          "identity_fields": [
+            "comment_id"
+          ],
+          "mapping": [
+            {
+              "key": "movie_id",
+              "source": "input",
+              "input_key": "movie_id"
+            },
+            {
+              "key": "comment_id",
+              "source": "element",
+              "locator": {
+                "strategy": "css",
+                "expression": ".content"
+              },
+              "extract": "attribute",
+              "clean": "trim",
+              "attribute": "data-comment-id"
+            },
+            {
+              "key": "author",
+              "source": "element",
+              "locator": {
+                "strategy": "css",
+                "expression": ".author"
+              },
+              "extract": "text",
+              "clean": "trim"
+            },
+            {
+              "key": "content",
+              "source": "element",
+              "locator": {
+                "strategy": "css",
+                "expression": ".content"
+              },
+              "extract": "text",
+              "clean": "trim"
+            }
+          ]
+        },
+        "pagination": {
+          "kind": "url",
+          "next": {
+            "strategy": "css",
+            "expression": ".next"
+          },
+          "end_condition": "next_missing",
+          "resume": "url_or_cursor",
+          "max_pages": 2,
+          "max_records": 10,
+          "max_duration_ms": 30000
+        }
+      }
+    }
+  ],
+  "task": {
+    "definition_version": "task.v1",
+    "entry_stage": "ranking",
+    "source": {
+      "kind": "manual",
+      "inputs": [
+        {
+          "url": "https://fixture.example.test/top250"
+        }
+      ]
+    },
+    "stages": [
+      {
+        "id": "ranking",
+        "name": "榜单",
+        "collector_version_id": "ranking_v1",
+        "save": {
+          "table_id": "ranking_table",
+          "schema_version": 1,
+          "schema_hash": "ranking_schema_v1_fixture",
+          "mapping": {
+            "movie_id": {
+              "kind": "field",
+              "path": "output.movie_id"
+            },
+            "title": {
+              "kind": "field",
+              "path": "output.title"
+            },
+            "rank": {
+              "kind": "field",
+              "path": "output.rank"
+            },
+            "detail_url": {
+              "kind": "field",
+              "path": "output.detail_url"
+            }
+          },
+          "unique_key": [
+            "movie_id"
+          ],
+          "update_policy": "merge_present",
+          "null_policy": "keep"
+        },
+        "on_error": "continue"
+      },
+      {
+        "id": "movie",
+        "name": "电影详情",
+        "collector_version_id": "movie_v1",
+        "save": {
+          "table_id": "movie_table",
+          "schema_version": 1,
+          "schema_hash": "movie_schema_v1_fixture",
+          "mapping": {
+            "movie_id": {
+              "kind": "field",
+              "path": "output.movie_id"
+            },
+            "title": {
+              "kind": "field",
+              "path": "output.title"
+            },
+            "rating": {
+              "kind": "field",
+              "path": "output.rating"
+            },
+            "comments_url": {
+              "kind": "field",
+              "path": "output.comments_url"
+            }
+          },
+          "unique_key": [
+            "movie_id"
+          ],
+          "update_policy": "merge_present",
+          "null_policy": "keep"
+        },
+        "on_error": "continue"
+      },
+      {
+        "id": "comment",
+        "name": "短评",
+        "collector_version_id": "comment_v1",
+        "save": {
+          "table_id": "comment_table",
+          "schema_version": 1,
+          "schema_hash": "comment_schema_v1_fixture",
+          "mapping": {
+            "movie_id": {
+              "kind": "field",
+              "path": "output.movie_id"
+            },
+            "comment_id": {
+              "kind": "field",
+              "path": "output.comment_id"
+            },
+            "author": {
+              "kind": "field",
+              "path": "output.author"
+            },
+            "content": {
+              "kind": "field",
+              "path": "output.content"
+            }
+          },
+          "unique_key": [
+            "movie_id",
+            "comment_id"
+          ],
+          "update_policy": "merge_present",
+          "null_policy": "keep"
+        },
+        "on_error": "continue"
+      }
+    ],
+    "edges": [
+      {
+        "id": "ranking_movie",
+        "from": "ranking",
+        "to": "movie",
+        "port": "records",
+        "mapping": {
+          "url": {
+            "kind": "field",
+            "path": "output.detail_url"
+          },
+          "movie_id": {
+            "kind": "field",
+            "path": "output.movie_id"
+          }
+        },
+        "filter": {
+          "mode": "all",
+          "rules": [
+            {
+              "path": "output.detail_url",
+              "op": "nonempty"
+            }
+          ]
+        },
+        "emit": "valid"
+      },
+      {
+        "id": "movie_comment",
+        "from": "movie",
+        "to": "comment",
+        "port": "records",
+        "mapping": {
+          "url": {
+            "kind": "field",
+            "path": "output.comments_url"
+          },
+          "movie_id": {
+            "kind": "field",
+            "path": "output.movie_id"
+          }
+        },
+        "filter": {
+          "mode": "all",
+          "rules": [
+            {
+              "path": "output.comments_url",
+              "op": "nonempty"
+            }
+          ]
+        },
+        "emit": "valid"
+      }
+    ],
+    "budget": {
+      "max_work_items": 20,
+      "max_outputs": 100,
+      "max_pending": 10,
+      "browser_slots": 2,
+      "max_duration_ms": 600000
+    },
+    "overlap_policy": "skip"
+  },
+  "samples": [
+    {
+      "collector_id": "ranking",
+      "input": {
+        "url": "https://fixture.example.test/top250"
+      },
+      "html": "list.html",
+      "expected": [
+        {
+          "movie_id": "m001",
+          "title": "示例电影一",
+          "rank": 1,
+          "detail_url": "https://fixture.example.test/subject/m001"
+        },
+        {
+          "movie_id": "m002",
+          "title": "示例电影二",
+          "rank": 2,
+          "detail_url": "https://fixture.example.test/subject/m002"
+        }
+      ],
+      "coverage": "page1 only; next page intentionally not supplied"
+    },
+    {
+      "collector_id": "movie",
+      "input": {
+        "url": "https://fixture.example.test/subject/m001",
+        "movie_id": "m001"
+      },
+      "html": "detail.html",
+      "expected": [
+        {
+          "movie_id": "m001",
+          "title": "示例电影一",
+          "rating": 9.2,
+          "comments_url": "https://fixture.example.test/subject/m001/comments"
+        }
+      ],
+      "coverage": "single input"
+    },
+    {
+      "collector_id": "comment",
+      "input": {
+        "url": "https://fixture.example.test/subject/m001/comments",
+        "movie_id": "m001"
+      },
+      "html": "comments.html",
+      "expected": [
+        {
+          "movie_id": "m001",
+          "comment_id": "c001",
+          "author": "用户甲",
+          "content": "人工样例评论一"
+        },
+        {
+          "movie_id": "m001",
+          "comment_id": "c002",
+          "author": "用户乙",
+          "content": "人工样例评论二"
+        }
+      ],
+      "coverage": "page1 only; next page intentionally not supplied"
+    }
+  ],
+  "json_sample": {
+    "input": {
+      "movie_id": "m001"
+    },
+    "response": [
+      {
+        "comment_id": "c001",
+        "author": "用户甲",
+        "content": "人工样例评论一"
+      }
+    ],
+    "expected": [
+      {
+        "movie_id": "m001",
+        "comment_id": "c001",
+        "author": "用户甲",
+        "content": "人工样例评论一"
+      }
+    ]
+  },
+  "event_cases": [
+    {
+      "id": "outbox_crash",
+      "sequence": [
+        "output_commit",
+        "dispatcher_crash",
+        "queue_empty",
+        "dispatcher_resume",
+        "child_created"
+      ],
+      "expected": "queue_empty does not finish target stage"
+    },
+    {
+      "id": "batch_rollback",
+      "sequence": [
+        "write_begin",
+        "sql_failure",
+        "rollback",
+        "worker_restart"
+      ],
+      "expected": "no new output, checkpoint or dispatch"
+    },
+    {
+      "id": "unknown_action",
+      "sequence": [
+        "click_sent",
+        "receipt_connection_lost",
+        "query_original",
+        "no_receipt"
+      ],
+      "expected": "awaiting_confirmation; no repeated click"
+    },
+    {
+      "id": "cancel_dispatch",
+      "sequence": [
+        "cancel_control_lock",
+        "dispatch_control_lock"
+      ],
+      "expected": "dispatch_cancelled; no new child"
+    },
+    {
+      "id": "unchanged",
+      "sequence": [
+        "unchanged_output_commit",
+        "emit_valid"
+      ],
+      "expected": "child_created"
+    },
+    {
+      "id": "replay_changed",
+      "sequence": [
+        "identity_commit",
+        "retry_same_identity_different_values"
+      ],
+      "expected": "OUTPUT_CHANGED_ON_REPLAY; original output stays immutable"
+    }
+  ]
+}
