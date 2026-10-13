@@ -5,6 +5,7 @@ import (
 
 	"github.com/nekoimi/scrapio/internal/bean"
 	"github.com/nekoimi/scrapio/internal/capture"
+	"github.com/nekoimi/scrapio/internal/co"
 	"github.com/nekoimi/scrapio/internal/config"
 	"github.com/nekoimi/scrapio/internal/crawler"
 	"github.com/nekoimi/scrapio/internal/crawler/providers/javdb"
@@ -53,6 +54,7 @@ func BeanLifecycle() *bean.LifecycleManager {
 }
 
 func registerControlWorkers(ctx context.Context) {
+	bean.MustRegisterPtr[co.Worker](ctx, co.NewWorker())
 	// Registry keys are types. Each worker needs its own concrete key; registering
 	// them all as bean.Lifecycle replaces the lookup and only starts the first one.
 	bean.MustRegisterPtr[job.WorkflowScheduler](ctx, job.NewWorkflowScheduler())

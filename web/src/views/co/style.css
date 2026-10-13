@@ -1,0 +1,131 @@
+.co-page {
+	max-width: 1480px;
+	margin: 0 auto;
+	min-width: 0;
+}
+.co-heading {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	gap: 16px;
+	flex-wrap: wrap;
+	margin-bottom: 20px;
+}
+.co-heading h1 {
+	font-size: 24px;
+	margin: 0 0 8px;
+	color: var(--el-text-color-primary);
+}
+.co-heading p,
+.co-muted {
+	color: var(--el-text-color-secondary);
+	line-height: 1.6;
+}
+.co-page .el-alert {
+	margin: 12px 0;
+}
+.co-page .el-card {
+	margin: 16px 0;
+}
+.co-page .el-form-item {
+	margin-bottom: 16px;
+}
+.co-columns {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) minmax(280px, 0.6fr);
+	gap: 24px;
+	align-items: start;
+}
+.co-browser-grid {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) 360px;
+	gap: 20px;
+	align-items: start;
+}
+.co-browser-view {
+	position: relative;
+	min-width: 0;
+	background: #e9edf4;
+	border: 1px solid #d9e1ed;
+	border-radius: 12px;
+	overflow: hidden;
+}
+.co-selection-box {
+	position: absolute;
+	border: 2px solid #3978ed;
+	background: rgba(57, 120, 237, 0.12);
+	pointer-events: none;
+	box-sizing: border-box;
+}
+.co-browser-view img {
+	width: 100%;
+	display: block;
+	cursor: crosshair;
+}
+.co-browser-toolbar {
+	display: flex;
+	gap: 8px;
+	align-items: center;
+	flex-wrap: wrap;
+	margin: 12px 0;
+}
+.co-fields {
+	display: grid;
+	grid-template-columns: 1fr 1fr 140px;
+	gap: 12px;
+	align-items: start;
+}
+.co-field-row {
+	padding: 16px;
+	border: 1px solid var(--el-border-color);
+	border-radius: 8px;
+	margin-bottom: 12px;
+}
+.co-field-row .el-checkbox {
+	margin-right: 14px;
+}
+.co-tag-row {
+	display: flex;
+	gap: 10px;
+	align-items: center;
+	flex-wrap: wrap;
+}
+.co-json {
+	font-family: ui-monospace, monospace;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	max-height: 360px;
+	overflow: auto;
+	background: #f5f7fa;
+	padding: 16px;
+	border-radius: 8px;
+	line-height: 1.6;
+}
+.co-page .el-select,
+.co-page .el-input-number {
+	max-width: 100%;
+}
+.co-page .el-textarea textarea {
+	font-family: ui-monospace, monospace;
+}
+.co-input {
+	min-width: 220px;
+	flex: 1;
+}
+@media (max-width: 1100px) {
+	.co-browser-grid,
+	.co-columns {
+		grid-template-columns: 1fr;
+	}
+	.co-fields {
+		grid-template-columns: 1fr 1fr;
+	}
+}
+@media (max-width: 600px) {
+	.co-fields {
+		grid-template-columns: 1fr;
+	}
+	.co-heading {
+		align-items: flex-start;
+	}
+}

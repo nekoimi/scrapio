@@ -1363,6 +1363,8 @@ export const staticRoutes: Array<RouteRecordRaw> = [
 		component: () => import('/@/views/app/layout.vue'),
 		redirect: '/app/home',
 		children: [
+			{ path: 'co/collectors', name: 'coCollectors', component: () => import('/@/views/co/collectors.vue'), meta: { title: '独立采集器' } },
+			{ path: 'co/collectors/:id', name: 'coCollectorWorkbench', component: () => import('/@/views/co/workbench.vue'), meta: { title: '独立采集器工作台' } },
 			{ path: 'home', name: 'v22Home', component: () => import('/@/views/app/home.vue'), meta: { title: '首页' } },
 			{ path: 'issues', name: 'v22Issues', component: () => import('/@/views/app/issues-panel.vue'), meta: { title: '异常待办' } },
 			{ path: 'issues/:issueID', name: 'v22Issue', component: () => import('/@/views/app/issue-detail.vue'), meta: { title: '异常与恢复' } },

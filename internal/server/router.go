@@ -24,6 +24,7 @@ import (
 	"github.com/nekoimi/scrapio/internal/api/ui"
 	"github.com/nekoimi/scrapio/internal/api/user"
 	"github.com/nekoimi/scrapio/internal/api/v3"
+	"github.com/nekoimi/scrapio/internal/api/v4"
 	"github.com/nekoimi/scrapio/internal/api/workflows"
 	"github.com/nekoimi/scrapio/internal/bean"
 	"github.com/nekoimi/scrapio/internal/config"
@@ -62,6 +63,7 @@ func newRouter(ctx context.Context, cfg *config.Config) *mux.Router {
 	// 需要认证的接口
 	apiRoute := r.PathPrefix("/api").Subrouter()
 	apiRoute.Use(middleware.AuthMiddleware)
+	v4.Mount(apiRoute, browserService, cfg)
 	{
 		// 登出
 		apiRoute.HandleFunc("/auth/logout", auth.Logout)

@@ -217,7 +217,9 @@
 						target === 'field'
 							? replacingField
 								? '更新此字段定位'
-								: detailPage
+								: independent
+									? '添加当前页字段'
+									: detailPage
 									? '添加到详情字段'
 									: '添加到列表字段'
 							: target === 'record'
@@ -231,7 +233,7 @@
 					准备点击动作
 				</button>
 			</div>
-			<p class="muted">选择会填入采集流程的记录配置，保存后才能预览；详情与下一页访问需明确确认。</p>
+			<p class="muted">{{ independent ? '选择会填入当前页的记录、字段或分页配置；保存后使用结构化样例测试。' : '选择会填入采集流程的记录配置，保存后才能预览；详情与下一页访问需明确确认。' }}</p>
 		</div>
 		<details class="dom-browser" @toggle="openDOM">
 			<summary>DOM 层级（截图点选的替代入口）</summary>
@@ -279,6 +281,8 @@ import {
 	type InspectedElement,
 } from './api';
 const props = defineProps<{
+	independent?: boolean;
+	inspectionApi?: Pick<typeof appApi, 'inspectElement' | 'checkLocator' | 'recheckLocator' | 'domChildren'>;
 	session?: BrowserSession;
 	mode: 'record' | 'field';
 	target: SelectionRule['target'];
@@ -517,7 +521,7 @@ async function recheckRule() {
 	rechecking.value = true;
 	recheckAfter = Date.now() + 3000;
 	try {
-		const result = await appApi.recheckLocator(session.session_id, {
+		const result = await (props.inspectionApi || appApi).recheckLocator(session.session_id, {
 			...extractionInput(),
 			page_state_id: session.page_state_id,
 			document_id: previous.state.document_id,
@@ -654,7 +658,7 @@ async function inspect(input: Partial<InspectionInput>, pageState: string, hover
 	let recommended: LocatorCheck | undefined;
 	let inspectedSelection: ElementInspection | undefined;
 	try {
-		const result = await appApi.inspectElement(session.session_id, {
+		const result = await (props.inspectionApi || appApi).inspectElement(session.session_id, {
 			...input,
 			...extractionInput(),
 			...(!hover && addingExample.value && sampleElements.value.length
@@ -804,7 +808,7 @@ async function validateLocator() {
 	hideEvidence();
 	message.value = '';
 	try {
-		const result = await appApi.checkLocator(session.session_id, {
+		const result = await (props.inspectionApi || appApi).checkLocator(session.session_id, {
 			...extractionInput(),
 			...(sampleElements.value.length ? { sample_element_ids: sampleElements.value.map((el) => el.element_id) } : {}),
 			page_state_id: pageState,
@@ -868,7 +872,7 @@ async function loadDOM(id = '', offset = 0) {
 	busy.value = true;
 	message.value = '';
 	try {
-		const result = await appApi.domChildren(session.session_id, pageState, id, offset);
+		const result = await (props.inspectionApi || appApi).domChildren(session.session_id, pageState, id, offset);
 		if (accept(session.session_id, pageState, epoch)) dom.value = result;
 	} catch (cause: any) {
 		if (accept(session.session_id, pageState, epoch)) failure(cause, false, '读取网页 DOM 层级');

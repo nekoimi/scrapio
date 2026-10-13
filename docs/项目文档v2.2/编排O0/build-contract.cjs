@@ -1,4 +1,4 @@
-// O0 design artifacts only. No production route, interpreter or migration is installed.
+// O0 canonical contract with O1 implemented extensions; O2+ remain planned.
 const fs = require('node:fs');
 const path = require('node:path');
 const ref = name => ({ $ref: '#/components/schemas/' + name });
@@ -94,7 +94,8 @@ route('get', '/tasks/{task_id}/schedule', 'getCoSchedule', 'O4'); route('put', '
 route('get', '/operations/by-key', 'getCoOperationByKey', 'O1', undefined, 'OperationEnvelope');
 paths['/operations/by-key'].get.parameters.push(...['operation', 'key'].map(name => ({ name, in: 'query', required: true, schema: str({ minLength: 1 }) })));
 route('get', '/operations/{operation_id}', 'getCoOperation', 'O1', undefined, 'OperationEnvelope');
-const openapi = { openapi: '3.1.0', jsonSchemaDialect: 'http://json-schema.org/draft-07/schema#', info: { title: 'scrapio independent collectors and tasks — O0 planned contract', version: 'co.contract.v1', description: 'Design artifact only. /api/v4 is not mounted. BoundedObject response projections must be refined in the owning implementation task.' }, servers: [{ url: '/api/v4' }], security: [{ SessionBearer: [] }], paths, components: { securitySchemes: { SessionBearer: { type: 'http', scheme: 'bearer' } }, schemas } };
+require('./co-o1.cjs')(schemas,paths,{ref,obj,str,integer,arr,route});
+const openapi = { openapi: '3.1.0', jsonSchemaDialect: 'http://json-schema.org/draft-07/schema#', info: { title: 'scrapio independent collectors and tasks', version: 'co.contract.v1', description: 'O1 collector APIs are mounted under /api/v4. O2+ task/table/run APIs remain planned. Operations carry bounded polymorphic results; TestResult, SessionView and CollectorVersionView describe concrete projections. Real release verification pending.' }, servers: [{ url: '/api/v4' }], security: [{ SessionBearer: [] }], paths, components: { securitySchemes: { SessionBearer: { type: 'http', scheme: 'bearer' } }, schemas } };
 
 // Artificial fixtures are deliberately hosted under the reserved example.test domain.
 const field = (key, type = 'string', required = true) => ({ key, type, required, nullable: false, multiple: false });

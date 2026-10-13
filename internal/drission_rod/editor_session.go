@@ -16,6 +16,7 @@ import (
 const EditorProtocolVersion = "editor.v1"
 
 type EditorSessionInput struct {
+	Isolated      bool
 	Authorization credential.Authorization
 	SessionID     string
 	URL           string
@@ -59,6 +60,9 @@ func (d *DrissionRod) CreateEditorSession(ctx context.Context, input EditorSessi
 			return EditorSessionState{}, e
 		}
 		request.AuthorizationJson = string(raw)
+	}
+	if input.Isolated {
+		request.ProtocolVersion = "editor.isolated.v1"
 	}
 	client := d.Client()
 	if client == nil {
@@ -195,4 +199,22 @@ func (d *DrissionRod) ProbeEditorState(ctx context.Context) bool {
 	defer cancel()
 	response, err := client.GetEditorSession(call, &pb.EditorSessionRequest{ProtocolVersion: editor.StateProtocol, SessionId: "protocol-probe"})
 	return err == nil && response != nil && response.ProtocolVersion == EditorProtocolVersion && response.ErrorCode == "STATE_SUPPORTED"
+}
+
+// Isolation is negotiated explicitly; a legacy service must not create a shared-context tab.
+func (d *DrissionRod) ProbeEditorIsolation(ctx context.Context) error {
+	client := d.Client()
+	if client == nil {
+		return &BrowserError{Code: "BROWSER_UNAVAILABLE", Message: "浏览器服务未连接"}
+	}
+	call, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	r, e := client.GetEditorSession(call, &pb.EditorSessionRequest{ProtocolVersion: "editor.isolated.v1", SessionId: "protocol-probe"})
+	if e != nil {
+		return classifyRPCError("protocol-probe", e)
+	}
+	if r == nil || r.ErrorCode != "ISOLATION_SUPPORTED" {
+		return &BrowserError{Code: "CAPABILITY_UNAVAILABLE", Message: "浏览器服务未提供独立context协议，请升级scrapio-browser"}
+	}
+	return nil
 }

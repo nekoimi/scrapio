@@ -2,9 +2,9 @@
   "openapi": "3.1.0",
   "jsonSchemaDialect": "http://json-schema.org/draft-07/schema#",
   "info": {
-    "title": "scrapio independent collectors and tasks — O0 planned contract",
+    "title": "scrapio independent collectors and tasks",
     "version": "co.contract.v1",
-    "description": "Design artifact only. /api/v4 is not mounted. BoundedObject response projections must be refined in the owning implementation task."
+    "description": "O1 collector APIs are mounted under /api/v4. O2+ task/table/run APIs remain planned. Operations carry bounded polymorphic results; TestResult, SessionView and CollectorVersionView describe concrete projections. Real release verification pending."
   },
   "servers": [
     {
@@ -23,7 +23,7 @@
         "tags": [
           "O1"
         ],
-        "x-implementation-status": "planned",
+        "x-implementation-status": "implemented",
         "x-delivery-phase": "O1",
         "parameters": [],
         "responses": {
@@ -53,6 +53,9 @@
           "403": {
             "description": "Owner/resource denied"
           },
+          "404": {
+            "description": "Missing resource or owner denied"
+          },
           "409": {
             "description": "Revision, idempotency, version or write conflict",
             "content": {
@@ -62,6 +65,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "Required capability unavailable"
           }
         }
       }
@@ -72,7 +78,7 @@
         "tags": [
           "O1"
         ],
-        "x-implementation-status": "planned",
+        "x-implementation-status": "implemented",
         "x-delivery-phase": "O1",
         "parameters": [
           {
@@ -98,7 +104,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Envelope"
+                  "$ref": "#/components/schemas/CollectorListEnvelope"
                 }
               }
             }
@@ -119,6 +125,9 @@
           "403": {
             "description": "Owner/resource denied"
           },
+          "404": {
+            "description": "Missing resource or owner denied"
+          },
           "409": {
             "description": "Revision, idempotency, version or write conflict",
             "content": {
@@ -128,6 +137,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "Required capability unavailable"
           }
         }
       },
@@ -136,7 +148,7 @@
         "tags": [
           "O1"
         ],
-        "x-implementation-status": "planned",
+        "x-implementation-status": "implemented",
         "x-delivery-phase": "O1",
         "parameters": [
           {
@@ -156,7 +168,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Envelope"
+                  "$ref": "#/components/schemas/CollectorEnvelope"
                 }
               }
             }
@@ -177,6 +189,9 @@
           "403": {
             "description": "Owner/resource denied"
           },
+          "404": {
+            "description": "Missing resource or owner denied"
+          },
           "409": {
             "description": "Revision, idempotency, version or write conflict",
             "content": {
@@ -186,6 +201,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "Required capability unavailable"
           }
         },
         "requestBody": {
@@ -206,7 +224,7 @@
         "tags": [
           "O1"
         ],
-        "x-implementation-status": "planned",
+        "x-implementation-status": "implemented",
         "x-delivery-phase": "O1",
         "parameters": [
           {
@@ -225,7 +243,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Envelope"
+                  "$ref": "#/components/schemas/CollectorEnvelope"
                 }
               }
             }
@@ -246,6 +264,9 @@
           "403": {
             "description": "Owner/resource denied"
           },
+          "404": {
+            "description": "Missing resource or owner denied"
+          },
           "409": {
             "description": "Revision, idempotency, version or write conflict",
             "content": {
@@ -255,6 +276,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "Required capability unavailable"
           }
         }
       }
@@ -265,7 +289,7 @@
         "tags": [
           "O1"
         ],
-        "x-implementation-status": "planned",
+        "x-implementation-status": "implemented",
         "x-delivery-phase": "O1",
         "parameters": [
           {
@@ -284,7 +308,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Envelope"
+                  "$ref": "#/components/schemas/CollectorEnvelope"
                 }
               }
             }
@@ -305,6 +329,9 @@
           "403": {
             "description": "Owner/resource denied"
           },
+          "404": {
+            "description": "Missing resource or owner denied"
+          },
           "409": {
             "description": "Revision, idempotency, version or write conflict",
             "content": {
@@ -314,6 +341,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "Required capability unavailable"
           }
         }
       },
@@ -322,7 +352,7 @@
         "tags": [
           "O1"
         ],
-        "x-implementation-status": "planned",
+        "x-implementation-status": "implemented",
         "x-delivery-phase": "O1",
         "parameters": [
           {
@@ -351,7 +381,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Envelope"
+                  "$ref": "#/components/schemas/CollectorEnvelope"
                 }
               }
             }
@@ -372,6 +402,9 @@
           "403": {
             "description": "Owner/resource denied"
           },
+          "404": {
+            "description": "Missing resource or owner denied"
+          },
           "409": {
             "description": "Revision, idempotency, version or write conflict",
             "content": {
@@ -381,6 +414,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "Required capability unavailable"
           }
         },
         "requestBody": {
@@ -401,7 +437,7 @@
         "tags": [
           "O1"
         ],
-        "x-implementation-status": "planned",
+        "x-implementation-status": "implemented",
         "x-delivery-phase": "O1",
         "parameters": [
           {
@@ -451,6 +487,9 @@
           "403": {
             "description": "Owner/resource denied"
           },
+          "404": {
+            "description": "Missing resource or owner denied"
+          },
           "409": {
             "description": "Revision, idempotency, version or write conflict",
             "content": {
@@ -460,6 +499,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "Required capability unavailable"
           }
         },
         "requestBody": {
@@ -480,7 +522,7 @@
         "tags": [
           "O1"
         ],
-        "x-implementation-status": "planned",
+        "x-implementation-status": "implemented",
         "x-delivery-phase": "O1",
         "parameters": [
           {
@@ -509,7 +551,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Envelope"
+                  "$ref": "#/components/schemas/CollectorVersionEnvelope"
                 }
               }
             }
@@ -530,6 +572,9 @@
           "403": {
             "description": "Owner/resource denied"
           },
+          "404": {
+            "description": "Missing resource or owner denied"
+          },
           "409": {
             "description": "Revision, idempotency, version or write conflict",
             "content": {
@@ -539,6 +584,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "Required capability unavailable"
           }
         },
         "requestBody": {
@@ -557,7 +605,7 @@
         "tags": [
           "O1"
         ],
-        "x-implementation-status": "planned",
+        "x-implementation-status": "implemented",
         "x-delivery-phase": "O1",
         "parameters": [
           {
@@ -592,7 +640,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Envelope"
+                  "$ref": "#/components/schemas/CollectorVersionListEnvelope"
                 }
               }
             }
@@ -613,6 +661,9 @@
           "403": {
             "description": "Owner/resource denied"
           },
+          "404": {
+            "description": "Missing resource or owner denied"
+          },
           "409": {
             "description": "Revision, idempotency, version or write conflict",
             "content": {
@@ -622,6 +673,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "Required capability unavailable"
           }
         }
       }
@@ -1192,7 +1246,7 @@
         "tags": [
           "O1"
         ],
-        "x-implementation-status": "planned",
+        "x-implementation-status": "implemented",
         "x-delivery-phase": "O1",
         "parameters": [
           {
@@ -1242,6 +1296,9 @@
           "403": {
             "description": "Owner/resource denied"
           },
+          "404": {
+            "description": "Missing resource or owner denied"
+          },
           "409": {
             "description": "Revision, idempotency, version or write conflict",
             "content": {
@@ -1251,6 +1308,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "Required capability unavailable"
           }
         },
         "requestBody": {
@@ -1263,6 +1323,69 @@
             }
           }
         }
+      },
+      "get": {
+        "operationId": "listCoTests",
+        "tags": [
+          "O1"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O1",
+        "parameters": [
+          {
+            "name": "collector_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestListEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "404": {
+            "description": "Missing resource or owner denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Required capability unavailable"
+          }
+        }
       }
     },
     "/collectors/{collector_id}/samples": {
@@ -1271,7 +1394,7 @@
         "tags": [
           "O1"
         ],
-        "x-implementation-status": "planned",
+        "x-implementation-status": "implemented",
         "x-delivery-phase": "O1",
         "parameters": [
           {
@@ -1306,7 +1429,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Envelope"
+                  "$ref": "#/components/schemas/SampleListEnvelope"
                 }
               }
             }
@@ -1327,6 +1450,9 @@
           "403": {
             "description": "Owner/resource denied"
           },
+          "404": {
+            "description": "Missing resource or owner denied"
+          },
           "409": {
             "description": "Revision, idempotency, version or write conflict",
             "content": {
@@ -1336,6 +1462,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "Required capability unavailable"
           }
         }
       },
@@ -1344,7 +1473,7 @@
         "tags": [
           "O1"
         ],
-        "x-implementation-status": "planned",
+        "x-implementation-status": "implemented",
         "x-delivery-phase": "O1",
         "parameters": [
           {
@@ -1373,7 +1502,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Envelope"
+                  "$ref": "#/components/schemas/SampleEnvelope"
                 }
               }
             }
@@ -1394,6 +1523,9 @@
           "403": {
             "description": "Owner/resource denied"
           },
+          "404": {
+            "description": "Missing resource or owner denied"
+          },
           "409": {
             "description": "Revision, idempotency, version or write conflict",
             "content": {
@@ -1403,6 +1535,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "Required capability unavailable"
           }
         },
         "requestBody": {
@@ -1423,7 +1558,7 @@
         "tags": [
           "O1"
         ],
-        "x-implementation-status": "planned",
+        "x-implementation-status": "implemented",
         "x-delivery-phase": "O1",
         "parameters": [
           {
@@ -1473,6 +1608,9 @@
           "403": {
             "description": "Owner/resource denied"
           },
+          "404": {
+            "description": "Missing resource or owner denied"
+          },
           "409": {
             "description": "Revision, idempotency, version or write conflict",
             "content": {
@@ -1482,6 +1620,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "Required capability unavailable"
           }
         },
         "requestBody": {
@@ -1502,7 +1643,7 @@
         "tags": [
           "O1"
         ],
-        "x-implementation-status": "planned",
+        "x-implementation-status": "implemented",
         "x-delivery-phase": "O1",
         "parameters": [
           {
@@ -1512,6 +1653,79 @@
             "schema": {
               "type": "string",
               "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "404": {
+            "description": "Missing resource or owner denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Required capability unavailable"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "closeCoEditorSession",
+        "tags": [
+          "O1"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O1",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
             }
           }
         ],
@@ -1542,6 +1756,9 @@
           "403": {
             "description": "Owner/resource denied"
           },
+          "404": {
+            "description": "Missing resource or owner denied"
+          },
           "409": {
             "description": "Revision, idempotency, version or write conflict",
             "content": {
@@ -1551,6 +1768,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "Required capability unavailable"
           }
         }
       }
@@ -1561,7 +1781,7 @@
         "tags": [
           "O1"
         ],
-        "x-implementation-status": "planned",
+        "x-implementation-status": "implemented",
         "x-delivery-phase": "O1",
         "parameters": [
           {
@@ -1611,6 +1831,9 @@
           "403": {
             "description": "Owner/resource denied"
           },
+          "404": {
+            "description": "Missing resource or owner denied"
+          },
           "409": {
             "description": "Revision, idempotency, version or write conflict",
             "content": {
@@ -1620,6 +1843,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "Required capability unavailable"
           }
         },
         "requestBody": {
@@ -1640,7 +1866,7 @@
         "tags": [
           "O1"
         ],
-        "x-implementation-status": "planned",
+        "x-implementation-status": "implemented",
         "x-delivery-phase": "O1",
         "parameters": [
           {
@@ -1690,6 +1916,9 @@
           "403": {
             "description": "Owner/resource denied"
           },
+          "404": {
+            "description": "Missing resource or owner denied"
+          },
           "409": {
             "description": "Revision, idempotency, version or write conflict",
             "content": {
@@ -1699,6 +1928,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "Required capability unavailable"
           }
         },
         "requestBody": {
@@ -1710,7 +1942,8 @@
               }
             }
           }
-        }
+        },
+        "description": "command_id must equal Idempotency-Key. An unresolved prior command blocks a new action; no automatic replay."
       }
     },
     "/sessions/{session_id}/commands/{command_id}": {
@@ -1719,7 +1952,7 @@
         "tags": [
           "O1"
         ],
-        "x-implementation-status": "planned",
+        "x-implementation-status": "implemented",
         "x-delivery-phase": "O1",
         "parameters": [
           {
@@ -1768,6 +2001,9 @@
           "403": {
             "description": "Owner/resource denied"
           },
+          "404": {
+            "description": "Missing resource or owner denied"
+          },
           "409": {
             "description": "Revision, idempotency, version or write conflict",
             "content": {
@@ -1777,6 +2013,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "Required capability unavailable"
           }
         }
       }
@@ -1787,12 +2026,21 @@
         "tags": [
           "O1"
         ],
-        "x-implementation-status": "planned",
+        "x-implementation-status": "implemented",
         "x-delivery-phase": "O1",
         "parameters": [
           {
             "name": "session_id",
             "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "page_state_id",
+            "in": "query",
             "required": true,
             "schema": {
               "type": "string",
@@ -1828,6 +2076,9 @@
           "403": {
             "description": "Owner/resource denied"
           },
+          "404": {
+            "description": "Missing resource or owner denied"
+          },
           "409": {
             "description": "Revision, idempotency, version or write conflict",
             "content": {
@@ -1837,6 +2088,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "Required capability unavailable"
           }
         }
       }
@@ -3542,7 +3796,7 @@
         "tags": [
           "O1"
         ],
-        "x-implementation-status": "planned",
+        "x-implementation-status": "implemented",
         "x-delivery-phase": "O1",
         "parameters": [
           {
@@ -3561,6 +3815,15 @@
             "schema": {
               "type": "string",
               "minLength": 1
+            }
+          },
+          {
+            "name": "resource_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Collector/session ID; empty for createCollector"
             }
           }
         ],
@@ -3591,6 +3854,9 @@
           "403": {
             "description": "Owner/resource denied"
           },
+          "404": {
+            "description": "Missing resource or owner denied"
+          },
           "409": {
             "description": "Revision, idempotency, version or write conflict",
             "content": {
@@ -3600,6 +3866,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "Required capability unavailable"
           }
         }
       }
@@ -3610,7 +3879,7 @@
         "tags": [
           "O1"
         ],
-        "x-implementation-status": "planned",
+        "x-implementation-status": "implemented",
         "x-delivery-phase": "O1",
         "parameters": [
           {
@@ -3650,6 +3919,9 @@
           "403": {
             "description": "Owner/resource denied"
           },
+          "404": {
+            "description": "Missing resource or owner denied"
+          },
           "409": {
             "description": "Revision, idempotency, version or write conflict",
             "content": {
@@ -3659,6 +3931,307 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "Required capability unavailable"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteCoTest",
+        "tags": [
+          "O1"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O1",
+        "parameters": [
+          {
+            "name": "operation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "404": {
+            "description": "Missing resource or owner denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Required capability unavailable"
+          }
+        }
+      }
+    },
+    "/collectors/{collector_id}/archive": {
+      "post": {
+        "operationId": "archiveCoCollector",
+        "tags": [
+          "O1"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O1",
+        "parameters": [
+          {
+            "name": "collector_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectorEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "404": {
+            "description": "Missing resource or owner denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Required capability unavailable"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArchiveRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/operations/{operation_id}/receipt": {
+      "get": {
+        "operationId": "getCoTestReceipt",
+        "tags": [
+          "O1"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O1",
+        "parameters": [
+          {
+            "name": "operation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "404": {
+            "description": "Missing resource or owner denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Required capability unavailable"
+          }
+        }
+      }
+    },
+    "/samples/{sample_id}": {
+      "delete": {
+        "operationId": "deleteCoSample",
+        "tags": [
+          "O1"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O1",
+        "parameters": [
+          {
+            "name": "sample_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "404": {
+            "description": "Missing resource or owner denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Required capability unavailable"
           }
         }
       }
@@ -3982,6 +4555,13 @@
             "type": "integer",
             "minimum": 1,
             "maximum": 600000
+          },
+          "cursor_parameter": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{0,63}$"
+          },
+          "empty_marker": {
+            "$ref": "#/components/schemas/Locator"
           }
         },
         "required": [
@@ -4570,16 +5150,20 @@
             "minimum": 0,
             "maximum": 2147483647
           },
+          "evidence_id": {
+            "type": "string",
+            "minLength": 1
+          },
           "input": {
             "$ref": "#/components/schemas/BoundedObject"
           },
-          "asset_ids": {
+          "snapshots": {
             "type": "array",
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/DocumentSnapshot"
             },
-            "minItems": 0,
-            "maxItems": 20
+            "minItems": 1,
+            "maxItems": 3
           },
           "expected_outputs": {
             "type": "array",
@@ -4591,10 +5175,39 @@
           }
         },
         "required": [
-          "expected_revision",
-          "input",
-          "asset_ids",
-          "expected_outputs"
+          "expected_revision"
+        ],
+        "oneOf": [
+          {
+            "required": [
+              "evidence_id"
+            ],
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "input"
+                  ]
+                },
+                {
+                  "required": [
+                    "snapshots"
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "required": [
+              "input",
+              "snapshots"
+            ],
+            "not": {
+              "required": [
+                "evidence_id"
+              ]
+            }
+          }
         ]
       },
       "EditorSessionRequest": {
@@ -5056,6 +5669,12 @@
           "id": {
             "type": "string"
           },
+          "resource_id": {
+            "type": "string"
+          },
+          "operation": {
+            "type": "string"
+          },
           "status": {
             "enum": [
               "queued",
@@ -5065,16 +5684,30 @@
               "cancelled"
             ]
           },
-          "resource_id": {
-            "type": "string"
+          "result": {
+            "$ref": "#/components/schemas/BoundedObject"
           },
           "error": {
             "$ref": "#/components/schemas/BoundedObject"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "finished_at": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
           "id",
-          "status"
+          "resource_id",
+          "operation",
+          "status",
+          "result",
+          "error",
+          "created_at"
         ]
       },
       "Envelope": {
@@ -5107,6 +5740,654 @@
         "required": [
           "data",
           "request_id"
+        ]
+      },
+      "DocumentSnapshot": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "format": {
+            "enum": [
+              "html",
+              "json"
+            ]
+          },
+          "content": {
+            "type": "string",
+            "maxLength": 262144
+          },
+          "page_state_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "format",
+          "content"
+        ]
+      },
+      "CollectorView": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2147483647
+          },
+          "archived": {
+            "type": "boolean"
+          },
+          "definition": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/CollectorDefinition"
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {},
+                "required": []
+              }
+            ]
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "version_number": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100000
+          },
+          "latest_test": {
+            "$ref": "#/components/schemas/BoundedObject"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "revision",
+          "archived",
+          "definition",
+          "created_at",
+          "updated_at"
+        ]
+      },
+      "Candidate": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "identity": {
+            "type": "string"
+          },
+          "values": {
+            "$ref": "#/components/schemas/BoundedObject"
+          },
+          "valid": {
+            "type": "boolean"
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "fields": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "match_count": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100000
+                },
+                "status": {
+                  "enum": [
+                    "valid",
+                    "invalid",
+                    "missing"
+                  ]
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "match_count",
+                "status"
+              ]
+            }
+          }
+        },
+        "required": [
+          "values",
+          "valid",
+          "page",
+          "fields"
+        ]
+      },
+      "TestResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "enum": [
+              "succeeded",
+              "partial",
+              "limited",
+              "failed",
+              "awaiting_confirmation"
+            ]
+          },
+          "mode": {
+            "enum": [
+              "live",
+              "offline"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "interpreter_version": {
+            "const": "co.interpreter.v1"
+          },
+          "definition_hash": {
+            "type": "string"
+          },
+          "input": {
+            "$ref": "#/components/schemas/BoundedObject"
+          },
+          "candidates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Candidate"
+            },
+            "minItems": 0,
+            "maxItems": 100
+          },
+          "pages": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "url": {
+                  "type": "string"
+                },
+                "content_hash": {
+                  "type": "string"
+                },
+                "record_count": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 10000
+                },
+                "empty_verified": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "url",
+                "content_hash",
+                "record_count",
+                "empty_verified"
+              ]
+            },
+            "minItems": 0,
+            "maxItems": 3
+          },
+          "checkpoint": {
+            "$ref": "#/components/schemas/BoundedObject"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 0,
+            "maxItems": 100
+          },
+          "error": {
+            "$ref": "#/components/schemas/BoundedObject"
+          },
+          "snapshots": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DocumentSnapshot"
+            },
+            "minItems": 0,
+            "maxItems": 3
+          },
+          "comparison": {
+            "$ref": "#/components/schemas/BoundedObject"
+          },
+          "test_limits": {
+            "$ref": "#/components/schemas/BoundedObject"
+          },
+          "formal_writes": {
+            "const": 0
+          }
+        },
+        "required": [
+          "status",
+          "mode",
+          "interpreter_version",
+          "definition_hash",
+          "input",
+          "candidates",
+          "pages",
+          "checkpoint",
+          "warnings",
+          "formal_writes"
+        ]
+      },
+      "SampleView": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2147483647
+          },
+          "input": {
+            "$ref": "#/components/schemas/BoundedObject"
+          },
+          "snapshots": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DocumentSnapshot"
+            },
+            "minItems": 0,
+            "maxItems": 3
+          },
+          "expected_outputs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BoundedObject"
+            },
+            "minItems": 0,
+            "maxItems": 100
+          },
+          "created_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "revision",
+          "input",
+          "snapshots",
+          "expected_outputs",
+          "created_at"
+        ]
+      },
+      "CollectorVersionView": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "number": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100000
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "definition": {
+            "$ref": "#/components/schemas/CollectorDefinition"
+          },
+          "definition_hash": {
+            "type": "string"
+          },
+          "input_schema_hash": {
+            "type": "string"
+          },
+          "output_schema_hash": {
+            "type": "string"
+          },
+          "interpreter_version": {
+            "const": "co.interpreter.v1"
+          },
+          "publish_version": {
+            "const": "co.publish.v1"
+          },
+          "requirements": {
+            "$ref": "#/components/schemas/BoundedObject"
+          },
+          "evidence_id": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "number",
+          "revision",
+          "definition",
+          "definition_hash",
+          "input_schema_hash",
+          "output_schema_hash",
+          "interpreter_version",
+          "publish_version",
+          "requirements",
+          "evidence_id",
+          "created_at"
+        ]
+      },
+      "SessionView": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "session_id": {
+            "type": "string"
+          },
+          "collector_id": {
+            "type": "string"
+          },
+          "draft_revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "status": {
+            "type": "string"
+          },
+          "expires_at": {
+            "type": "string"
+          },
+          "page_state_id": {
+            "type": "string"
+          },
+          "current_url": {
+            "type": "string"
+          },
+          "viewport": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "width": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 2560
+              },
+              "height": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1600
+              }
+            },
+            "required": [
+              "width",
+              "height"
+            ]
+          },
+          "frame_url": {
+            "type": "string"
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "needs_reopen": {
+            "type": "boolean"
+          },
+          "state": {
+            "type": [
+              "object",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "session_id",
+          "collector_id",
+          "draft_revision",
+          "status",
+          "expires_at",
+          "page_state_id",
+          "current_url",
+          "viewport",
+          "frame_url",
+          "available",
+          "needs_reopen",
+          "state"
+        ]
+      },
+      "SessionEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SessionView"
+          },
+          "request_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ]
+      },
+      "CollectorEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CollectorView"
+          },
+          "request_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ]
+      },
+      "CollectorListEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "items": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/CollectorView"
+                },
+                "minItems": 0,
+                "maxItems": 100
+              },
+              "next_cursor": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "items",
+              "next_cursor"
+            ]
+          },
+          "request_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ]
+      },
+      "SampleEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SampleView"
+          },
+          "request_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ]
+      },
+      "SampleListEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "items": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/SampleView"
+                },
+                "minItems": 0,
+                "maxItems": 100
+              },
+              "next_cursor": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "items",
+              "next_cursor"
+            ]
+          },
+          "request_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ]
+      },
+      "CollectorVersionEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CollectorVersionView"
+          },
+          "request_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ]
+      },
+      "CollectorVersionListEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "items": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/CollectorVersionView"
+                },
+                "minItems": 0,
+                "maxItems": 100
+              },
+              "next_cursor": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "items",
+              "next_cursor"
+            ]
+          },
+          "request_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ]
+      },
+      "TestListEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "items": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Operation"
+                },
+                "minItems": 0,
+                "maxItems": 100
+              },
+              "next_cursor": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "items",
+              "next_cursor"
+            ]
+          },
+          "request_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ]
+      },
+      "ArchiveRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2147483647
+          }
+        },
+        "required": [
+          "expected_revision"
         ]
       }
     }
