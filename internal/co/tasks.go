@@ -123,18 +123,28 @@ func buildManifest(s *xorm.Session, owner int64, d TaskDefinition) (TaskManifest
 	if e := d.Validate(); e != nil {
 		return m, e
 	}
-	v, cd, e := collectorVersion(s, owner, d.Stages[0].CollectorVersionID)
-	if e != nil {
-		return m, e
+	m.Stages = map[string]FrozenStage{}
+	for _, stage := range d.Stages {
+		v, cd, e := collectorVersion(s, owner, stage.CollectorVersionID)
+		if e != nil {
+			return m, e
+		}
+		schema, e := tableSchema(s, owner, stage.Save, true)
+		if e != nil {
+			return m, e
+		}
+		if e = validateBinding(stage.Save, schema, cd); e != nil {
+			return m, stageError(stage.ID, e)
+		}
+		m.Stages[stage.ID] = FrozenStage{Collector: freezeCollector(v), Definition: cd, Schema: schema}
 	}
-	schema, e := tableSchema(s, owner, d.Stages[0].Save, true)
-	if e != nil {
-		return m, e
+	for _, edge := range d.Edges {
+		if e := validateEdge(edge, m.Stages[edge.From].Definition, m.Stages[edge.To].Definition); e != nil {
+			return m, e
+		}
 	}
-	if e = validateBinding(d.Stages[0].Save, schema, cd); e != nil {
-		return m, e
-	}
-	rows, e := PreviewInputs(cd, d.Source.Inputs)
+	root := m.Stages[d.EntryStage]
+	rows, e := PreviewInputs(root.Definition, d.Source.Inputs)
 	if e != nil {
 		return m, e
 	}
@@ -145,9 +155,7 @@ func buildManifest(s *xorm.Session, owner int64, d TaskDefinition) (TaskManifest
 		d.Source.Inputs[row.Ordinal] = row.Values
 	}
 	m.Definition = d
-	m.Collector = freezeCollector(v)
-	m.CollectorDefinition = cd
-	m.Schema = schema
+	m.Collector, m.CollectorDefinition, m.Schema = root.Collector, root.Definition, root.Schema
 	m.Hash = collector.Hash(m)
 	return m, nil
 }
@@ -221,7 +229,7 @@ func PublishTask(ctx context.Context, owner int64, id, key string, revision int)
 			if e != nil {
 				return nil, e
 			}
-			v = &TaskVersion{ID: uuid.NewString(), OwnerID: owner, TaskID: id, Number: int(count) + 1, Revision: revision, CollectorVersionID: d.Stages[0].CollectorVersionID, Manifest: collector.JSON(m), ManifestHash: m.Hash, CreatedAt: time.Now()}
+			v = &TaskVersion{ID: uuid.NewString(), OwnerID: owner, TaskID: id, Number: int(count) + 1, Revision: revision, CollectorVersionID: m.Collector.ID, Manifest: collector.JSON(m), ManifestHash: m.Hash, CreatedAt: time.Now()}
 			if _, e = s.Insert(v); e != nil {
 				return nil, e
 			}
@@ -267,7 +275,7 @@ func domainList(ctx context.Context, owner int64, table, cursor string, limit in
 	defer s.Close()
 	projection := "*"
 	if table == "co_tasks" {
-		projection = "id,name,revision,created_at,updated_at,jsonb_array_length(definition -> 'source' -> 'inputs') AS input_count,definition -> 'stages' -> 0 -> 'save' ->> 'table_id' AS table_id,definition -> 'stages' -> 0 -> 'save' ->> 'schema_version' AS schema_version"
+		projection = "id,name,revision,created_at,updated_at,jsonb_array_length(definition -> 'stages') AS stage_count,jsonb_array_length(definition -> 'source' -> 'inputs') AS input_count,(SELECT st -> 'save' ->> 'table_id' FROM jsonb_array_elements(definition -> 'stages') st WHERE st ->> 'id'=definition ->> 'entry_stage') AS table_id,(SELECT st -> 'save' ->> 'schema_version' FROM jsonb_array_elements(definition -> 'stages') st WHERE st ->> 'id'=definition ->> 'entry_stage') AS schema_version"
 	}
 	if table == "co_runs" {
 		projection = "id,task_version_id,namespace,status,control_epoch,preparing_cursor,input_count,output_count,event_seq,retry_of,retry_scope,created_at,finished_at"
@@ -368,4 +376,14 @@ func TableView(ctx context.Context, owner int64, id string) (any, error) {
 		return nil, ErrNotFound
 	}
 	return rows[0], nil
+}
+
+func stageError(id string, e error) error {
+	problem := collector.AsError(e)
+	copy := *problem
+	copy.Location = map[string]string{"stage_id": id}
+	for k, v := range problem.Location {
+		copy.Location[k] = v
+	}
+	return &copy
 }

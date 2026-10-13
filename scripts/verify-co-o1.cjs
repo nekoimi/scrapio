@@ -144,7 +144,7 @@ for (const item of Object.values(contract.paths))
   for (const op of Object.values(item))
     assert.equal(
       op["x-implementation-status"],
-      ["O1","O2"].includes(op["x-delivery-phase"]) ? "implemented" : "planned",
+      ["O1","O2","O3"].includes(op["x-delivery-phase"]) ? "implemented" : "planned",
     );
 const router = fs.readFileSync(path.join(web, "src/router/route.ts"), "utf8");
 assert.ok(router.includes("path: 'co/collectors/:id'"));
@@ -156,5 +156,5 @@ assert.ok(!/\b(?:window\.)?(alert|prompt)\s*\(/.test(workbench));
 assert.ok(workbench.includes("onBeforeRouteLeave"));
 assert.ok(workbench.includes("selectionApi"));
 process.stdout.write(
-  "OK O1/O2 contract, planned O3+ isolation, routes and template controls\n",
+  "OK O1/O2/O3 contract, planned O4+ isolation, routes and template controls\n",
 );

@@ -58,6 +58,7 @@ type StageRun struct {
 	StageID            string `xorm:"stage_id"`
 	CollectorVersionID string `xorm:"collector_version_id"`
 	InputClosed        bool
+	BlockedReason      string
 	CloseReason        string
 }
 
@@ -96,6 +97,7 @@ type WorkClaim struct {
 	Item     WorkItem
 	Attempt  Attempt
 	Manifest TaskManifest
+	StageID  string
 	Recovery bool
 }
 
@@ -156,9 +158,11 @@ func newRun(s *xorm.Session, owner int64, v TaskVersion, namespace, retryOf stri
 	if _, e := s.Exec(`INSERT INTO co_runs(id,owner_id,task_version_id,manifest,namespace,status,input_count,retry_of,retry_scope) VALUES(?,?,?,CAST(? AS jsonb),?,'preparing',?,?,CAST(? AS jsonb))`, run.ID, owner, v.ID, v.Manifest, namespace, len(inputs), retry, run.RetryScope); e != nil {
 		return nil, e
 	}
-	stage := StageRun{ID: uuid.NewString(), RunID: run.ID, StageID: m.Definition.EntryStage, CollectorVersionID: m.Collector.ID}
-	if _, e := s.Insert(&stage); e != nil {
-		return nil, e
+	for _, st := range m.Definition.Stages {
+		stage := StageRun{ID: uuid.NewString(), RunID: run.ID, StageID: st.ID, CollectorVersionID: st.CollectorVersionID}
+		if _, e := s.Insert(&stage); e != nil {
+			return nil, e
+		}
 	}
 	for i, input := range inputs {
 		input.ID = uuid.NewString()
@@ -174,11 +178,23 @@ func newRun(s *xorm.Session, owner int64, v TaskVersion, namespace, retryOf stri
 	}
 	return map[string]any{"id": run.ID, "status": run.Status, "namespace": namespace, "input_count": len(inputs)}, nil
 }
-func StartTask(ctx context.Context, owner int64, taskID, key, versionID, namespace string) (*Operation, error) {
+func StartTask(ctx context.Context, owner int64, taskID, key, versionID, namespace string, options ...TrialOptions) (*Operation, error) {
 	if namespace != "formal" && namespace != "trial" {
 		return nil, collector.Invalid("namespace", "请选择formal/trial")
 	}
-	return Mutate(ctx, owner, "startTask", taskID, key, map[string]string{"task_version_id": versionID, "namespace": namespace}, false, func(s *xorm.Session, o *Operation) (any, error) {
+	var trial *TrialOptions
+	if namespace == "trial" {
+		trial = &TrialOptions{Mode: "live"}
+		if len(options) > 0 {
+			trial = &options[0]
+		}
+		if trial.Mode != "live" && trial.Mode != "offline" {
+			return nil, collector.Invalid("trial.mode", "请选择live/offline")
+		}
+	} else if len(options) > 0 {
+		return nil, collector.Invalid("trial", "正式执行不能附加离线样例")
+	}
+	return Mutate(ctx, owner, "startTask", taskID, key, map[string]any{"task_version_id": versionID, "namespace": namespace, "trial": trial}, false, func(s *xorm.Session, o *Operation) (any, error) {
 		if _, e := getTask(s, owner, taskID, true); e != nil {
 			return nil, e
 		}
@@ -200,6 +216,55 @@ func StartTask(ctx context.Context, owner int64, taskID, key, versionID, namespa
 		var m TaskManifest
 		if e = collector.Strict([]byte(v.Manifest), &m); e != nil {
 			return nil, e
+		}
+		if trial != nil {
+			if len(m.Stages) == 0 {
+				m.Stages = map[string]FrozenStage{m.Definition.EntryStage: {Collector: m.Collector, Definition: m.CollectorDefinition, Schema: m.Schema}}
+			}
+			if len(collector.JSON(trial)) > 768*1024 {
+				return nil, collector.Invalid("trial.documents", "试采样例总量最多768KiB（整个请求最多1MiB）")
+			}
+			for id, docs := range trial.Documents {
+				st := m.Stage(id)
+				if st.ID == "" || len(docs) > 20 {
+					return nil, collector.Invalid("trial.documents."+id, "阶段不存在或样例超过20页")
+				}
+				d := m.ForStage(id).CollectorDefinition
+				for _, doc := range docs {
+					if len(doc.Content) > 512*1024 || (doc.Format != "html" && doc.Format != "json") {
+						return nil, collector.Invalid("trial.documents."+id, "样例格式或512KiB页预算无效")
+					}
+					if e = collector.CheckOrigin(doc.URL, d.Fetch.AllowedOrigins); e != nil {
+						return nil, e
+					}
+				}
+			}
+			m.Trial = trial
+			if m.Definition.Budget.MaxWorkItems > 100 {
+				m.Definition.Budget.MaxWorkItems = 100
+			}
+			if m.Definition.Budget.MaxOutputs > 500 {
+				m.Definition.Budget.MaxOutputs = 500
+			}
+			if m.Definition.Budget.MaxDurationMS > 120000 {
+				m.Definition.Budget.MaxDurationMS = 120000
+			}
+			for id, f := range m.Stages {
+				if f.Definition.Pagination.MaxPages > 3 {
+					f.Definition.Pagination.MaxPages = 3
+				}
+				if f.Definition.Pagination.MaxRecords > 100 {
+					f.Definition.Pagination.MaxRecords = 100
+				}
+				if f.Definition.Pagination.MaxDurationMS > 60000 {
+					f.Definition.Pagination.MaxDurationMS = 60000
+				}
+				m.Stages[id] = f
+			}
+			m = m.ForStage(m.Definition.EntryStage)
+			m.Hash = ""
+			m.Hash = collector.Hash(m)
+			v.Manifest = collector.JSON(m)
 		}
 		inputs := []RunInput{}
 		for i, values := range m.Definition.Source.Inputs {
@@ -242,6 +307,13 @@ func RetryFailed(ctx context.Context, owner int64, id, key string, confirmed boo
 		if count > 0 {
 			return nil, conflict("任务已有活动运行")
 		}
+		var originalManifest TaskManifest
+		if e = collector.Strict([]byte(original.Manifest), &originalManifest); e != nil {
+			return nil, e
+		}
+		if len(originalManifest.Definition.Stages) > 1 {
+			return nil, collector.Fault("SCOPED_RETRY_REQUIRED", "retry", "多阶段局部补采在O4开放；请使用明确的新运行，不能把中间输入当入口重放")
+		}
 		items := []WorkItem{}
 		if e = s.Where("run_id=? AND status='failed'", id).OrderBy("created_at,id").Limit(100).Find(&items); e != nil {
 			return nil, e
@@ -262,63 +334,7 @@ func terminal(status string) bool {
 	}
 	return false
 }
-func settle(s *xorm.Session, r *Run) error {
-	if terminal(r.Status) {
-		return nil
-	}
-	rows, e := s.QueryString("SELECT status,COUNT(*) AS count FROM co_work_items WHERE run_id=? GROUP BY status", r.ID)
-	if e != nil {
-		return e
-	}
-	counts := map[string]int{}
-	for _, row := range rows {
-		var n int
-		fmt.Sscan(row["count"], &n)
-		counts[row["status"]] = n
-	}
-	next := r.Status
-	if counts["awaiting_confirmation"] > 0 {
-		next = "awaiting_confirmation"
-	} else if r.Status == "pausing" && counts["running"] == 0 {
-		next = "paused"
-	} else if r.Status == "running" || r.Status == "preparing" {
-		stage := new(StageRun)
-		ok, e := s.Where("run_id=?", r.ID).Get(stage)
-		if e != nil {
-			return e
-		}
-		if ok && stage.InputClosed && counts["running"]+counts["queued"] == 0 {
-			switch {
-			case counts["failed"] > 0:
-				next = "failed"
-				if counts["succeeded"]+counts["partial"]+counts["limited"] > 0 || r.OutputCount > 0 {
-					next = "partial"
-				}
-			case counts["partial"] > 0:
-				next = "partial"
-			case counts["limited"] > 0:
-				next = "limited"
-			default:
-				next = "succeeded"
-			}
-		}
-	}
-	if _, e = s.Exec("UPDATE co_stage_runs SET status=?,counters=CAST(? AS jsonb) WHERE run_id=?", next, collector.JSON(counts), r.ID); e != nil {
-		return e
-	}
-	if next == r.Status {
-		return nil
-	}
-	r.Status = next
-	var finished any
-	if terminal(next) {
-		finished = time.Now()
-	}
-	if _, e = s.Exec("UPDATE co_runs SET status=?,finished_at=? WHERE id=?", next, finished, r.ID); e != nil {
-		return e
-	}
-	return event(s, r, next, "", map[string]any{"items": counts, "outputs": r.OutputCount})
-}
+func settle(s *xorm.Session, r *Run) error { return graphSettle(s, r) }
 
 func canonicalHash(raw string) string {
 	var value any
@@ -386,10 +402,16 @@ func ControlRun(ctx context.Context, owner int64, id, key, action string, expect
 			}
 			r.Status = "preparing"
 			r.ControlEpoch++
+			if _, e = s.Exec("UPDATE co_stage_runs SET blocked_reason='' WHERE run_id=?", id); e != nil {
+				return nil, e
+			}
 		case "cancel":
 			r.Status = "cancelled"
 			r.ControlEpoch++
-			if _, e = s.Exec("UPDATE co_work_items SET status='cancelled',lease_token=NULL,lease_until=NULL WHERE run_id=? AND status IN ('queued','running','awaiting_confirmation')", id); e != nil {
+			if _, e = s.Exec("UPDATE co_dispatch_plans SET status='cancelled' WHERE run_id=? AND status='pending'", id); e != nil {
+				return nil, e
+			}
+			if _, e = s.Exec("UPDATE co_work_items SET status='cancelled',lease_token=NULL,lease_until=NULL WHERE run_id=? AND status IN ('queued','running','backpressured','awaiting_confirmation')", id); e != nil {
 				return nil, e
 			}
 			if _, e = s.Exec("UPDATE co_work_attempts SET status='cancelled',finished_at=NOW() WHERE run_id=? AND status='running'", id); e != nil {
@@ -446,7 +468,7 @@ func prepareRun(ctx context.Context, id string) error {
 		return e
 	}
 	if time.Since(r.CreatedAt) > time.Duration(m.Definition.Budget.MaxDurationMS)*time.Millisecond {
-		if _, e = s.Exec("UPDATE co_work_items SET status='limited',lease_token=NULL,lease_until=NULL WHERE run_id=? AND status IN ('queued','running')", id); e != nil {
+		if _, e = s.Exec("UPDATE co_work_items SET status='limited',lease_token=NULL,lease_until=NULL WHERE run_id=? AND status IN ('queued','running','backpressured')", id); e != nil {
 			return e
 		}
 		r.Status = "limited"
@@ -454,6 +476,9 @@ func prepareRun(ctx context.Context, id string) error {
 			return e
 		}
 		if _, e = s.Exec("UPDATE co_work_attempts SET status='limited',finished_at=NOW() WHERE run_id=? AND status='running'", id); e != nil {
+			return e
+		}
+		if _, e = s.Exec("UPDATE co_dispatch_plans SET status='limited' WHERE run_id=? AND status='pending'", id); e != nil {
 			return e
 		}
 		if _, e = s.Exec("UPDATE co_stage_runs SET status='limited',input_closed=TRUE,close_reason='duration_budget' WHERE run_id=?", id); e != nil {
@@ -465,7 +490,7 @@ func prepareRun(ctx context.Context, id string) error {
 		return s.Commit()
 	}
 	stage := new(StageRun)
-	ok, e := s.SQL("SELECT * FROM co_stage_runs WHERE run_id=? FOR UPDATE", id).Get(stage)
+	ok, e := s.SQL("SELECT * FROM co_stage_runs WHERE run_id=? AND stage_id=? FOR UPDATE", id, m.Definition.EntryStage).Get(stage)
 	if e != nil {
 		return e
 	}
@@ -477,17 +502,26 @@ func prepareRun(ctx context.Context, id string) error {
 		return e
 	}
 	capacity := m.Definition.Budget.MaxPending - int(count)
+	// Give committed downstream plans priority over new root inputs. Otherwise a
+	// one-slot queue can be filled by a producer that is fenced by its own backlog.
+	backlog, e := s.Table("co_dispatch_plans").Where("run_id=? AND status='pending'", id).Count()
+	if e != nil {
+		return e
+	}
+	if backlog > 0 {
+		capacity = 0
+	}
 	if capacity > 10 {
 		capacity = 10
 	}
-	if capacity > 0 {
+	if capacity > 0 && stage.BlockedReason == "" {
 		inputs := []RunInput{}
-		if e = s.Where("run_id=? AND ordinal>=?", id, r.PreparingCursor).OrderBy("ordinal").Limit(capacity).Find(&inputs); e != nil {
+		if e = s.Where("run_id=? AND ordinal>=? AND ordinal<?", id, r.PreparingCursor, r.InputCount).OrderBy("ordinal").Limit(capacity).Find(&inputs); e != nil {
 			return e
 		}
 		for _, in := range inputs {
 			item := WorkItem{ID: uuid.NewString(), RunID: id, StageRunID: stage.ID, InputID: in.ID, SourceKey: in.SourceKey, InputValues: in.Values, InputHash: canonicalHash(in.Values), Status: "queued", Checkpoint: "{}", Error: "{}", CreatedAt: time.Now()}
-			if _, e = s.Exec(`INSERT INTO co_work_items(id,run_id,stage_run_id,input_id,source_key,input_values,input_hash) VALUES(?,?,?,?,?,CAST(? AS jsonb),?) ON CONFLICT(run_id,stage_run_id,source_key) DO NOTHING`, item.ID, id, stage.ID, in.ID, in.SourceKey, in.Values, item.InputHash); e != nil {
+			if _, e = s.Exec(`INSERT INTO co_work_items(id,run_id,stage_run_id,input_id,source_key,input_values,input_hash,site_key) VALUES(?,?,?,?,?,CAST(? AS jsonb),?,?) ON CONFLICT(run_id,stage_run_id,source_key) DO NOTHING`, item.ID, id, stage.ID, in.ID, in.SourceKey, in.Values, item.InputHash, executionSiteInput(m.ForStage(m.Definition.EntryStage).CollectorDefinition, in.Values)); e != nil {
 				return e
 			}
 			if _, e = s.Exec("UPDATE co_run_inputs SET materialized_at=COALESCE(materialized_at,NOW()) WHERE id=?", in.ID); e != nil {
@@ -526,7 +560,10 @@ func ClaimWork(ctx context.Context, browser bool) (*WorkClaim, error) {
 	}
 	defer s.Rollback()
 	r := new(Run)
-	ok, e := s.SQL(`SELECT r.* FROM co_runs r WHERE r.status IN ('preparing','running','pausing','awaiting_confirmation') AND ((r.manifest -> 'collector_definition' -> 'fetch' ->> 'kind'='browser')=?) AND EXISTS(SELECT 1 FROM co_work_items w WHERE w.run_id=r.id AND ((r.status IN ('preparing','running') AND w.status='queued' AND (r.manifest -> 'collector_definition' -> 'fetch' ->> 'kind'<>'browser' OR (SELECT COUNT(*) FROM co_work_items active WHERE active.run_id=r.id AND active.status='running')<CAST(r.manifest -> 'definition' -> 'budget' ->> 'browser_slots' AS INT)) AND (w.next_retry_at IS NULL OR w.next_retry_at<=NOW())) OR (w.status='running' AND w.lease_until<NOW()))) ORDER BY r.created_at FOR UPDATE SKIP LOCKED LIMIT 1`, browser).Get(r)
+	kindSQL := "CASE WHEN r.manifest -> 'trial' ->> 'mode'='offline' THEN 'http_html' ELSE COALESCE(r.manifest -> 'stage_manifests' -> st.stage_id -> 'definition' -> 'fetch' ->> 'kind',r.manifest -> 'collector_definition' -> 'fetch' ->> 'kind') END"
+	eligible := "((r.status IN ('preparing','running') AND w.status='queued' AND st.blocked_reason='' AND NOT EXISTS(SELECT 1 FROM co_dispatch_plans backlog WHERE backlog.run_id=r.id AND backlog.from_stage=st.stage_id AND backlog.status='pending') AND (w.next_retry_at IS NULL OR w.next_retry_at<=NOW())) OR (w.status='running' AND w.lease_until<NOW()))"
+	slotSQL := " AND (w.status='running' OR ?=FALSE OR (SELECT COUNT(*) FROM co_work_items active JOIN co_stage_runs ast ON ast.id=active.stage_run_id WHERE active.run_id=r.id AND active.status='running' AND active.lease_until>NOW() AND COALESCE(r.manifest -> 'stage_manifests' -> ast.stage_id -> 'definition' -> 'fetch' ->> 'kind',r.manifest -> 'collector_definition' -> 'fetch' ->> 'kind')='browser')<CAST(r.manifest -> 'definition' -> 'budget' ->> 'browser_slots' AS INT))"
+	ok, e := s.SQL("SELECT r.* FROM co_runs r WHERE r.status IN ('preparing','running','pausing','awaiting_confirmation') AND EXISTS(SELECT 1 FROM co_work_items w JOIN co_stage_runs st ON st.id=w.stage_run_id WHERE w.run_id=r.id AND (("+kindSQL+"='browser')=?) AND "+eligible+slotSQL+") ORDER BY r.created_at FOR UPDATE OF r SKIP LOCKED LIMIT 1", browser, browser).Get(r)
 	if e != nil {
 		return nil, e
 	}
@@ -534,11 +571,15 @@ func ClaimWork(ctx context.Context, browser bool) (*WorkClaim, error) {
 		return nil, s.Commit()
 	}
 	stage := new(StageRun)
-	if _, e = s.SQL("SELECT * FROM co_stage_runs WHERE run_id=? FOR UPDATE", r.ID).Get(stage); e != nil {
+	ok, e = s.SQL("SELECT st.* FROM co_stage_runs st JOIN co_runs r ON r.id=st.run_id WHERE st.run_id=? AND EXISTS(SELECT 1 FROM co_work_items w WHERE w.stage_run_id=st.id AND (("+kindSQL+"='browser')=?) AND "+eligible+") ORDER BY st.last_claim_at NULLS FIRST,st.stage_id FOR UPDATE OF st SKIP LOCKED LIMIT 1", r.ID, browser).Get(stage)
+	if e != nil {
 		return nil, e
 	}
+	if !ok {
+		return nil, s.Commit()
+	}
 	item := new(WorkItem)
-	ok, e = s.SQL(`SELECT * FROM co_work_items WHERE run_id=? AND ((? IN ('preparing','running') AND status='queued' AND (next_retry_at IS NULL OR next_retry_at<=NOW())) OR (status='running' AND lease_until<NOW())) ORDER BY created_at,id FOR UPDATE SKIP LOCKED LIMIT 1`, r.ID, r.Status).Get(item)
+	ok, e = s.SQL(`SELECT w.* FROM co_work_items w WHERE w.stage_run_id=? AND ((? IN ('preparing','running') AND w.status='queued' AND (w.next_retry_at IS NULL OR w.next_retry_at<=NOW())) OR (w.status='running' AND w.lease_until<NOW())) ORDER BY (SELECT COUNT(*) FROM co_work_items active WHERE active.run_id=w.run_id AND active.site_key=w.site_key AND active.status='running'),w.created_at,w.id FOR UPDATE OF w SKIP LOCKED LIMIT 1`, stage.ID, r.Status).Get(item)
 	if e != nil {
 		return nil, e
 	}
@@ -549,6 +590,7 @@ func ClaimWork(ctx context.Context, browser bool) (*WorkClaim, error) {
 	if e = collector.Strict([]byte(r.Manifest), &m); e != nil {
 		return nil, e
 	}
+	m = m.ForStage(stage.StageID)
 	if item.Status == "running" {
 		status := "queued"
 		code := "LEASE_EXPIRED"
@@ -588,20 +630,10 @@ func ClaimWork(ctx context.Context, browser bool) (*WorkClaim, error) {
 				return nil, e
 			}
 			if ok {
-				return &WorkClaim{Run: *r, Item: *item, Attempt: a, Manifest: m, Recovery: true}, nil
+				return &WorkClaim{Run: *r, Item: *item, Attempt: a, Manifest: m, StageID: stage.StageID, Recovery: true}, nil
 			}
 		}
 		return nil, nil
-	}
-	// Global worker pool is bounded; each task adds its own browser slot limit.
-	if m.CollectorDefinition.Fetch.Kind == "browser" {
-		n, e := s.Where("run_id=? AND status='running'", r.ID).Count(new(WorkItem))
-		if e != nil {
-			return nil, e
-		}
-		if n >= int64(m.Definition.Budget.BrowserSlots) {
-			return nil, s.Commit()
-		}
 	}
 	item.Attempt++
 	item.LeaseToken = uuid.NewString()
@@ -616,13 +648,16 @@ func ClaimWork(ctx context.Context, browser bool) (*WorkClaim, error) {
 	if _, e = s.Insert(&attempt); e != nil {
 		return nil, e
 	}
+	if _, e = s.Exec("UPDATE co_stage_runs SET last_claim_at=NOW() WHERE id=?", stage.ID); e != nil {
+		return nil, e
+	}
 	if e = event(s, r, "item_started", item.ID, map[string]any{"attempt": item.Attempt}); e != nil {
 		return nil, e
 	}
 	if e = s.Commit(); e != nil {
 		return nil, e
 	}
-	return &WorkClaim{Run: *r, Item: *item, Attempt: attempt, Manifest: m}, nil
+	return &WorkClaim{Run: *r, Item: *item, Attempt: attempt, Manifest: m, StageID: stage.StageID}, nil
 }
 func fence(r *Run, item *WorkItem, c *WorkClaim) error {
 	if item.Status != "running" || item.LeaseToken != c.Item.LeaseToken || item.LeaseUntil == nil || !item.LeaseUntil.After(time.Now()) {
@@ -725,6 +760,10 @@ func FinishWork(ctx context.Context, c *WorkClaim, result collector.Result) erro
 		result.Error = nil
 		result.Reason = checkpoint.FinalReason
 	}
+	if result.Error == nil && status == "succeeded" && !checkpoint.Done {
+		status = "failed"
+		result.Error = collector.AsError(collector.Fault("FINAL_BATCH_NOT_COMMITTED", "checkpoint", "最后一批尚未提交，不能声明工作项完成"))
+	}
 	var invalidCount int64
 	invalidCount, e = s.Where("item_id=? AND decision IN ('invalid','conflict')", item.ID).Table("co_observations").Count()
 	if e != nil {
@@ -733,7 +772,7 @@ func FinishWork(ctx context.Context, c *WorkClaim, result collector.Result) erro
 	if invalidCount > 0 && status == "succeeded" {
 		status = "partial"
 	}
-	if result.Reason == "OUTPUT_BUDGET" {
+	if result.Reason == "OUTPUT_BUDGET" || (result.Error != nil && (result.Error.Code == "DISPATCH_BUDGET" || result.Error.Code == "OUTPUT_BUDGET" || result.Error.Code == "DISPATCH_PAYLOAD_BUDGET")) {
 		status = "limited"
 	}
 	nextRetry := any(nil)
@@ -755,6 +794,14 @@ func FinishWork(ctx context.Context, c *WorkClaim, result collector.Result) erro
 	} else if result.Error != nil && result.Error.Code == "BATCH_COMMIT_FAILED" && !canRetry {
 		status = "awaiting_confirmation"
 	}
+	if result.Error != nil && result.Error.Code == "BACKPRESSURE_UNSAFE" {
+		status = "awaiting_confirmation"
+		nextRetry = nil
+	}
+	if result.Error != nil && result.Error.Code == "BACKPRESSURE" {
+		status = "backpressured"
+		nextRetry = nil
+	}
 	problem := "{}"
 	if result.Error != nil {
 		problem = collector.JSON(result.Error)
@@ -768,10 +815,9 @@ func FinishWork(ctx context.Context, c *WorkClaim, result collector.Result) erro
 	if e = event(s, r, "item_"+status, item.ID, map[string]any{"attempt": item.Attempt, "reason": result.Reason, "error": result.Error}); e != nil {
 		return e
 	}
-	if (status == "failed" || status == "partial") && c.Manifest.Definition.Stages[0].OnError == "pause_stage" && r.Status != "pausing" {
-		r.Status = "pausing"
-		r.ControlEpoch++
-		if _, e = s.Exec("UPDATE co_runs SET status='pausing',control_epoch=? WHERE id=?", r.ControlEpoch, r.ID); e != nil {
+	shared := result.Error != nil && (result.Error.Code == "CREDENTIAL_UNAVAILABLE" || result.Error.Code == "BROWSER_UNAVAILABLE" || result.Error.Code == "CAPABILITY_UNAVAILABLE")
+	if ((status == "failed" || status == "partial") && c.Manifest.Stage(c.StageID).OnError == "pause_stage") || shared {
+		if _, e = s.Exec("UPDATE co_stage_runs SET blocked_reason=? WHERE id=?", problem, item.StageRunID); e != nil {
 			return e
 		}
 	}

@@ -24,7 +24,15 @@ func RunDetail(ctx context.Context, owner int64, id string, summary ...bool) (an
 	if e != nil {
 		return nil, e
 	}
-	stages, e := views(s, "SELECT * FROM co_stage_runs WHERE run_id=?", id)
+	stages, e := views(s, `SELECT st.*,
+ (SELECT COUNT(*) FROM co_work_items w WHERE w.stage_run_id=st.id) AS input_count,
+ (SELECT COUNT(*) FROM co_run_outputs o JOIN co_work_items w ON w.id=o.item_id WHERE w.stage_run_id=st.id) AS output_count,
+ (SELECT COALESCE(SUM(p.total-p.next_ordinal),0) FROM co_dispatch_plans p WHERE p.run_id=st.run_id AND p.from_stage=st.stage_id AND p.status='pending') AS pending_dispatches,
+ (SELECT COUNT(*) FROM co_dispatches d JOIN co_dispatch_plans p ON p.id=d.plan_id WHERE p.run_id=st.run_id AND p.from_stage=st.stage_id AND d.status='delivered') AS delivered,
+ (SELECT COUNT(*) FROM co_dispatches d JOIN co_dispatch_plans p ON p.id=d.plan_id WHERE p.run_id=st.run_id AND p.from_stage=st.stage_id AND d.status='filtered') AS filtered,
+ (SELECT COUNT(*) FROM co_dispatches d JOIN co_dispatch_plans p ON p.id=d.plan_id WHERE p.run_id=st.run_id AND p.from_stage=st.stage_id AND d.status IN ('invalid','limited')) AS dispatch_errors,
+ (SELECT COALESCE(jsonb_object_agg(decision,n),'{}') FROM (SELECT o.decision,COUNT(*) AS n FROM co_observations o JOIN co_work_items w ON w.id=o.item_id WHERE w.stage_run_id=st.id GROUP BY o.decision) decisions) AS save_decisions
+ FROM co_stage_runs st WHERE st.run_id=? ORDER BY stage_id`, id)
 	if e != nil {
 		return nil, e
 	}
@@ -45,11 +53,13 @@ func RunPage(ctx context.Context, owner int64, id, kind, cursor string, limit in
 		table = "co_run_outputs"
 	case "observations":
 		table = "co_observations"
+	case "dispatches":
+		table = "co_dispatches"
 	default:
 		return nil, ErrNotFound
 	}
 	projection := "*"
-	if kind != "work-items" {
+	if kind == "outputs" || kind == "observations" {
 		projection = "*,values_json AS values"
 	}
 	q := "SELECT " + projection + " FROM " + table + " WHERE run_id=?"
@@ -98,7 +108,15 @@ func ItemDetail(ctx context.Context, owner int64, runID, itemID string) (any, er
 		return nil, e
 	}
 	input, e := views(s, "SELECT i.*,i.values_json AS values FROM co_run_inputs i JOIN co_work_items w ON w.input_id=i.id WHERE w.run_id=? AND w.id=?", runID, itemID)
-	return map[string]any{"item": rows[0], "attempts": attempts, "input": input}, e
+	if e != nil {
+		return nil, e
+	}
+	lineage, e := views(s, `WITH RECURSIVE chain AS (
+ SELECT l.*,1 AS depth FROM co_lineage l WHERE l.run_id=? AND l.target_item_id=?
+ UNION ALL SELECT l.*,c.depth+1 FROM co_lineage l JOIN chain c ON l.target_item_id=c.source_item_id AND l.run_id=c.run_id WHERE c.depth<20
+ ) SELECT c.*,o.values_json AS output_values,o.output_identity,o.source,w.input_values AS source_input,st.stage_id AS source_stage
+ FROM chain c JOIN co_run_outputs o ON o.id=c.source_output_id JOIN co_work_items w ON w.id=c.source_item_id JOIN co_stage_runs st ON st.id=w.stage_run_id ORDER BY depth`, runID, itemID)
+	return map[string]any{"item": rows[0], "attempts": attempts, "input": input, "lineage": lineage}, e
 }
 func RunEvents(ctx context.Context, owner int64, id string, after int64) (any, error) {
 	if after < 0 {

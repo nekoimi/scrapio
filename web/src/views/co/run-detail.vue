@@ -21,7 +21,11 @@
 				<el-button v-if="['running', 'preparing'].includes(run.status)" :disabled="busy" @click="control('pause')">暂停</el-button
 				><el-button v-if="run.status === 'paused'" :disabled="busy" @click="control('resume')">恢复</el-button
 				><el-button v-if="active" type="danger" :disabled="busy" @click="control('cancel')">取消</el-button
-				><el-button v-else :disabled="busy || !counts.some((c) => c.status === 'failed')" @click="retryFailed">仅失败输入补采</el-button
+				><el-button
+					v-else-if="run.manifest.definition.stages.length === 1"
+					:disabled="busy || !counts.some((c) => c.status === 'failed')"
+					@click="retryFailed"
+					>仅失败输入补采</el-button
 				><el-button :disabled="busy" @click="recover">查询上次控制操作</el-button>
 			</div>
 			<p v-if="run.retry_of">
@@ -32,9 +36,32 @@
 			<div class="co-toolbar">
 				<el-tag v-for="c in counts" :key="c.status">{{ statusLabel(c.status) }} {{ c.count }}</el-tag>
 			</div>
+			<el-card
+				><template #header>阶段进度 · 输入关闭后仍需等待工作项与分发完成</template>
+				<el-table :data="stages">
+					<el-table-column prop="stage_id" label="阶段" /><el-table-column label="状态"
+						><template #default="{ row }"
+							>{{ statusLabel(row.status) }}<small>{{ row.blocked_reason || row.close_reason }}</small></template
+						></el-table-column
+					>
+					<el-table-column prop="input_count" label="输入" width="70" /><el-table-column prop="output_count" label="输出" width="70" />
+					<el-table-column prop="delivered" label="已派发" width="80" /><el-table-column
+						prop="pending_dispatches"
+						label="待派发"
+						width="80"
+					/><el-table-column prop="filtered" label="过滤" width="70" /><el-table-column prop="dispatch_errors" label="分发异常" width="90" />
+					<el-table-column label="工作项 / 保存决策"
+						><template #default="{ row }"
+							><code>{{ JSON.stringify(row.counters) }} / {{ JSON.stringify(row.save_decisions) }}</code></template
+						></el-table-column
+					>
+				</el-table>
+			</el-card>
 			<el-tabs v-model="tab" @tab-change="loadTab"
 				><el-tab-pane label="工作项与尝试" name="work-items"
 					><el-table :data="items"
+						><el-table-column label="阶段"
+							><template #default="{ row }">{{ stages.find((s) => s.id === row.stage_run_id)?.stage_id }}</template></el-table-column
 						><el-table-column label="输入"
 							><template #default="{ row }"
 								><code>{{ JSON.stringify(row.input_values) }}</code></template
@@ -84,6 +111,25 @@
 							></el-table-column
 						></el-table
 					></el-tab-pane
+				><el-tab-pane label="分发与映射诊断" name="dispatches"
+					><el-table :data="dispatches">
+						<el-table-column prop="edge_id" label="连接" /><el-table-column prop="status" label="结果" /><el-table-column
+							prop="expansion_ordinal"
+							label="展开序号"
+							width="90"
+						/>
+						<el-table-column label="冻结下游输入 / 错误"
+							><template #default="{ row }"
+								><code>{{ JSON.stringify(row.input_snapshot) }}</code>
+								<p>{{ row.error?.message || row.error?.code }}</p></template
+							></el-table-column
+						>
+						<el-table-column label="下游项"
+							><template #default="{ row }"
+								><el-button v-if="row.child_item_id" link @click="openItem(row.child_item_id)">查看来源链</el-button></template
+							></el-table-column
+						>
+					</el-table></el-tab-pane
 				></el-tabs
 			><el-button v-if="cursors[tab]" @click="loadTab(true)">加载更多</el-button>
 			<el-card
@@ -104,6 +150,17 @@
 			><template v-if="selected"
 				><p>{{ statusLabel(selected.item.status) }} · {{ selected.item.error?.message }}</p>
 				<pre>{{ JSON.stringify(selected.input, null, 2) }}</pre>
+				<h3>来源链 · 向上游追溯</h3>
+				<p v-if="!selected.lineage?.length">此项来自入口快照。</p>
+				<el-card v-for="link in selected.lineage" :key="link.source_output_id"
+					><template #header>{{ link.depth }} · {{ link.source_stage }} → {{ link.edge_id }}</template>
+					<p>映射 {{ link.mapping_hash }} · 元素 {{ link.element_key }}</p>
+					<p>来源输入</p>
+					<pre>{{ JSON.stringify(link.source_input, null, 2) }}</pre>
+					<p>不可变输出</p>
+					<pre>{{ JSON.stringify(link.output_values, null, 2) }}</pre>
+					<el-button link @click="openItem(link.source_item_id)">查看上游工作项与尝试</el-button></el-card
+				>
 				<div v-if="selected.item.status === 'awaiting_confirmation'" class="co-toolbar">
 					<el-button type="danger" @click="resolve('fail')">确认失败，停止此项</el-button
 					><el-button @click="resolve('restart')">确认从入口重采</el-button>
@@ -136,6 +193,8 @@ const route = useRoute(),
 	items = ref<WorkItem[]>([]),
 	outputs = ref<any[]>([]),
 	observations = ref<any[]>([]),
+	stages = ref<any[]>([]),
+	dispatches = ref<any[]>([]),
 	tab = ref('work-items'),
 	cursors = ref<Record<string, string>>({}),
 	busy = ref(false),
@@ -166,6 +225,7 @@ async function state() {
 	if (!alive) return;
 	run.value = { ...run.value, ...d.run };
 	counts.value = d.counts;
+	stages.value = d.stages;
 }
 async function loadTab(more: unknown = false) {
 	const append = more === true;
@@ -174,6 +234,7 @@ async function loadTab(more: unknown = false) {
 		cursors.value[tab.value] = p.next_cursor || '';
 		if (tab.value === 'work-items') items.value = append ? [...items.value, ...p.items] : p.items;
 		else if (tab.value === 'outputs') outputs.value = append ? [...outputs.value, ...p.items] : p.items;
+		else if (tab.value === 'dispatches') dispatches.value = append ? [...dispatches.value, ...p.items] : p.items;
 		else observations.value = append ? [...observations.value, ...p.items] : p.items;
 	});
 }
@@ -278,6 +339,7 @@ async function poll() {
 }
 onMounted(async () => {
 	await refresh();
+	if (route.query.item_id) await openItem(String(route.query.item_id));
 	if (alive && active.value) timer = setTimeout(poll, 2500);
 });
 onBeforeUnmount(() => {

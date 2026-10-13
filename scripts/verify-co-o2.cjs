@@ -14,7 +14,7 @@ for (const m of api.matchAll(
   /v\.HandleFunc\("([^"]+)"[^\n]*\.Methods\(([^\n]+)\)/g,
 )) {
   const urls = m[1].includes("{kind:")
-    ? ["work-items", "outputs", "observations"].map((kind) =>
+    ? ["work-items", "outputs", "observations", "dispatches"].map((kind) =>
         m[1].replace(/\{kind:[^}]+\}/, kind),
       )
     : [m[1]];
@@ -33,15 +33,15 @@ const contract = JSON.parse(
 let routes = 0;
 for (const [url, methods] of Object.entries(contract.paths))
   for (const [method, op] of Object.entries(methods))
-    if (op["x-delivery-phase"] === "O2") {
+    if (["O2", "O3"].includes(op["x-delivery-phase"])) {
       assert.ok(
         mounted.has(method + " " + url),
         "unmounted contract: " + method + " " + url,
       );
       routes++;
     }
-assert.equal(routes, mounted.size, "mounted O2 API missing from contract");
-process.stdout.write("OK " + routes + " mounted O2 route/method contracts\n");
+assert.equal(routes, mounted.size, "mounted O2/O3 API missing from contract");
+process.stdout.write("OK " + routes + " mounted O2/O3 route/method contracts\n");
 const Ajv = require(path.join(root, "web/node_modules/ajv"));
 const ajv = new Ajv({ strict: false });
 for (const [name, schema] of Object.entries(contract.components.schemas))
@@ -62,6 +62,10 @@ task.edges = [];
 assert.equal(validate(task), true);
 task.source.kind = "table";
 assert.equal(validate(task), false);
+const graph = ajv.getSchema('#/components/schemas/GraphTaskDefinition');
+assert.equal(graph(baseline.task),true,JSON.stringify(graph.errors));
+const badGraph=JSON.parse(JSON.stringify(baseline.task));badGraph.edges[0].filter.op='contains';assert.equal(graph(badGraph),false);
+const expanded=JSON.parse(JSON.stringify(baseline.task));expanded.edges[0].mapping.url={kind:'field',path:'element'};expanded.edges[0].expand={path:'output.urls'};assert.equal(graph(expanded),true);
 const control = ajv.getSchema("#/components/schemas/ControlRequest");
 assert.equal(control({ action: "cancel" }), false);
 assert.equal(control({ action: "pause", expected_control_epoch: 0 }), true);

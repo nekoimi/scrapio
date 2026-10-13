@@ -1,4 +1,4 @@
-// O0 canonical contract with O1/O2 implemented extensions; O3+ remain planned.
+// O0 canonical contract with O1/O2/O3 implemented extensions; O4+ remain planned.
 const fs = require('node:fs');
 const path = require('node:path');
 const ref = name => ({ $ref: '#/components/schemas/' + name });
@@ -96,7 +96,8 @@ paths['/operations/by-key'].get.parameters.push(...['operation', 'key'].map(name
 route('get', '/operations/{operation_id}', 'getCoOperation', 'O1', undefined, 'OperationEnvelope');
 require('./co-o1.cjs')(schemas,paths,{ref,obj,str,integer,arr,route});
 require('./co-o2.cjs')(schemas,paths,{ref,obj,str,integer,arr,route});
-const openapi = { openapi: '3.1.0', jsonSchemaDialect: 'http://json-schema.org/draft-07/schema#', info: { title: 'scrapio independent collectors and tasks', version: 'co.contract.v1', description: 'O1 collectors and O2 single-stage tasks/tables/runs are mounted under /api/v4. O3 graph and O4 sources remain planned. Operations carry bounded polymorphic results; TestResult, SessionView and CollectorVersionView describe concrete projections. Real release verification pending.' }, servers: [{ url: '/api/v4' }], security: [{ SessionBearer: [] }], paths, components: { securitySchemes: { SessionBearer: { type: 'http', scheme: 'bearer' } }, schemas } };
+require('./co-o3.cjs')(schemas,paths,{ref,obj,str,integer,arr,route});
+const openapi = { openapi: '3.1.0', jsonSchemaDialect: 'http://json-schema.org/draft-07/schema#', info: { title: 'scrapio independent collectors and tasks', version: 'co.contract.v1', description: 'O1 collectors, O2 durable tasks/tables and O3 multi-stage graphs/dispatches are mounted under /api/v4. O4 sources remain planned. Operations carry bounded polymorphic results; TestResult, SessionView and CollectorVersionView describe concrete projections. Real release verification pending.' }, servers: [{ url: '/api/v4' }], security: [{ SessionBearer: [] }], paths, components: { securitySchemes: { SessionBearer: { type: 'http', scheme: 'bearer' } }, schemas } };
 
 // Artificial fixtures are deliberately hosted under the reserved example.test domain.
 const field = (key, type = 'string', required = true) => ({ key, type, required, nullable: false, multiple: false });
@@ -110,8 +111,8 @@ const collectors = [
 ];
 const save = c => ({ table_id: c.id + '_table', schema_version: 1, schema_hash: c.id + '_schema_v1_fixture', mapping: Object.fromEntries(c.definition.output.fields.map(f => [f.key, { kind: 'field', path: 'output.' + f.key }])), unique_key: c.id === 'comment' ? ['movie_id', 'comment_id'] : ['movie_id'], update_policy: 'merge_present', null_policy: 'keep' });
 const task = { definition_version: 'task.v1', entry_stage: 'ranking', source: { kind: 'manual', inputs: [{ url: 'https://fixture.example.test/top250' }] }, stages: collectors.map(c => ({ id: c.id, name: { ranking: '榜单', movie: '电影详情', comment: '短评' }[c.id], collector_version_id: c.version_id, save: save(c), on_error: 'continue' })), edges: [
-  { id: 'ranking_movie', from: 'ranking', to: 'movie', port: 'records', mapping: { url: { kind: 'field', path: 'output.detail_url' }, movie_id: { kind: 'field', path: 'output.movie_id' } }, filter: { mode: 'all', rules: [{ path: 'output.detail_url', op: 'nonempty' }] }, emit: 'valid' },
-  { id: 'movie_comment', from: 'movie', to: 'comment', port: 'records', mapping: { url: { kind: 'field', path: 'output.comments_url' }, movie_id: { kind: 'field', path: 'output.movie_id' } }, filter: { mode: 'all', rules: [{ path: 'output.comments_url', op: 'nonempty' }] }, emit: 'valid' },
+  { id: 'ranking_movie', from: 'ranking', to: 'movie', port: 'records', mapping: { url: { kind: 'field', path: 'output.detail_url' }, movie_id: { kind: 'field', path: 'output.movie_id' } }, filter: { path:'output.detail_url',op:'exists' }, emit: 'valid' },
+  { id: 'movie_comment', from: 'movie', to: 'comment', port: 'records', mapping: { url: { kind: 'field', path: 'output.comments_url' }, movie_id: { kind: 'field', path: 'output.movie_id' } }, filter: { path:'output.comments_url',op:'exists' }, emit: 'valid' },
 ], budget: { max_work_items: 20, max_outputs: 100, max_pending: 10, browser_slots: 2, max_duration_ms: 600000 }, overlap_policy: 'skip' };
 const baseline = { provenance: 'synthetic; not captured from Douban; no network calls', created_at: '2026-10-13', real_targets: { list: 'https://movie.douban.com/top250', detail: 'https://movie.douban.com/subject/1292052/', short_comments: 'https://movie.douban.com/subject/1292052/comments', verification: 'pending; login, selectors, comment IDs and pagination not confirmed' }, collectors, task,
   samples: [
@@ -133,5 +134,5 @@ function generate() {
   fs.mkdirSync(path.join(__dirname, 'fixtures'), { recursive: true });
   fs.writeFileSync(path.join(__dirname, 'fixtures/baseline.json'), JSON.stringify(baseline, null, 2) + '\n');
 }
-if (require.main === module) { generate(); process.stdout.write('Generated O1/O2 OpenAPI and synthetic planned graph baseline.\n'); }
+if (require.main === module) { generate(); process.stdout.write('Generated O1/O2/O3 OpenAPI and synthetic graph baseline.\n'); }
 module.exports = { openapi, baseline };

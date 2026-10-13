@@ -14,6 +14,7 @@ func (a API) mountTasks(v *mux.Router) {
 	v.HandleFunc("/tasks", a.tasks).Methods("GET", "POST")
 	v.HandleFunc("/tasks/input-preview", a.inputPreview).Methods("POST")
 	v.HandleFunc("/tasks/save-preview", a.savePreview).Methods("POST")
+	v.HandleFunc("/tasks/mapping-preview", a.mappingPreview).Methods("POST")
 	v.HandleFunc("/tasks/{task_id}", a.task).Methods("GET")
 	v.HandleFunc("/tasks/{task_id}/draft", a.task).Methods("GET", "PUT")
 	v.HandleFunc("/tasks/{task_id}/versions", a.taskVersions).Methods("GET", "POST")
@@ -29,7 +30,25 @@ func (a API) mountTasks(v *mux.Router) {
 	v.HandleFunc("/runs/{run_id}/work-items/{item_id}", a.workItem).Methods("GET")
 	v.HandleFunc("/runs/{run_id}/work-items/{item_id}/resolve", a.resolveItem).Methods("POST")
 	v.HandleFunc("/runs/{run_id}/work-items/{item_id}/attempts/{attempt_id}/commands/{command_id}", a.itemReceipt).Methods("GET")
-	v.HandleFunc("/runs/{run_id}/{kind:work-items|outputs|observations}", a.runPage).Methods("GET")
+	v.HandleFunc("/runs/{run_id}/{kind:work-items|outputs|observations|dispatches}", a.runPage).Methods("GET")
+}
+func (a API) mappingPreview(w http.ResponseWriter, r *http.Request) {
+	owner, ok := owner(w, r)
+	if !ok {
+		return
+	}
+	var p struct {
+		Up     string         `json:"upstream_version_id"`
+		Down   string         `json:"downstream_version_id"`
+		Edge   co.TaskEdge    `json:"edge"`
+		Input  map[string]any `json:"input"`
+		Output map[string]any `json:"output"`
+	}
+	if !decode(w, r, &p) {
+		return
+	}
+	v, e := co.TaskMappingPreview(r.Context(), owner, p.Up, p.Down, p.Edge, p.Input, p.Output)
+	respond(w, r, v, e)
 }
 func (a API) collectorVersion(w http.ResponseWriter, r *http.Request) {
 	owner, ok := owner(w, r)
@@ -161,13 +180,18 @@ func (a API) startTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var p struct {
-		Version   string `json:"task_version_id"`
-		Namespace string `json:"namespace"`
+		Version   string           `json:"task_version_id"`
+		Namespace string           `json:"namespace"`
+		Trial     *co.TrialOptions `json:"trial,omitempty"`
 	}
 	if !decode(w, r, &p) {
 		return
 	}
-	o, e := co.StartTask(r.Context(), owner, mux.Vars(r)["task_id"], r.Header.Get("Idempotency-Key"), p.Version, p.Namespace)
+	var options []co.TrialOptions
+	if p.Trial != nil {
+		options = append(options, *p.Trial)
+	}
+	o, e := co.StartTask(r.Context(), owner, mux.Vars(r)["task_id"], r.Header.Get("Idempotency-Key"), p.Version, p.Namespace, options...)
 	done(w, r, o, e, false)
 }
 func (a API) tables(w http.ResponseWriter, r *http.Request) {

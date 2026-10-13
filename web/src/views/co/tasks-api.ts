@@ -15,13 +15,37 @@ export interface DataTable {
 	schema_hash: string;
 	schema: { fields: Field[]; unique_key: string[] };
 }
+export interface TaskStage {
+	id: string;
+	name: string;
+	collector_version_id: string;
+	save: SaveBinding;
+	on_error: string;
+}
+export interface TaskEdge {
+	id: string;
+	from: string;
+	to: string;
+	port: 'records';
+	emit: 'valid' | 'created' | 'changed';
+	mapping: Record<string, Binding>;
+	filter?: { path: string; op: 'exists' | 'equal' | 'not_equal'; value?: unknown };
+	expand?: { path: string };
+}
 export interface TaskDefinition {
 	definition_version: 'task.v1';
 	entry_stage: string;
 	source: { kind: 'manual'; inputs: Record<string, unknown>[] };
-	stages: { id: string; name: string; collector_version_id: string; save: SaveBinding; on_error: string }[];
-	edges: never[];
-	budget: { max_work_items: number; max_outputs: number; max_pending: number; browser_slots: number; max_duration_ms: number };
+	stages: TaskStage[];
+	edges: TaskEdge[];
+	budget: {
+		max_work_items: number;
+		max_outputs: number;
+		max_pending: number;
+		browser_slots: number;
+		max_duration_ms: number;
+		max_dispatches?: number;
+	};
 	overlap_policy: 'skip';
 }
 export interface Task {
@@ -32,6 +56,7 @@ export interface Task {
 	updated_at: string;
 }
 export interface TaskSummary {
+	stage_count: number;
 	id: string;
 	name: string;
 	revision: number;
@@ -68,6 +93,7 @@ export interface Run {
 	created_at: string;
 }
 export interface WorkItem {
+	stage_run_id: string;
 	id: string;
 	status: string;
 	attempt: number;
@@ -131,6 +157,13 @@ export const taskApi = {
 			{ collector_version_id: version, inputs },
 			key()
 		),
+	mappingPreview: (up: string, down: string, edge: TaskEdge, input: unknown, output: unknown) =>
+		call<{ items: any[]; mapping_hash: string }>(
+			'/tasks/mapping-preview',
+			'post',
+			{ upstream_version_id: up, downstream_version_id: down, edge, input, output },
+			key()
+		),
 	savePreview: (version: string, save: SaveBinding, candidates: Candidate[]) =>
 		call<{ decisions: { identity: string; decision: string; values: unknown; error?: { message: string } }[] }>(
 			'/tasks/save-preview',
@@ -148,6 +181,7 @@ export const taskApi = {
 			item: WorkItem;
 			attempts: { id: string; number: number; status: string; command_refs: { command_id: string; status: string }[]; error: any }[];
 			input: any[];
+			lineage: any[];
 		}>('/runs/' + run + '/work-items/' + id),
 	events: (id: string, after: number) =>
 		call<{ items: { sequence: number; type: string; item_id?: string; data: unknown }[]; next_sequence: number; latest_sequence: number }>(

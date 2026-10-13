@@ -50,6 +50,9 @@ func (w *TaskWorker) Start(ctx context.Context) error {
 					if e := PrepareRuns(run); e != nil && run.Err() == nil {
 						log.WithError(e).Warn("prepare independent task inputs")
 					}
+					if e := DispatchRuns(run); e != nil && run.Err() == nil {
+						log.WithError(e).Warn("dispatch independent task outputs")
+					}
 				}
 			}
 		}()
@@ -143,7 +146,13 @@ func (w *TaskWorker) execute(parent context.Context, c *WorkClaim, browser *dris
 		}
 		d := c.Manifest.CollectorDefinition
 		source := &Source{Browser: browser, Config: cfg, Owner: c.Run.OwnerID, Definition: d, ID: c.Attempt.SessionID, Mode: "live", Journal: func(id string) error { return JournalCommand(ctx, c, id, false) }, Resolved: func(id string) error { return JournalCommand(ctx, c, id, true) }}
-		result = collector.ExecuteDurable(ctx, d, input, "live", source, collector.DurableOptions{Checkpoint: cp, Commit: func(ctx context.Context, rows []collector.Candidate, cp collector.Checkpoint) error {
+		mode := "live"
+		if c.Manifest.Trial != nil {
+			mode = c.Manifest.Trial.Mode
+			source.Mode = mode
+			source.Fixed = c.Manifest.Trial.Documents[c.StageID]
+		}
+		result = collector.ExecuteDurable(ctx, d, input, mode, source, collector.DurableOptions{Checkpoint: cp, Commit: func(ctx context.Context, rows []collector.Candidate, cp collector.Checkpoint) error {
 			return CommitBatch(ctx, c, rows, cp)
 		}})
 	}()

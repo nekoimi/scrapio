@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/nekoimi/scrapio/internal/collector"
-	"regexp"
 	"strings"
 )
 
@@ -14,7 +13,7 @@ type TaskDefinition struct {
 	EntryStage        string       `json:"entry_stage"`
 	Source            ManualSource `json:"source"`
 	Stages            []TaskStage  `json:"stages"`
-	Edges             []any        `json:"edges"`
+	Edges             []TaskEdge   `json:"edges"`
 	Budget            TaskBudget   `json:"budget"`
 	OverlapPolicy     string       `json:"overlap_policy"`
 }
@@ -39,6 +38,7 @@ type SaveBinding struct {
 	NullPolicy    string                       `json:"null_policy"`
 }
 type TaskBudget struct {
+	MaxDispatches int `json:"max_dispatches,omitempty"`
 	MaxWorkItems  int `json:"max_work_items"`
 	MaxOutputs    int `json:"max_outputs"`
 	MaxPending    int `json:"max_pending"`
@@ -50,11 +50,39 @@ type TableSchema struct {
 	UniqueKey []string          `json:"unique_key"`
 }
 type TaskManifest struct {
-	Definition          TaskDefinition       `json:"definition"`
-	Collector           FrozenCollector      `json:"collector"`
-	CollectorDefinition collector.Definition `json:"collector_definition"`
-	Schema              TableSchema          `json:"schema"`
-	Hash                string               `json:"hash"`
+	Definition          TaskDefinition         `json:"definition"`
+	Collector           FrozenCollector        `json:"collector"`
+	CollectorDefinition collector.Definition   `json:"collector_definition"`
+	Schema              TableSchema            `json:"schema"`
+	Hash                string                 `json:"hash"`
+	Stages              map[string]FrozenStage `json:"stage_manifests,omitempty"`
+	Trial               *TrialOptions          `json:"trial,omitempty"`
+}
+type TrialOptions struct {
+	Mode      string                          `json:"mode"`
+	Documents map[string][]collector.Document `json:"documents,omitempty"`
+}
+
+type FrozenStage struct {
+	Collector  FrozenCollector      `json:"collector"`
+	Definition collector.Definition `json:"definition"`
+	Schema     TableSchema          `json:"schema"`
+}
+
+// ForStage keeps O2 manifests readable while selecting a frozen O3 executor.
+func (m TaskManifest) ForStage(id string) TaskManifest {
+	if f, ok := m.Stages[id]; ok {
+		m.Collector, m.CollectorDefinition, m.Schema = f.Collector, f.Definition, f.Schema
+	}
+	return m
+}
+func (m TaskManifest) Stage(id string) TaskStage {
+	for _, s := range m.Definition.Stages {
+		if s.ID == id {
+			return s
+		}
+	}
+	return TaskStage{}
 }
 
 type FrozenCollector struct {
@@ -73,24 +101,18 @@ func freezeCollector(v Version) FrozenCollector {
 }
 
 func (d TaskDefinition) Validate() error {
-	if d.DefinitionVersion != "task.v1" || len(d.Stages) != 1 || len(d.Edges) != 0 || d.EntryStage != d.Stages[0].ID || !regexp.MustCompile(`^[a-z][a-z0-9_]{0,63}$`).MatchString(d.EntryStage) {
-		return collector.Invalid("stages", "O2仅支持一个独立入口阶段，连接将在O3开放")
+	if e := d.validateGraph(); e != nil {
+		return e
 	}
 	if d.Source.Kind != "manual" || len(d.Source.Inputs) < 1 || len(d.Source.Inputs) > 100 || len(collector.JSON(d.Source.Inputs)) > 512*1024 {
 		return collector.Invalid("source", "仅支持1..100条手动输入，每批最多512KiB")
 	}
-	if d.OverlapPolicy != "skip" || (d.Stages[0].OnError != "continue" && d.Stages[0].OnError != "pause_stage") {
+	if d.OverlapPolicy != "skip" {
 		return collector.Invalid("policy", "需要skip及continue/pause_stage策略")
 	}
 	b := d.Budget
-	if b.MaxWorkItems < 1 || b.MaxWorkItems > 10000 || b.MaxWorkItems < len(d.Source.Inputs) || b.MaxOutputs < 1 || b.MaxOutputs > 100000 || b.MaxPending < 1 || b.MaxPending > 10000 || b.BrowserSlots < 1 || b.BrowserSlots > 8 || b.MaxDurationMS < 1000 || b.MaxDurationMS > 86400000 {
+	if b.MaxDispatches < 0 || b.MaxDispatches > 10000 || b.MaxWorkItems < 1 || b.MaxWorkItems > 10000 || b.MaxWorkItems < len(d.Source.Inputs) || b.MaxOutputs < 1 || b.MaxOutputs > 100000 || b.MaxPending < 1 || b.MaxPending > 10000 || b.BrowserSlots < 1 || b.BrowserSlots > 8 || b.MaxDurationMS < 1000 || b.MaxDurationMS > 86400000 {
 		return collector.Invalid("budget", "工作项/输出/队列/浏览器槽位或时长预算无效")
-	}
-	if d.Stages[0].CollectorVersionID == "" {
-		return collector.Invalid("collector_version_id", "请选择确定的采集器发布版本")
-	}
-	if strings.TrimSpace(d.Stages[0].Name) == "" || len([]rune(d.Stages[0].Name)) > 64 {
-		return collector.Invalid("stage.name", "阶段名需要1..64个字符")
 	}
 	return nil
 }

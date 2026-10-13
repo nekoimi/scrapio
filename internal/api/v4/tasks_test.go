@@ -9,7 +9,7 @@ import (
 func TestCOO2RoutesRequireIdentityAndStaySeparate(t *testing.T) {
 	router := mux.NewRouter()
 	Mount(router, nil, nil)
-	for _, test := range []struct{ method, path string }{{"GET", "/v4/tasks"}, {"POST", "/v4/tasks/input-preview"}, {"POST", "/v4/tasks/save-preview"}, {"PUT", "/v4/tasks/t/draft"}, {"POST", "/v4/tasks/t/versions"}, {"POST", "/v4/tasks/t/runs"}, {"GET", "/v4/tables"}, {"GET", "/v4/tables/t/records"}, {"GET", "/v4/records/r"}, {"GET", "/v4/runs/r/events?after=2"}, {"GET", "/v4/runs/r/observations"}, {"GET", "/v4/runs/r/work-items/i"}, {"POST", "/v4/runs/r/control"}, {"POST", "/v4/runs/r/retry-failed"}, {"POST", "/v4/runs/r/work-items/i/resolve"}, {"GET", "/v4/runs/r/work-items/i/attempts/a/commands/c"}} {
+	for _, test := range []struct{ method, path string }{{"GET", "/v4/tasks"}, {"POST", "/v4/tasks/input-preview"}, {"POST", "/v4/tasks/save-preview"}, {"POST", "/v4/tasks/mapping-preview"}, {"GET", "/v4/runs/r/dispatches"}, {"PUT", "/v4/tasks/t/draft"}, {"POST", "/v4/tasks/t/versions"}, {"POST", "/v4/tasks/t/runs"}, {"GET", "/v4/tables"}, {"GET", "/v4/tables/t/records"}, {"GET", "/v4/records/r"}, {"GET", "/v4/runs/r/events?after=2"}, {"GET", "/v4/runs/r/observations"}, {"GET", "/v4/runs/r/work-items/i"}, {"POST", "/v4/runs/r/control"}, {"POST", "/v4/runs/r/retry-failed"}, {"POST", "/v4/runs/r/work-items/i/resolve"}, {"GET", "/v4/runs/r/work-items/i/attempts/a/commands/c"}} {
 		request := httptest.NewRequest(test.method, test.path, nil)
 		response := httptest.NewRecorder()
 		router.ServeHTTP(response, request)

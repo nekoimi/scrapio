@@ -28,7 +28,7 @@
 				<pre>{{ JSON.stringify(detail.record, null, 2) }}</pre>
 				<h3>最近100次观察</h3>
 				<el-card v-for="o in detail.observations" :key="o.id"
-					><router-link :to="'/app/co/runs/' + o.run_id">运行 {{ o.run_id.slice(0, 8) }}</router-link>
+					><router-link :to="'/app/co/runs/' + o.run_id + '?item_id=' + o.item_id">运行 {{ o.run_id.slice(0, 8) }}</router-link>
 					<p>{{ o.decision }} · {{ o.source_key }}</p>
 					<pre>{{ JSON.stringify(o.values, null, 2) }}</pre>
 				</el-card>

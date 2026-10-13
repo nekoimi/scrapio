@@ -4,7 +4,7 @@
   "info": {
     "title": "scrapio independent collectors and tasks",
     "version": "co.contract.v1",
-    "description": "O1 collectors and O2 single-stage tasks/tables/runs are mounted under /api/v4. O3 graph and O4 sources remain planned. Operations carry bounded polymorphic results; TestResult, SessionView and CollectorVersionView describe concrete projections. Real release verification pending."
+    "description": "O1 collectors, O2 durable tasks/tables and O3 multi-stage graphs/dispatches are mounted under /api/v4. O4 sources remain planned. Operations carry bounded polymorphic results; TestResult, SessionView and CollectorVersionView describe concrete projections. Real release verification pending."
   },
   "servers": [
     {
@@ -1531,65 +1531,6 @@
           },
           "503": {
             "description": "Required capability unavailable"
-          }
-        }
-      }
-    },
-    "/work-items/{work_item_id}/lineage": {
-      "get": {
-        "operationId": "getCoLineage",
-        "tags": [
-          "O3"
-        ],
-        "x-implementation-status": "planned",
-        "x-delivery-phase": "O3",
-        "parameters": [
-          {
-            "name": "work_item_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Envelope"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Contract or input invalid",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "403": {
-            "description": "Owner/resource denied"
-          },
-          "409": {
-            "description": "Revision, idempotency, version or write conflict",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
           }
         }
       }
@@ -3138,7 +3079,8 @@
               }
             }
           }
-        }
+        },
+        "description": "Published frozen graph; formal writes or isolated trial. Trials clamp work to 100, outputs to 500, pages/item to 3 and total duration to 120 seconds. Offline documents are immutable run snapshots; missing evidence is reported. Request <=1MiB, documents <=768KiB."
       }
     },
     "/tables": {
@@ -3625,7 +3567,8 @@
           "503": {
             "description": "Required capability unavailable"
           }
-        }
+        },
+        "description": "Run and per-stage status, input/work counts, immutable outputs, save decisions, filtered/delivered/remaining dispatches and pause reason."
       }
     },
     "/runs/{run_id}/work-items": {
@@ -4097,7 +4040,8 @@
               }
             }
           }
-        }
+        },
+        "description": "Single-stage original-version failed-only replay. Multi-stage scoped replay returns SCOPED_RETRY_REQUIRED until O4."
       }
     },
     "/runs/{run_id}/work-items/{item_id}": {
@@ -4171,7 +4115,8 @@
           "503": {
             "description": "Required capability unavailable"
           }
-        }
+        },
+        "description": "Frozen input, attempts and bounded recursive lineage (up to 20 upstream stages)."
       }
     },
     "/runs/{run_id}/work-items/{item_id}/resolve": {
@@ -4356,6 +4301,151 @@
           },
           "503": {
             "description": "Required capability unavailable"
+          }
+        }
+      }
+    },
+    "/tasks/mapping-preview": {
+      "post": {
+        "operationId": "previewCoTaskMapping",
+        "tags": [
+          "O3"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O3",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskMappingPreviewRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/runs/{run_id}/dispatches": {
+      "get": {
+        "operationId": "listCoTaskDispatches",
+        "tags": [
+          "O3"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O3",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -4944,11 +5034,11 @@
             "minProperties": 1,
             "maxProperties": 30,
             "additionalProperties": {
-              "$ref": "#/components/schemas/Binding"
+              "$ref": "#/components/schemas/EdgeBinding"
             }
           },
           "filter": {
-            "$ref": "#/components/schemas/Filter"
+            "$ref": "#/components/schemas/EdgeFilter"
           },
           "expand": {
             "type": "object",
@@ -5025,7 +5115,7 @@
               "$ref": "#/components/schemas/Stage"
             },
             "minItems": 1,
-            "maxItems": 12
+            "maxItems": 20
           },
           "edges": {
             "type": "array",
@@ -5033,7 +5123,7 @@
               "$ref": "#/components/schemas/Edge"
             },
             "minItems": 0,
-            "maxItems": 24
+            "maxItems": 19
           },
           "budget": {
             "type": "object",
@@ -5063,6 +5153,11 @@
                 "type": "integer",
                 "minimum": 1,
                 "maximum": 86400000
+              },
+              "max_dispatches": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10000
               }
             },
             "required": [
@@ -5115,7 +5210,7 @@
             "maximum": 2147483647
           },
           "definition": {
-            "$ref": "#/components/schemas/SingleStageTaskDefinition"
+            "$ref": "#/components/schemas/GraphTaskDefinition"
           }
         },
         "required": [
@@ -6540,7 +6635,7 @@
             "maxLength": 64
           },
           "definition": {
-            "$ref": "#/components/schemas/SingleStageTaskDefinition"
+            "$ref": "#/components/schemas/GraphTaskDefinition"
           }
         },
         "required": [
@@ -6646,6 +6741,9 @@
               "formal",
               "trial"
             ]
+          },
+          "trial": {
+            "$ref": "#/components/schemas/TrialOptions"
           }
         },
         "required": [
@@ -6746,6 +6844,177 @@
         "required": [
           "data",
           "request_id"
+        ]
+      },
+      "EdgeBinding": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "const": "field"
+              },
+              "path": {
+                "type": "string",
+                "pattern": "^(output\\.[a-z][a-z0-9_]*|input\\.[a-z][a-z0-9_]*|element)$"
+              }
+            },
+            "required": [
+              "kind",
+              "path"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "const": "constant"
+              },
+              "value": {}
+            },
+            "required": [
+              "kind",
+              "value"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "const": "template"
+              },
+              "value": {
+                "type": "string",
+                "maxLength": 2048
+              }
+            },
+            "required": [
+              "kind",
+              "value"
+            ]
+          }
+        ]
+      },
+      "EdgeFilter": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "type": "string",
+            "pattern": "^(output\\.[a-z][a-z0-9_]*|input\\.[a-z][a-z0-9_]*|element)$"
+          },
+          "op": {
+            "enum": [
+              "exists",
+              "equal",
+              "not_equal"
+            ]
+          },
+          "value": {}
+        },
+        "required": [
+          "path",
+          "op"
+        ]
+      },
+      "GraphTaskDefinition": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/TaskDefinition"
+          },
+          {
+            "properties": {
+              "source": {
+                "properties": {
+                  "kind": {
+                    "const": "manual"
+                  }
+                },
+                "required": [
+                  "inputs"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "TrialOptions": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "mode": {
+            "enum": [
+              "live",
+              "offline"
+            ]
+          },
+          "documents": {
+            "type": "object",
+            "maxProperties": 20,
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "url": {
+                    "type": "string"
+                  },
+                  "format": {
+                    "enum": [
+                      "html",
+                      "json"
+                    ]
+                  },
+                  "content": {
+                    "type": "string",
+                    "maxLength": 524288
+                  }
+                },
+                "required": [
+                  "url",
+                  "format",
+                  "content"
+                ]
+              },
+              "minItems": 0,
+              "maxItems": 20
+            }
+          }
+        },
+        "required": [
+          "mode"
+        ]
+      },
+      "TaskMappingPreviewRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "upstream_version_id": {
+            "type": "string"
+          },
+          "downstream_version_id": {
+            "type": "string"
+          },
+          "edge": {
+            "$ref": "#/components/schemas/Edge"
+          },
+          "input": {
+            "$ref": "#/components/schemas/BoundedObject"
+          },
+          "output": {
+            "$ref": "#/components/schemas/BoundedObject"
+          }
+        },
+        "required": [
+          "upstream_version_id",
+          "downstream_version_id",
+          "edge",
+          "input",
+          "output"
         ]
       }
     }

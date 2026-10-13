@@ -70,7 +70,7 @@ func TestCOO2Postgres(t *testing.T) {
 	exec("SET search_path TO " + schema)
 	exec("CREATE TABLE admin(id BIGINT PRIMARY KEY)")
 	exec("INSERT INTO admin(id) VALUES(1),(2)")
-	for _, name := range []string{"migrate_co_o1.go", "migrate_co_o2.go"} {
+	for _, name := range []string{"migrate_co_o1.go", "migrate_co_o2.go", "migrate_co_o3.go"} {
 		tree, e := parser.ParseFile(token.NewFileSet(), filepath.Join(root, "internal/db/migrate", name), nil, 0)
 		if e != nil {
 			t.Fatal(e)
@@ -146,7 +146,7 @@ func TestCOO2Postgres(t *testing.T) {
 	for _, f := range d.Output.Fields {
 		b.Mapping[f.Key] = collector.Binding{Kind: "field", Path: "output." + f.Key}
 	}
-	definition := TaskDefinition{DefinitionVersion: "task.v1", EntryStage: "movie", Source: ManualSource{Kind: "manual", Inputs: []map[string]any{{"url": "https://fixture.example.test/subject/m001", "movie_id": "m001"}, {"url": "https://fixture.example.test/subject/m002", "movie_id": "m002"}}}, Stages: []TaskStage{{ID: "movie", Name: "movie", CollectorVersionID: vid, Save: b, OnError: "continue"}}, Edges: []any{}, Budget: TaskBudget{MaxWorkItems: 100, MaxOutputs: 100, MaxPending: 1, BrowserSlots: 1, MaxDurationMS: 600000}, OverlapPolicy: "skip"}
+	definition := TaskDefinition{DefinitionVersion: "task.v1", EntryStage: "movie", Source: ManualSource{Kind: "manual", Inputs: []map[string]any{{"url": "https://fixture.example.test/subject/m001", "movie_id": "m001"}, {"url": "https://fixture.example.test/subject/m002", "movie_id": "m002"}}}, Stages: []TaskStage{{ID: "movie", Name: "movie", CollectorVersionID: vid, Save: b, OnError: "continue"}}, Edges: []TaskEdge{}, Budget: TaskBudget{MaxWorkItems: 100, MaxOutputs: 100, MaxPending: 1, BrowserSlots: 1, MaxDurationMS: 600000}, OverlapPolicy: "skip"}
 	o, e = CreateTask(ctx, 1, "movies", "task", definition)
 	must(e)
 	taskID := value(o)["id"].(string)
@@ -337,6 +337,7 @@ func TestCOO2Postgres(t *testing.T) {
 	// Browser expiry before a safe checkpoint is never claimed as a fresh action.
 	browserManifest := schemaClaim.Manifest
 	browserManifest.CollectorDefinition.Fetch.Kind = "browser"
+	browserManifest.Stages = nil // Explicit O2 legacy manifest exercises compatibility.
 	exec("UPDATE co_runs SET status='running',manifest=CAST(? AS jsonb) WHERE id=?", collector.JSON(browserManifest), schemaRun)
 	exec("UPDATE co_work_items SET status='running',lease_token='lost',lease_until=NOW()-INTERVAL '1 second' WHERE id=?", schemaClaim.Item.ID)
 	recovery, e := ClaimWork(ctx, true)
@@ -385,5 +386,6 @@ func TestCOO2Postgres(t *testing.T) {
 	if _, e = RunEvents(ctx, 2, runID, 0); e != ErrNotFound {
 		t.Fatal("event owner isolation", e)
 	}
+	checkO3Postgres(t, ctx, root, engine)
 	must(ctx.Err())
 }

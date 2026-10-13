@@ -3,6 +3,13 @@ export function statusLabel(status: string) {
 		(
 			{
 				preparing: '准备输入',
+				waiting_upstream: '等待上游',
+				dispatching: '正在分发',
+				backpressured: '等待下游消化积压',
+				filtered: '已过滤',
+				delivered: '已派发',
+				ready: '有效输入',
+				invalid: '映射无效',
 				queued: '排队',
 				running: '运行中',
 				pausing: '等待当前页保存后暂停',

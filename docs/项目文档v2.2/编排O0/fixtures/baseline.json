@@ -510,13 +510,8 @@
           }
         },
         "filter": {
-          "mode": "all",
-          "rules": [
-            {
-              "path": "output.detail_url",
-              "op": "nonempty"
-            }
-          ]
+          "path": "output.detail_url",
+          "op": "exists"
         },
         "emit": "valid"
       },
@@ -536,13 +531,8 @@
           }
         },
         "filter": {
-          "mode": "all",
-          "rules": [
-            {
-              "path": "output.comments_url",
-              "op": "nonempty"
-            }
-          ]
+          "path": "output.comments_url",
+          "op": "exists"
         },
         "emit": "valid"
       }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/google/uuid"
 	"github.com/nekoimi/scrapio/internal/collector"
 	"sort"
@@ -116,8 +117,8 @@ func PreviewSave(ctx context.Context, owner int64, version string, b SaveBinding
 	return map[string]any{"schema_hash": collector.Hash(schema), "decisions": out, "formal_writes": 0}, nil
 }
 
-// CommitBatch is the sole O2 business write boundary. O3 outbox insertion belongs
-// inside this transaction, after immutable outputs and before the checkpoint.
+// CommitBatch atomically saves business decisions, immutable outputs, O3
+// dispatch plans and the page checkpoint under the run/stage/item lease fence.
 func CommitBatch(ctx context.Context, c *WorkClaim, candidates []collector.Candidate, cp collector.Checkpoint) (err error) {
 	defer func() {
 		var typed *collector.Error
@@ -144,7 +145,7 @@ func CommitBatch(ctx context.Context, c *WorkClaim, candidates []collector.Candi
 	if cp.DefinitionHash != collector.Hash(c.Manifest.CollectorDefinition) || cp.InputHash != canonicalHash(item.InputValues) {
 		return collector.Fault("CHECKPOINT_CONFLICT", "checkpoint", "检查点与冻结定义或输入不匹配")
 	}
-	binding := c.Manifest.Definition.Stages[0].Save
+	binding := c.Manifest.Stage(c.StageID).Save
 	schema, e := tableSchema(s, r.OwnerID, binding, true)
 	if e != nil {
 		return e
@@ -278,11 +279,23 @@ func CommitBatch(ctx context.Context, c *WorkClaim, candidates []collector.Candi
 		if r.OutputCount >= c.Manifest.Definition.Budget.MaxOutputs {
 			return collector.Fault("OUTPUT_BUDGET", "budget", "达到输出预算；本页未提交，之前保存的数据保留")
 		}
-		out := SavedOutput{ID: uuid.NewString(), RunID: r.ID, ItemID: item.ID, Namespace: r.Namespace, OutputIdentity: identity, Values: collector.JSON(candidate.Values), SchemaHash: binding.SchemaHash, ContentHash: collector.Hash(candidate.Values), ObservationID: observation, Decision: decision.Decision, Source: collector.JSON(map[string]any{"input_id": item.InputID, "source_key": item.SourceKey, "stage_id": c.Manifest.Definition.EntryStage, "collector_version_id": c.Manifest.Collector.ID, "page": candidate.Page, "page_url": cp.CurrentURL, "content_hash": cp.ContentHash, "port": "records", "attempt_id": c.Attempt.ID}), CreatedAt: time.Now()}
+		out := SavedOutput{ID: uuid.NewString(), RunID: r.ID, ItemID: item.ID, Namespace: r.Namespace, OutputIdentity: identity, Values: collector.JSON(candidate.Values), SchemaHash: binding.SchemaHash, ContentHash: collector.Hash(candidate.Values), ObservationID: observation, Decision: decision.Decision, Source: collector.JSON(map[string]any{"input_id": item.InputID, "source_key": item.SourceKey, "stage_id": c.StageID, "collector_version_id": c.Manifest.Collector.ID, "page": candidate.Page, "page_url": cp.CurrentURL, "content_hash": cp.ContentHash, "port": "records", "attempt_id": c.Attempt.ID}), CreatedAt: time.Now()}
 		if _, e = s.Insert(&out); e != nil {
 			return e
 		}
+		if e = registerOutput(s, r, c, out); e != nil {
+			return e
+		}
 		r.OutputCount++
+	}
+	var remaining int
+	pendingRows, e := s.QueryString("SELECT COALESCE(SUM(total-next_ordinal),0) AS n FROM co_dispatch_plans WHERE run_id=? AND status='pending'", r.ID)
+	if e != nil {
+		return e
+	}
+	fmt.Sscan(pendingRows[0]["n"], &remaining)
+	if remaining > dispatchLimit(c.Manifest) {
+		return collector.Fault("DISPATCH_BUDGET", "budget", "当前页的分发量超过outbox容量；本页全部回滚，请缩小页批次或提高分发容量")
 	}
 	if _, e = s.Exec("UPDATE co_runs SET output_count=? WHERE id=?", r.OutputCount, r.ID); e != nil {
 		return e
@@ -320,6 +333,12 @@ func CommitBatch(ctx context.Context, c *WorkClaim, candidates []collector.Candi
 	}
 	if paused {
 		return collector.Fault("CONTROL_PAUSED", "run", "已在本页保存后暂停，恢复将使用已提交检查点")
+	}
+	if !cp.Done && remaining >= c.Manifest.Definition.Budget.MaxPending {
+		if cp.Resume != "url_or_cursor" || len(c.Manifest.CollectorDefinition.Actions) > 0 || c.Manifest.CollectorDefinition.Fetch.Method == "POST" {
+			return collector.Fault("BACKPRESSURE_UNSAFE", "dispatch", "当前页已保存；当前动作路径不能安全续页，请确认后重采或停止此项")
+		}
+		return collector.Fault("BACKPRESSURE", "dispatch", "当前页已保存，等待下游消化积压后从检查点继续")
 	}
 	return nil
 }
