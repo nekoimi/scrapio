@@ -218,6 +218,12 @@
 							/>
 						</div>
 						<el-divider>连接样例预览</el-divider>
+                        <details><summary>可选：映射值转换</summary>
+                            <template v-for="f in version.definition.input_fields" :key="f.key">
+                                <TransformEditor v-if="incoming.mapping[f.key]" :model-value="incoming.transforms?.[f.key]" :target="edgeTransformTarget(f)" :scope="'下游输入 ' + f.key" @update:model-value="(value) => setEdgeTransform(f.key, value)" />
+                            </template>
+                            <p>只转换对应映射的值，不修改上游输出；批次模式转换单个数组元素。过滤与展开先执行。结果仍需通过下游Schema及访问范围检查。</p>
+                        </details>
 						<el-button :disabled="busy || !upstream" @click="loadMappingSample">载入上游所选版本的测试样例</el-button>
 						<el-form-item label="上游输入（JSON）"><el-input v-model="sampleInput" type="textarea" :rows="3" /></el-form-item>
 						<el-form-item label="上游一条输出（JSON）"><el-input v-model="sampleOutput" type="textarea" :rows="4" /></el-form-item>
@@ -227,7 +233,7 @@
 						</p>
 						<el-table v-if="mappingPreview.length" :data="mappingPreview"
 							><el-table-column prop="decision" label="映射决策" /><el-table-column label="下游值 / 错误"
-								><template #default="{ row }">{{ row.error?.message || JSON.stringify(row.values) }}</template></el-table-column
+								><template #default="{ row }">{{ row.error?.message || JSON.stringify(row.values) }}<details v-if="row.transforms"><summary>转换前后与诊断</summary><pre class="co-json">{{ JSON.stringify(row.transforms,null,2) }}</pre></details></template></el-table-column
 							></el-table
 						>
 						<p class="co-muted">模板支持 output.key、input.key 与展开 element。预览不会写数据；空数组正常产生零项。</p>
@@ -358,12 +364,13 @@
 <script setup lang="ts">
 import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue';
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router';
+import TransformEditor from './transform-editor.vue';
 import { ElMessageBox } from 'element-plus';
 import SourcePicker from './source-picker.vue';
 import TaskDaily from './task-daily.vue';
 import PortSaves from './port-saves.vue';
 import type { TaskSource } from './tasks-api';
-import { call, coApi, describe, type Collector, type Version, type Candidate, type Binding } from './api';
+import { call, coApi, describe, type Collector, type Version, type Candidate, type Binding, type Field } from './api';
 import {
 	taskApi,
 	taskMutation,
@@ -511,6 +518,7 @@ const incomingPass = computed(() => {
 function changePort() {
 	if (!incoming.value) return;
 	incoming.value.mapping = {};
+ delete incoming.value.transforms;
 	invalidMappingValues.value = {};
 	delete incoming.value.filter;
 	delete incoming.value.expand;
@@ -701,7 +709,16 @@ function setFilterValue(raw: string) {
 	}
 	mappingPreview.value = [];
 }
+function edgeTransformTarget(f: Field): Field { return ['join','batch'].includes(stageInputMode.value) ? {...f,required:false,default:undefined,multiple:stageInputMode.value==='batch'?false:f.multiple} : f; }
+function setEdgeTransform(key: string,value: import('./api').Transform | undefined) {
+ if (!incoming.value) return;
+ incoming.value.transforms ||= {};
+ if(value) incoming.value.transforms[key]=value; else delete incoming.value.transforms[key];
+ if(!Object.keys(incoming.value.transforms).length) delete incoming.value.transforms;
+ mappingPreview.value=[];
+}
 function setMappingKind(key: string, kind: string) {
+ if (!kind && incoming.value?.transforms) {delete incoming.value.transforms[key];if(!Object.keys(incoming.value.transforms).length)delete incoming.value.transforms;}
 	delete invalidMappingValues.value[(incoming.value?.id || '') + ':' + key];
 	if (!incoming.value) return;
 	if (!kind) delete incoming.value.mapping[key];

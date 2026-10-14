@@ -5209,6 +5209,77 @@
         },
         "description": "Revision CAS and original idempotency key. Pause preserves cursor and pending evidence; resume requires ready, unarchived task. Retire is terminal, releases unused backfill and retention protection; generated runs continue. Configuration is immutable: retire and explicitly recreate for a new version/mapping. Old changes retained at least30days, and indefinitely while any paused/blocked subscriber still needs them, within change-storage quota."
       }
+    },
+    "/transforms/preview": {
+      "post": {
+        "operationId": "previewCoTransform",
+        "tags": [
+          "O5"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O5",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransformPreviewRequest"
+              }
+            }
+          }
+        },
+        "description": "Pure co.transform.v1 expression on one typed value; 1..5 exact offline samples required. Collector conversion runs after extraction/cleaning before output validation and identity; edge conversion after filtering/expansion/binding before target Schema and allowed-origin checks. Syntax allowlist, no statements/functions/loops/regex/dynamic code/external access; 256 AST nodes/24 depth, intermediate JSON8192bytes/16depth/100array/30keys, runtime25ms/64stack. Before/after, expression fingerprint and error location; no formal writes. Definition/task hashes freeze transforms and samples; changes require new evidence/version. Not a general arbitrary JS runtime or OS memory sandbox."
+      }
     }
   },
   "components": {
@@ -5387,6 +5458,9 @@
               "trim",
               "whitespace"
             ]
+          },
+          "transform": {
+            "$ref": "#/components/schemas/Transform"
           }
         },
         "required": [
@@ -5974,6 +6048,13 @@
               "created",
               "changed"
             ]
+          },
+          "transforms": {
+            "type": "object",
+            "maxProperties": 30,
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Transform"
+            }
           }
         },
         "required": [
@@ -8431,6 +8512,83 @@
           "id",
           "expected_revision",
           "action"
+        ]
+      },
+      "TransformSample": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "value": {},
+          "expected": {}
+        },
+        "required": [
+          "value",
+          "expected"
+        ]
+      },
+      "Transform": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "version": {
+            "const": "co.transform.v1"
+          },
+          "input": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Field"
+              },
+              {
+                "properties": {
+                  "key": {
+                    "const": "value"
+                  }
+                },
+                "not": {
+                  "required": [
+                    "default"
+                  ]
+                }
+              }
+            ]
+          },
+          "expression": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8192
+          },
+          "samples": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TransformSample"
+            },
+            "minItems": 1,
+            "maxItems": 5
+          }
+        },
+        "required": [
+          "version",
+          "input",
+          "expression",
+          "samples"
+        ]
+      },
+      "TransformPreviewRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "transform": {
+            "$ref": "#/components/schemas/Transform"
+          },
+          "value": {},
+          "target": {
+            "$ref": "#/components/schemas/Field"
+          }
+        },
+        "required": [
+          "transform",
+          "value",
+          "target"
         ]
       }
     }

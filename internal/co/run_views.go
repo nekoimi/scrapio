@@ -81,6 +81,9 @@ func RunPage(ctx context.Context, owner int64, id, kind, cursor string, limit in
 	if kind == "outputs" || kind == "observations" {
 		projection = "*,values_json AS values"
 	}
+	if kind == "dispatches" {
+		projection = "*,(SELECT p.rows_json -> co_dispatches.expansion_ordinal -> 'transforms' FROM co_dispatch_plans p WHERE p.id=co_dispatches.plan_id) AS transforms"
+	}
 	q := "SELECT " + projection + " FROM " + table + " WHERE run_id=?"
 	args := []any{id}
 	if cursor != "" {

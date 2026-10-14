@@ -10,14 +10,15 @@ import (
 )
 
 type TaskEdge struct {
-	ID      string                       `json:"id"`
-	From    string                       `json:"from"`
-	To      string                       `json:"to"`
-	Port    string                       `json:"port"`
-	Emit    string                       `json:"emit"`
-	Mapping map[string]collector.Binding `json:"mapping"`
-	Filter  *EdgeFilter                  `json:"filter,omitempty"`
-	Expand  *EdgeExpand                  `json:"expand,omitempty"`
+	Transforms map[string]*collector.Transform `json:"transforms,omitempty"`
+	ID         string                          `json:"id"`
+	From       string                          `json:"from"`
+	To         string                          `json:"to"`
+	Port       string                          `json:"port"`
+	Emit       string                          `json:"emit"`
+	Mapping    map[string]collector.Binding    `json:"mapping"`
+	Filter     *EdgeFilter                     `json:"filter,omitempty"`
+	Expand     *EdgeExpand                     `json:"expand,omitempty"`
 }
 type EdgeFilter struct {
 	Path  string          `json:"path"`
@@ -189,10 +190,22 @@ func validateEdge(e TaskEdge, up, down collector.Definition) error {
 			}
 		}
 	}
+	for key, t := range e.Transforms {
+		f, ok := target[key]
+		if _, mapped := e.Mapping[key]; !ok || !mapped || t == nil {
+			return collector.Invalid(loc+".transforms."+key, "转换只能绑定已映射的下游字段，不能为空")
+		}
+		if err := t.Check(f, loc+".transforms."+key); err != nil {
+			return err
+		}
+	}
 	for key, b := range e.Mapping {
 		f, ok := target[key]
 		if !ok {
 			return collector.Invalid(loc+".mapping."+key, "下游没有此输入字段")
+		}
+		if t := e.Transforms[key]; t != nil {
+			f = t.Input
 		}
 		switch b.Kind {
 		case "field":
@@ -233,11 +246,12 @@ func validateEdge(e TaskEdge, up, down collector.Definition) error {
 }
 
 type MappingPreview struct {
-	Ordinal    int              `json:"ordinal"`
-	ElementKey string           `json:"element_key"`
-	Decision   string           `json:"decision"`
-	Values     map[string]any   `json:"values,omitempty"`
-	Error      *collector.Error `json:"error,omitempty"`
+	Ordinal    int                                     `json:"ordinal"`
+	ElementKey string                                  `json:"element_key"`
+	Decision   string                                  `json:"decision"`
+	Values     map[string]any                          `json:"values,omitempty"`
+	Error      *collector.Error                        `json:"error,omitempty"`
+	Transforms map[string]*collector.TransformEvidence `json:"transforms,omitempty"`
 }
 
 func edgeValue(path string, input, output map[string]any, element any) (any, bool) {
@@ -258,6 +272,9 @@ func mapEdge(e TaskEdge, down collector.Definition, input, output map[string]any
 	return mapEdgeMode(e, down, input, output, false)
 }
 func mapEdgeMode(e TaskEdge, down collector.Definition, input, output map[string]any, partial bool) ([]MappingPreview, error) {
+	return mapEdgeContext(context.Background(), e, down, input, output, partial)
+}
+func mapEdgeContext(ctx context.Context, e TaskEdge, down collector.Definition, input, output map[string]any, partial bool) ([]MappingPreview, error) {
 	elements := []any{nil}
 	if e.Expand != nil {
 		v, ok := edgeValue(e.Expand.Path, input, output, nil)
@@ -329,6 +346,23 @@ func mapEdgeMode(e TaskEdge, down collector.Definition, input, output map[string
 			if problem != nil {
 				break
 			}
+			if t := e.Transforms[key]; t != nil {
+				var field collector.Field
+				for _, f := range down.InputFields {
+					if f.Key == key {
+						field = f
+					}
+				}
+				var evidence *collector.TransformEvidence
+				v, evidence, problem = t.Apply(ctx, v, field, false, "edges."+e.ID+".transforms."+key)
+				if row.Transforms == nil {
+					row.Transforms = map[string]*collector.TransformEvidence{}
+				}
+				row.Transforms[key] = evidence
+				if problem != nil {
+					break
+				}
+			}
 			values[key] = v
 		}
 		if problem == nil && partial {
@@ -374,7 +408,7 @@ func TaskMappingPreview(ctx context.Context, owner int64, upID, downID string, e
 	if err = validateEdge(edge, up, down); err != nil {
 		return nil, err
 	}
-	rows, err := mapEdgeMode(edge, down, input, output, gatherStage(stage))
+	rows, err := mapEdgeContext(ctx, edge, down, input, output, gatherStage(stage))
 	return map[string]any{"items": rows, "mapping_hash": collector.Hash(edge), "formal_writes": 0, "fragment_only": gatherStage(stage)}, err
 }
 

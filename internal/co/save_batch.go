@@ -357,7 +357,7 @@ func CommitBatch(ctx context.Context, c *WorkClaim, candidates []collector.Candi
 		if _, e = s.Insert(&out); e != nil {
 			return e
 		}
-		if e = registerOutput(s, r, c, out); e != nil {
+		if e = registerOutput(s, r, c, out, ctx); e != nil {
 			return e
 		}
 		r.OutputCount++

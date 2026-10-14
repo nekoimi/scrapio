@@ -8,6 +8,7 @@ const sfc = require(path.join(web, "node_modules/@vue/compiler-sfc"));
 const ts = require(path.join(web, "node_modules/typescript"));
 const Ajv = require(path.join(web, "node_modules/ajv"));
 const files = [
+ "web/src/views/co/transform-editor.vue",
  "web/src/views/co/collector-ports.vue",
  "web/src/views/co/port-saves.vue",
   "web/src/views/co/collectors.vue",
@@ -165,3 +166,15 @@ assert.ok(workbench.includes("selectionApi"));
 process.stdout.write(
   "OK O1/O2/O3/O4 contract, new-domain isolation, routes and template controls\n",
 );
+
+validate("TransformPreviewRequest", {
+ transform:{version:"co.transform.v1",input:{key:"value",type:"string",required:true,nullable:false,multiple:false},expression:'Number(value.trim())',samples:[{value:" 1 ",expected:1}]},
+ value:" 2 ",target:{key:"rating",type:"number",required:true,nullable:false,multiple:false}
+});
+const transformSchema=ajv.getSchema("#/components/schemas/Transform");
+const baseTransform={version:"co.transform.v1",input:{key:"value",type:"string",required:true,nullable:false,multiple:false},expression:"value",samples:[{value:"a",expected:"a"}]};
+assert.ok(transformSchema(baseTransform));
+assert.equal(transformSchema({...baseTransform,input:{...baseTransform.input,key:"other"}}),false);
+assert.equal(transformSchema({...baseTransform,input:{...baseTransform.input,default:"a"}}),false);
+assert.equal(transformSchema({...baseTransform,samples:[]}),false);
+process.stdout.write("OK O5-05 typed transform and sample contract\n");

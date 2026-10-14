@@ -38,6 +38,7 @@
 						><el-input v-if="p.output.mapping[j].extract === 'attribute'" v-model="p.output.mapping[j].attribute" placeholder="属性名"
 					/></template>
 				</div>
+                <TransformEditor v-model="p.output.mapping[j].transform" :target="f" scope="字段提取后转换" />
 			</div>
 			<el-button :disabled="p.output.fields.length >= 30" @click="addField(i)">添加字段</el-button>
 			<el-select v-model="p.output.identity_fields" multiple placeholder="稳定输出身份（1..5个必填标量）"
@@ -49,6 +50,7 @@
 	</el-card>
 </template>
 <script setup lang="ts">
+import TransformEditor from './transform-editor.vue';
 import { computed, ref, watch } from 'vue';
 import type { Definition, Field, Mapping } from './api';
 const props = defineProps<{ modelValue: NonNullable<Definition['additional_outputs']>; inputFields: Field[]; json: boolean }>();

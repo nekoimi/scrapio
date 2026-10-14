@@ -10,6 +10,7 @@ import (
 
 func (a API) mountTasks(v *mux.Router) {
 	v.HandleFunc("/governance", a.governance).Methods("GET")
+	v.HandleFunc("/transforms/preview", a.transformPreview).Methods("POST")
 	v.HandleFunc("/sources/preview", a.sourcePreview).Methods("POST")
 	v.HandleFunc("/sources/{source_id}", a.sourceDetail).Methods("GET")
 	v.HandleFunc("/tasks/{task_id}/schedule", a.schedule).Methods("GET", "POST")

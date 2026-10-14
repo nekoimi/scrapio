@@ -109,9 +109,11 @@ type Document struct {
 	PageStateID string `json:"page_state_id,omitempty"`
 }
 type FieldEvidence struct {
-	MatchCount int    `json:"match_count"`
-	Status     string `json:"status"`
-	Message    string `json:"message,omitempty"`
+	MatchCount int                `json:"match_count"`
+	Status     string             `json:"status"`
+	Message    string             `json:"message,omitempty"`
+	Error      *Error             `json:"error,omitempty"`
+	Transform  *TransformEvidence `json:"transform,omitempty"`
 }
 type Candidate struct {
 	Port     string                   `json:"port,omitempty"`
@@ -202,6 +204,10 @@ func extractPort(ctx context.Context, d Definition, input map[string]any, doc Do
 		c := Candidate{Values: map[string]any{}, Fields: map[string]FieldEvidence{}, Valid: true}
 		for _, m := range d.Output.Mapping {
 			f := fields[m.Key]
+			rawField := f
+			if m.Transform != nil {
+				rawField = m.Transform.Input
+			}
 			var values []any
 			present := true
 			switch m.Source {
@@ -209,9 +215,9 @@ func extractPort(ctx context.Context, d Definition, input map[string]any, doc Do
 				v, ok := input[m.InputKey]
 				present = ok
 				if ok {
-					if f.Multiple {
+					if rawField.Multiple {
 						if a, ok := v.([]any); ok {
-							values = a
+							values = append([]any{}, a...)
 						} else {
 							values = []any{v}
 						}
@@ -221,9 +227,9 @@ func extractPort(ctx context.Context, d Definition, input map[string]any, doc Do
 				}
 			case "constant":
 				v, _ := capture.DecodeJSON(string(m.Value))
-				if f.Multiple {
+				if rawField.Multiple {
 					if a, ok := v.([]any); ok {
-						values = a
+						values = append([]any{}, a...)
 					} else {
 						values = []any{v}
 					}
@@ -262,7 +268,7 @@ func extractPort(ctx context.Context, d Definition, input map[string]any, doc Do
 					ev.Status = "missing"
 				}
 			} else {
-				if !f.Multiple && len(values) > 1 {
+				if !rawField.Multiple && len(values) > 1 {
 					ev.Status = "invalid"
 					ev.Message = "单值字段命中多个元素，请缩小规则或使用多值"
 				}
@@ -277,14 +283,21 @@ func extractPort(ctx context.Context, d Definition, input map[string]any, doc Do
 						values[i] = v
 					}
 				}
-				if f.Multiple {
+				if rawField.Multiple {
 					value = values
 				} else if len(values) > 0 {
 					value = values[0]
 				}
 			}
 			if ev.Status == "valid" {
-				value, e = ValidateValue(value, f, m.Source == "element")
+				if m.Transform != nil && present {
+					value, ev.Transform, e = m.Transform.Apply(ctx, value, f, m.Source == "element", "output."+d.Output.Port+".mapping."+m.Key+".transform")
+					if e != nil {
+						ev.Error = AsError(e)
+					}
+				} else {
+					value, e = ValidateValue(value, f, m.Source == "element")
+				}
 				if e != nil {
 					ev.Status = "invalid"
 					ev.Message = e.Error()

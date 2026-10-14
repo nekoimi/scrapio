@@ -243,7 +243,7 @@ func ReplayStage(ctx context.Context, owner int64, runID, key string, p ReplayRe
 				if e = collector.Strict([]byte(output.Values), &values); e != nil {
 					return nil, e
 				}
-				rows, e := mapEdge(edge, m.CollectorDefinition, input, values)
+				rows, e := mapEdgeContext(ctx, edge, m.CollectorDefinition, input, values, false)
 				if e != nil {
 					return nil, e
 				}
@@ -254,7 +254,7 @@ func ReplayStage(ctx context.Context, owner int64, runID, key string, p ReplayRe
 					if row.Decision == "filtered" {
 						continue
 					}
-					inputs = append(inputs, RunInput{SourceKey: "replay:output:" + id + ":" + row.ElementKey, Values: collector.JSON(row.Values), Source: collector.JSON(map[string]any{"kind": "historical_output", "run_id": runID, "output_id": id, "edge_id": edge.ID, "port": edge.Port, "mapping_hash": collector.Hash(edge), "element_key": row.ElementKey, "target_stage": p.StageID, "task_version_id": v.ID})})
+					inputs = append(inputs, RunInput{SourceKey: "replay:output:" + id + ":" + row.ElementKey, Values: collector.JSON(row.Values), Source: collector.JSON(map[string]any{"kind": "historical_output", "run_id": runID, "output_id": id, "edge_id": edge.ID, "port": edge.Port, "mapping_hash": collector.Hash(edge), "transforms": row.Transforms, "element_key": row.ElementKey, "target_stage": p.StageID, "task_version_id": v.ID})})
 				}
 				scope = append(scope, "output:"+id)
 			}

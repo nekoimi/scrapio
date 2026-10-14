@@ -21,7 +21,14 @@ export interface Locator {
 	strategy: 'css' | 'xpath' | 'jsonpath';
 	expression: string;
 }
+export interface Transform {
+ version:'co.transform.v1';
+ input: Field;
+ expression: string;
+ samples: {value:unknown; expected:unknown}[];
+}
 export interface Mapping {
+ transform?:Transform;
 	key: string;
 	source: 'element' | 'input' | 'constant';
 	input_key?: string;
@@ -84,7 +91,7 @@ export interface Candidate {
 	values: Record<string, unknown>;
 	valid: boolean;
 	page: number;
-	fields: Record<string, { status: string; match_count: number; message?: string }>;
+	fields: Record<string, { status: string; match_count: number; message?: string; error?: {code:string;message:string}; transform?: {version:string;hash:string;before:unknown;after:unknown;error?:unknown} }>;
 }
 export interface TestResult {
 	definition_hash?: string;

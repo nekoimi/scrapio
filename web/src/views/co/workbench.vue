@@ -248,6 +248,7 @@
 							placeholder="属性名"
 						/>
 					</div>
+                    <TransformEditor v-model="definition.output.mapping[i].transform" :target="f" scope="字段提取后转换" />
 				</div>
 				<el-button :disabled="definition.output.fields.length >= 30" @click="addField()">添加输出字段</el-button></el-tab-pane
 			>
@@ -352,7 +353,7 @@
 							</template></el-table-column
 						><el-table-column label="字段证据"
 							><template #default="{ row }"
-								><p v-for="(f, k) in row.fields" :key="k">{{ k }} · 命中{{ f.match_count }} · {{ f.status }} {{ f.message }}</p></template
+								><div v-for="(f, k) in row.fields" :key="k"><p>{{ k }} · 命中{{ f.match_count }} · {{ f.status }} {{ f.message }}</p><details v-if="f.transform"><summary>转换前后与诊断</summary><pre class="co-json">{{ JSON.stringify(f.transform,null,2) }}</pre></details></div></template
 							></el-table-column
 						></el-table
 					>
@@ -448,6 +449,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue';
 import { useRoute, useRouter, onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router';
+import TransformEditor from './transform-editor.vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import BrowserSelection from '../app/browser-selection.vue';
 const invalidPorts = ref(false);

@@ -72,6 +72,7 @@ type Action struct {
 	ReplayClass string   `json:"replay_class"`
 }
 type Mapping struct {
+	Transform *Transform      `json:"transform,omitempty"`
 	Key       string          `json:"key"`
 	Source    string          `json:"source"`
 	InputKey  string          `json:"input_key,omitempty"`
@@ -336,6 +337,9 @@ func (d Definition) Validate() error {
 			return Invalid("output.mapping."+m.Key, "映射字段缺失或重复")
 		}
 		seen[m.Key] = true
+		if e := m.Transform.Check(outputs[m.Key], "output.mapping."+m.Key+".transform"); e != nil {
+			return e
+		}
 		switch m.Source {
 		case "input":
 			if _, ok := inputs[m.InputKey]; !ok {
@@ -352,7 +356,11 @@ func (d Definition) Validate() error {
 			if Sensitive(v) {
 				return Invalid("output.mapping."+m.Key, "常量含认证字段，请使用凭据引用")
 			}
-			if _, e = ValidateValue(v, outputs[m.Key], false); e != nil {
+			target := outputs[m.Key]
+			if m.Transform != nil {
+				target = m.Transform.Input
+			}
+			if _, e = ValidateValue(v, target, false); e != nil {
 				return Invalid("output.mapping."+m.Key, e.Error())
 			}
 		case "element":

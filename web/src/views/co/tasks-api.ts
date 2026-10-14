@@ -1,4 +1,4 @@
-import { call, key, type Definition, type Field, type Binding, type Candidate, type Page, type Operation } from './api';
+import { call, key, type Definition, type Field, type Binding, type Candidate, type Page, type Operation, type Transform } from './api';
 export interface SaveBinding {
 	mode?: 'table' | 'pass_through';
 	table_id: string;
@@ -37,6 +37,7 @@ export interface TaskSource {
 	accept_partial?: boolean;
 }
 export interface TaskEdge {
+ transforms?: Record<string, Transform>;
 	id: string;
 	from: string;
 	to: string;

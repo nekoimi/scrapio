@@ -113,7 +113,7 @@
 							><template #default="{ row }">{{ row.decision === 'passed' ? '仅传递' : row.decision }}</template></el-table-column
 						><el-table-column label="本次原始值"
 							><template #default="{ row }"
-								><code>{{ JSON.stringify(row.values) }}</code></template
+								><code>{{ JSON.stringify(row.values) }}</code><details v-if="row.diagnostic?.fields"><summary>字段证据与转换诊断</summary><pre class="co-json">{{ JSON.stringify(row.diagnostic.fields,null,2) }}</pre></details></template
 							></el-table-column
 						><el-table-column label="来源"
 							><template #default="{ row }"
@@ -148,7 +148,7 @@
 						<el-table-column label="冻结下游输入 / 错误"
 							><template #default="{ row }"
 								><code>{{ JSON.stringify(row.input_snapshot) }}</code>
-								<p>{{ row.error?.message || row.error?.code }}</p></template
+								<p>{{ row.error?.message || row.error?.code }}</p><details v-if="row.transforms"><summary>转换前后与诊断</summary><pre class="co-json">{{ JSON.stringify(row.transforms,null,2) }}</pre></details></template
 							></el-table-column
 						>
 						<el-table-column label="下游项"

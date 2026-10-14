@@ -52,7 +52,11 @@ func executionSite(d collector.Definition, values map[string]any) string {
 	}
 	return siteKey(map[string]any{"url": req.URL})
 }
-func registerOutput(s *xorm.Session, r *Run, c *WorkClaim, out SavedOutput) error {
+func registerOutput(s *xorm.Session, r *Run, c *WorkClaim, out SavedOutput, contexts ...context.Context) error {
+	ctx := context.Background()
+	if len(contexts) > 0 {
+		ctx = contexts[0]
+	}
 	var output, input map[string]any
 	if e := json.Unmarshal([]byte(out.Values), &output); e != nil {
 		return e
@@ -69,7 +73,7 @@ func registerOutput(s *xorm.Session, r *Run, c *WorkClaim, out SavedOutput) erro
 		if emit {
 			var e error
 			st := c.Manifest.Stage(edge.To)
-			rows, e = mapEdgeMode(edge, gatherRowDefinition(st, c.Manifest.ForStage(edge.To).CollectorDefinition), input, output, gatherStage(st))
+			rows, e = mapEdgeContext(ctx, edge, gatherRowDefinition(st, c.Manifest.ForStage(edge.To).CollectorDefinition), input, output, gatherStage(st))
 			if e != nil {
 				rows = []MappingPreview{{Decision: "invalid", Error: collector.AsError(e), ElementKey: "mapping-error"}}
 			}
