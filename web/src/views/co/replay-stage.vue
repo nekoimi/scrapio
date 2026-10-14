@@ -2,7 +2,7 @@
 	<el-button :disabled="busy" @click="open">从指定阶段局部补采</el-button>
 	<el-dialog v-model="dialog" title="创建局部补采运行" width="min(860px, 96vw)">
 		<el-alert
-			title="仅执行所选阶段及其下游。未执行上游会记入范围；局部成功不代表整个任务回归通过。强制访问，不应用刷新间隔跳过。"
+			title="仅执行所选阶段及其下游，共享下游只接收本次保留路径的来源。未执行上游会记入范围；局部成功不代表整个任务回归通过。强制访问，不应用刷新间隔跳过。"
 			type="warning"
 			:closable="false"
 		/>
@@ -22,6 +22,11 @@
 				><el-radio-button label="table">表输入快照</el-radio-button></el-radio-group
 			></el-form
 		>
+		<el-form-item v-if="mode === 'outputs'" label="历史输出使用的上游连接"
+			><el-select v-model="edgeID"
+				><el-option v-for="e in replayEdges" :key="e.id" :value="e.id" :label="e.from + ' / ' + e.port + ' · ' + e.id" /></el-select
+		></el-form-item>
+		<p v-if="mode === 'outputs'">只使用当前所选连接映射历史输出；其他上游不会补跑，缺失分支会记入本次范围。</p>
 		<template v-if="mode !== 'table'"
 			><p>选择{{ mode === 'items' ? '此阶段原工作项' : '此阶段上游输出' }}；最多100个。此页只显示当前已加载记录，可在运行详情继续加载。</p>
 			<el-checkbox-group v-model="selectedIDs"
@@ -59,18 +64,31 @@ const dialog = ref(false),
 	busy = ref(false),
 	problem = ref(''),
 	stageID = ref(''),
+	edgeID = ref(''),
 	versionID = ref(''),
 	versions = ref<TaskVersion[]>([]),
 	mode = ref('items'),
 	selectedIDs = ref<string[]>([]),
 	source = ref<TaskSource>({ kind: 'table', inputs: [] }),
 	collectorVersion = ref<Version>();
+const replayEdges = computed(() => {
+	const d =
+		versionID.value === props.run.task_version_id
+			? props.run.manifest.definition
+			: versions.value.find((v) => v.id === versionID.value)?.manifest.definition;
+	return d?.edges.filter((e: any) => e.to === stageID.value) || [];
+});
+watch(replayEdges, () => {
+	edgeID.value = replayEdges.value.length === 1 ? replayEdges.value[0].id : '';
+	selectedIDs.value = [];
+});
+watch(edgeID, () => (selectedIDs.value = []));
 const available = computed(() => {
 	if (mode.value === 'items')
 		return props.items.filter(
 			(i: any) => props.stages.find((s: any) => s.id === i.stage_run_id)?.stage_id === stageID.value && i.status !== 'awaiting_confirmation'
 		);
-	const edge = props.run.manifest.definition.edges.find((e: any) => e.to === stageID.value);
+	const edge = replayEdges.value.find((e: any) => e.id === edgeID.value);
 	return props.outputs.filter((o: any) => o.source?.stage_id === edge?.from && (o.port || 'records') === edge?.port);
 });
 async function guard(fn: () => Promise<void>) {
@@ -108,6 +126,10 @@ watch(
 	() => guard(loadCollector)
 );
 async function replay() {
+	if (mode.value === 'outputs' && !edgeID.value) {
+		problem.value = '请先选择一条上游连接';
+		return;
+	}
 	if (mode.value !== 'table' && (!selectedIDs.value.length || selectedIDs.value.length > 100)) {
 		problem.value = '请选择1..100个历史证据';
 		return;
@@ -129,7 +151,7 @@ async function replay() {
 				? { source: source.value }
 				: mode.value === 'items'
 					? { item_ids: selectedIDs.value }
-					: { output_ids: selectedIDs.value }),
+					: { output_ids: selectedIDs.value, edge_id: edgeID.value }),
 		});
 		await router.push('/app/co/runs/' + result.id);
 	});

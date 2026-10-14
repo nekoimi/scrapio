@@ -182,3 +182,13 @@ vm.runInNewContext(
   console.error(e);
   process.exit(1);
 });
+
+const unionTask=JSON.parse(JSON.stringify(baseline.task));
+unionTask.stages[2].input_mode='union';
+unionTask.edges.push({...unionTask.edges[0],id:'also_comments',to:unionTask.stages[2].id});
+assert.equal(graph(unionTask),true,JSON.stringify(graph.errors));
+unionTask.stages[2].input_mode='join';assert.equal(graph(unionTask),false);
+const replay=ajv.getSchema('#/components/schemas/ReplayStageRequest');
+assert.equal(replay({stage_id:'movie',edge_id:'ranking_movie',output_ids:['out'],confirmed:true}),true);
+assert.equal(replay({stage_id:'movie',edge_id:'ranking_movie',item_ids:['item'],confirmed:true}),false);
+process.stdout.write('OK O5-03 union and explicit replay edge contracts\n');

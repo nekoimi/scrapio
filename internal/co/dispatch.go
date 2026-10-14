@@ -267,17 +267,13 @@ func graphSettle(s *xorm.Session, r *Run) error {
 	for _, st := range stages {
 		byID[st.StageID] = st
 	}
-	ordered := []StageRun{}
-	queue := []string{m.Definition.EntryStage}
-	for len(queue) > 0 {
-		id := queue[0]
-		queue = queue[1:]
+	order, err := m.Definition.TopologicalStages()
+	if err != nil {
+		return err
+	}
+	ordered := make([]StageRun, 0, len(order))
+	for _, id := range order {
 		ordered = append(ordered, byID[id])
-		for _, edge := range m.Definition.Edges {
-			if edge.From == id {
-				queue = append(queue, edge.To)
-			}
-		}
 	}
 	for _, st := range ordered {
 		counts := map[string]int{}
@@ -293,13 +289,7 @@ func graphSettle(s *xorm.Session, r *Run) error {
 		closed := st.InputClosed
 		reason := st.CloseReason
 		if !closed && st.StageID != m.Definition.EntryStage {
-			for _, edge := range m.Definition.Edges {
-				if edge.To == st.StageID && terminal(states[edge.From]) {
-					closed = true
-					reason = "upstream_" + states[edge.From]
-					break
-				}
-			}
+			closed, reason = upstreamClosure(m.Definition, st.StageID, states)
 		}
 		n, e := s.Table("co_dispatch_plans").Where("run_id=? AND from_stage=? AND status='pending'", r.ID, st.StageID).Count()
 		if e != nil {

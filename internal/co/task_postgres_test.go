@@ -387,7 +387,9 @@ func TestCOO2Postgres(t *testing.T) {
 	if _, e = RunEvents(ctx, 2, runID, 0); e != ErrNotFound {
 		t.Fatal("event owner isolation", e)
 	}
-	if os.Getenv("SCRAPIO_CO_O5_OUTPUT_DB_TEST") == "1" {
+	if os.Getenv("SCRAPIO_CO_O5_UNION_DB_TEST") == "1" {
+		checkO5UnionPostgres(t, ctx, engine, taskVersion)
+	} else if os.Getenv("SCRAPIO_CO_O5_OUTPUT_DB_TEST") == "1" {
 		checkO5OutputPostgres(t, ctx, engine, taskVersion)
 	} else if os.Getenv("SCRAPIO_CO_O5_DB_TEST") == "1" {
 		checkO5Postgres(t, ctx, engine, taskID, taskVersion)

@@ -46,7 +46,13 @@
 							>{{ statusLabel(row.status) }}<small>{{ row.blocked_reason || row.close_reason }}</small></template
 						></el-table-column
 					>
-					<el-table-column prop="source_count" label="来源输入" width="90" /><el-table-column
+					<el-table-column label="上游输入"
+						><template #default="{ row }"
+							><el-tag v-if="run.manifest.definition.stages.find((s) => s.id === row.stage_id)?.input_mode === 'union'">联合输入</el-tag>
+							<p v-for="up in row.upstreams || []" :key="up.edge_id">{{ up.stage_id }} / {{ up.port }} · {{ statusLabel(up.status) }}</p>
+							<small>{{ row.input_closed ? '输入已关闭' : '等待剩余来源及分发' }}</small></template
+						></el-table-column
+					><el-table-column prop="source_count" label="来源输入" width="90" /><el-table-column
 						prop="input_count"
 						label="工作项"
 						width="80"

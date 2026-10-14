@@ -26,6 +26,7 @@ type ManualSource struct {
 	AcceptPartial bool             `json:"accept_partial,omitempty"`
 }
 type TaskStage struct {
+	InputMode          string      `json:"input_mode,omitempty"`
 	ID                 string      `json:"id"`
 	Name               string      `json:"name"`
 	CollectorVersionID string      `json:"collector_version_id"`

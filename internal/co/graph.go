@@ -32,8 +32,8 @@ var graphID = regexp.MustCompile(`^[a-z][a-z0-9_]{0,63}$`)
 var edgeToken = regexp.MustCompile(`\{\{(output\.[a-z][a-z0-9_]*|input\.[a-z][a-z0-9_]*|element)\}\}`)
 
 func (d TaskDefinition) validateGraph() error {
-	if d.DefinitionVersion != "task.v1" || len(d.Stages) < 1 || len(d.Stages) > 20 || len(d.Edges) != len(d.Stages)-1 {
-		return collector.Invalid("stages", "需要1..20阶段、单入口树形DAG，每个非入口恰好一个上游")
+	if d.DefinitionVersion != "task.v1" || len(d.Stages) < 1 || len(d.Stages) > 20 || len(d.Edges) > 60 {
+		return collector.Invalid("stages", "需要1..20阶段、最多60条连接的单入口无环DAG；多来源阶段需显式选择union")
 	}
 	nodes := map[string]bool{}
 	tables := map[string]string{}
@@ -73,7 +73,8 @@ func (d TaskDefinition) validateGraph() error {
 	if !nodes[d.EntryStage] {
 		return collector.Invalid("entry_stage", "入口阶段不存在")
 	}
-	parents := map[string]string{}
+	parents := map[string]int{}
+	connections := map[string]bool{}
 	ids := map[string]bool{}
 	for i, e := range d.Edges {
 		loc := fmt.Sprintf("edges.%d", i)
@@ -81,13 +82,18 @@ func (d TaskDefinition) validateGraph() error {
 			return collector.Invalid(loc+".id", "连接ID无效或重复")
 		}
 		ids[e.ID] = true
-		if !nodes[e.From] || !nodes[e.To] || e.From == e.To || e.To == d.EntryStage || parents[e.To] != "" {
-			return collector.Invalid(loc, "连接节点缺失、循环、入口有上游或多上游")
+		if !nodes[e.From] || !nodes[e.To] || e.From == e.To || e.To == d.EntryStage {
+			return collector.Invalid(loc, "连接节点缺失、自连接或入口有上游")
 		}
 		if !graphID.MatchString(e.Port) || (e.Emit != "valid" && e.Emit != "created" && e.Emit != "changed") {
 			return collector.Invalid(loc, "请选择已声明的输出端口；传递策略需valid/created/changed")
 		}
-		parents[e.To] = e.From
+		signature := e.From + ":" + e.To + ":" + e.Port
+		if connections[signature] {
+			return collector.Invalid(loc, "重复连接：同一来源阶段、端口和目标仅能连接一次")
+		}
+		connections[signature] = true
+		parents[e.To]++
 		for _, st := range d.Stages {
 			if st.ID == e.From {
 				b, err := st.Binding(e.Port)
@@ -100,16 +106,26 @@ func (d TaskDefinition) validateGraph() error {
 			}
 		}
 	}
-	for _, s := range d.Stages {
-		seen := map[string]bool{}
-		id := s.ID
-		for id != d.EntryStage {
-			if seen[id] || parents[id] == "" {
-				return collector.Invalid("stages."+s.ID, "阶段循环或无法到达入口")
-			}
-			seen[id] = true
-			id = parents[id]
+	for _, st := range d.Stages {
+		if st.InputMode != "" && st.InputMode != "single" && st.InputMode != "union" {
+			return collector.Invalid("stages."+st.ID+".input_mode", "输入模式只支持single/union；Join和批次聚合尚未支持")
 		}
+		if st.ID == d.EntryStage {
+			if st.InputMode == "union" {
+				return collector.Invalid("stages."+st.ID+".input_mode", "入口阶段使用根输入，不使用union")
+			}
+			continue
+		}
+		if parents[st.ID] == 0 || parents[st.ID] > 5 {
+			return collector.Invalid("stages."+st.ID, "非入口阶段需1..5条上游连接")
+		}
+		if parents[st.ID] > 1 && st.InputMode != "union" {
+			return collector.Invalid("stages."+st.ID+".input_mode", "多个上游需显式选择union，每条来源独立映射，不拼接字段")
+		}
+	}
+	_, err := d.TopologicalStages()
+	if err != nil {
+		return err
 	}
 	return nil
 }

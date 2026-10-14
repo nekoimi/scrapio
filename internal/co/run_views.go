@@ -36,6 +36,7 @@ func RunDetail(ctx context.Context, owner int64, id string, summary ...bool) (an
 	}
 	rows[0] = json.RawMessage(collector.JSON(runView))
 	stages, e := views(s, `SELECT st.*,
+ (SELECT COALESCE(jsonb_agg(jsonb_build_object('edge_id',ed ->> 'id','stage_id',up.stage_id,'port',ed ->> 'port','status',up.status,'input_closed',up.input_closed) ORDER BY ed ->> 'id'),'[]') FROM co_runs cr CROSS JOIN LATERAL jsonb_array_elements(cr.manifest -> 'definition' -> 'edges') ed JOIN co_stage_runs up ON up.run_id=cr.id AND up.stage_id=ed ->> 'from' WHERE cr.id=st.run_id AND ed ->> 'to'=st.stage_id) AS upstreams,
  (SELECT COUNT(*) FROM co_work_items w WHERE w.stage_run_id=st.id) AS input_count,
  (SELECT COUNT(*) FROM co_item_sources src JOIN co_work_items w ON w.id=src.item_id WHERE w.stage_run_id=st.id) AS source_count,
  (SELECT COUNT(*) FROM co_item_sources src JOIN co_work_items w ON w.id=src.item_id WHERE w.stage_run_id=st.id AND src.merged) AS merged_inputs,

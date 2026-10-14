@@ -17,6 +17,7 @@ export interface DataTable {
 	schema: { fields: Field[]; unique_key: string[] };
 }
 export interface TaskStage {
+	input_mode?: 'single' | 'union';
 	id: string;
 	name: string;
 	collector_version_id: string;
@@ -38,7 +39,7 @@ export interface TaskEdge {
 	id: string;
 	from: string;
 	to: string;
-	port: 'records';
+	port: string;
 	emit: 'valid' | 'created' | 'changed';
 	mapping: Record<string, Binding>;
 	filter?: { path: string; op: 'exists' | 'equal' | 'not_equal'; value?: unknown };

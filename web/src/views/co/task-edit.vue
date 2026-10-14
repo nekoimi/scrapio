@@ -27,12 +27,20 @@
 				>
 					<span
 						>{{ index + 1 }} · {{ st.id === selectedID ? stageName : st.name
-						}}<small>{{ st.id === entryID ? '手动入口' : '来自 ' + edges.find((e) => e.to === st.id)?.from }}</small></span
+						}}<small>{{
+							st.id === entryID
+								? '手动入口'
+								: '来自 ' +
+									edges
+										.filter((e) => e.to === st.id)
+										.map((e) => e.from + ' / ' + e.port)
+										.join('、')
+						}}</small></span
 					>
 				</el-button>
 				<el-button :disabled="busy || stageDefs.length >= 20" @click="addStage">从当前阶段添加下游 / 分支</el-button>
-				<el-button :disabled="busy || selectedID === entryID" type="danger" plain @click="removeStage">删除当前阶段及下游</el-button>
-				<p class="co-muted">每个阶段使用独立采集器和数据表。一个上游可分支；暂不支持多上游合并。</p>
+				<el-button :disabled="busy || selectedID === entryID" type="danger" plain @click="removeStage">删除阶段及失去来源的下游</el-button>
+				<p class="co-muted">阶段可分支，也可显式联合多个来源；每条连接独立映射，不拼接不同来源的字段。</p>
 			</aside>
 			<div class="co-stage-config">
 				<el-card
@@ -101,6 +109,26 @@
 						>
 					</template>
 				</el-card>
+				<el-card v-if="selectedID !== entryID">
+					<template #header>阶段输入 · {{ incomingEdges.length }}/5 条连接</template>
+					<el-radio-group :model-value="stageInputMode" @change="setInputMode"
+						><el-radio-button label="single">单一来源</el-radio-button><el-radio-button label="union">联合输入</el-radio-button></el-radio-group
+					>
+					<p class="co-muted">
+						联合输入：各来源独立生成完整输入，到达即可执行；等全部上游结束且完成分发后关闭。不等待配对、不拼接字段。相同完整输入可在运行策略中选择合并。
+					</p>
+					<div class="co-tag-row">
+						<el-button v-for="e in incomingEdges" :key="e.id" :type="incoming?.id === e.id ? 'primary' : 'default'" @click="selectIncoming(e.id)"
+							>{{ e.from }} / {{ e.port }} · {{ e.id }}</el-button
+						>
+					</div>
+					<div class="co-toolbar" v-if="stageInputMode === 'union'">
+						<el-select v-model="newParent" placeholder="选择另一个上游阶段"
+							><el-option v-for="st in parentOptions" :key="st.id" :value="st.id" :label="st.name" /></el-select
+						><el-button :disabled="!newParent || incomingEdges.length >= 5 || edges.length >= 60" @click="addIncoming">添加来源连接</el-button>
+					</div>
+					<el-button v-if="incomingEdges.length > 1" type="danger" plain @click="removeIncoming">移除当前连接</el-button>
+				</el-card>
 				<el-card v-if="incoming && version">
 					<template #header>上游连接 · {{ incoming.from }} → {{ selectedID }}</template>
 					<el-form label-position="top">
@@ -116,7 +144,7 @@
 									:disabled="incomingPass" /><el-option label="新增及变化" value="changed" :disabled="incomingPass" /></el-select
 						></el-form-item>
 						<el-form-item label="上游输出端口"
-							><el-select v-model="incoming.port" @change="changePort"
+							><el-select :model-value="incoming.port" @change="selectPort"
 								><el-option v-for="p in outputsOf(upstream?.definition)" :key="p.port" :label="p.port" :value="p.port" /></el-select
 						></el-form-item>
 						<p class="co-muted">仅新增/变化会跳过本次未变化记录的下游刷新；保存失败和冲突候选始终不传递。</p>
@@ -351,6 +379,9 @@ const sourceKind = ref<'manual' | 'table' | 'file'>(route.query.source_table ? '
 	frozenSource = ref<TaskSource>({ kind: 'table', inputs: [] }),
 	refreshSeconds = ref(0),
 	inputPolicy = ref<'keep_all' | 'merge_identical'>('keep_all');
+const stageInputMode = ref<'single' | 'union'>('single'),
+	edgeID = ref(''),
+	newParent = ref('');
 const save = ref<SaveBinding>({
 		table_id: '',
 		schema_version: 1,
@@ -389,7 +420,53 @@ const stageDefs = ref<TaskStage[]>([
 ]);
 const edges = ref<TaskEdge[]>([]),
 	knownVersions = ref<Record<string, Version>>({});
-const incoming = computed(() => edges.value.find((e) => e.to === selectedID.value));
+const incomingEdges = computed(() => edges.value.filter((e) => e.to === selectedID.value));
+const incoming = computed(() => incomingEdges.value.find((e) => e.id === edgeID.value) || incomingEdges.value[0]);
+function selectIncoming(id: string) {
+	if (Object.keys(invalidMappingValues.value).length) {
+		problem.value = '请先修正当前连接无效的JSON值';
+		return;
+	}
+	edgeID.value = id;
+	mappingPreview.value = [];
+	sampleInput.value = '{}';
+	sampleOutput.value = '{}';
+}
+function setInputMode(mode: unknown) {
+	if (mode === 'single' && incomingEdges.value.length > 1) {
+		problem.value = '请先移除多余连接，再切换为单一来源';
+		return;
+	}
+	stageInputMode.value = mode as 'single' | 'union';
+}
+function addIncoming() {
+	if (!newParent.value || incomingEdges.value.length >= 5 || edges.value.length >= 60) return;
+	if (Object.keys(invalidMappingValues.value).length) {
+		problem.value = '请先修正当前连接无效的JSON值';
+		return;
+	}
+	const port = availablePort(newParent.value);
+	if (!port) {
+		problem.value = '该上游的所有输出端口已连接到当前阶段';
+		return;
+	}
+	let n = edges.value.length + 1;
+	while (edges.value.some((e) => e.id === 'edge_' + n)) n++;
+	const id = 'edge_' + n;
+	edges.value.push({ id, from: newParent.value, to: selectedID.value, port, emit: 'valid', mapping: {} });
+	selectIncoming(id);
+	newParent.value = '';
+}
+async function removeIncoming() {
+	if (!incoming.value || incomingEdges.value.length < 2) return;
+	if (!(await confirm('移除此连接及其映射？其他来源保留。'))) return;
+	const id = incoming.value.id;
+	edges.value = edges.value.filter((e) => e.id !== id);
+	invalidMappingValues.value = {};
+	edgeID.value = '';
+	mappingPreview.value = [];
+	sampleOutput.value = '{}';
+}
 const upstream = computed(() => {
 	const st = stageDefs.value.find((s) => s.id === incoming.value?.from);
 	return st ? knownVersions.value[st.collector_version_id] : undefined;
@@ -404,12 +481,27 @@ const incomingPass = computed(() => {
 function changePort() {
 	if (!incoming.value) return;
 	incoming.value.mapping = {};
+	invalidMappingValues.value = {};
 	delete incoming.value.filter;
 	delete incoming.value.expand;
 	if (incomingPass.value) incoming.value.emit = 'valid';
 	mappingPreview.value = [];
 	sampleOutput.value = '{}';
 	notice.value = '已切换输出端口，请重新确认输入映射和过滤规则';
+}
+function availablePort(parent: string, exclude = '') {
+	const st = stageDefs.value.find((s) => s.id === parent);
+	const ports = outputsOf(st ? knownVersions.value[st.collector_version_id]?.definition : undefined);
+	return ports.find((p) => !incomingEdges.value.some((e) => e.id !== exclude && e.from === parent && e.port === p.port))?.port;
+}
+function selectPort(port: string) {
+	if (!incoming.value || port === incoming.value.port) return;
+	if (incomingEdges.value.some((e) => e.id !== incoming.value!.id && e.from === incoming.value!.from && e.port === port)) {
+		problem.value = '此上游端口已连接到当前阶段，请选择其他端口';
+		return;
+	}
+	incoming.value.port = port;
+	changePort();
 }
 
 const sampleInput = ref('{}'),
@@ -435,6 +527,7 @@ function selectedStage(): TaskStage {
 		on_error: onError.value,
 		refresh_seconds: refreshSeconds.value,
 		input_policy: inputPolicy.value,
+		input_mode: stageInputMode.value,
 	};
 }
 function persistSelected() {
@@ -459,15 +552,12 @@ function descendants(id: string): Set<string> {
 }
 const parentOptions = computed(() => stageDefs.value.filter((s) => !descendants(selectedID.value).has(s.id)));
 function stageDepth(id: string) {
-	let depth = 0;
-	for (let i = 0; i < 20; i++) {
-		const e = edges.value.find((e) => e.to === id);
-		if (!e) break;
-		depth++;
-		id = e.from;
-	}
-	return depth;
+	const depth: Record<string, number> = { [entryID.value]: 0 };
+	for (let n = 0; n < 20; n++)
+		for (const e of edges.value) if (depth[e.from] !== undefined) depth[e.to] = Math.max(depth[e.to] || 0, Math.min(20, depth[e.from] + 1));
+	return depth[id] || 0;
 }
+
 async function selectStage(id: string) {
 	if (Object.keys(invalidMappingValues.value).length) {
 		problem.value = '请先修复当前阶段无效的映射常量';
@@ -475,6 +565,8 @@ async function selectStage(id: string) {
 	}
 	persistSelected();
 	selectedID.value = id;
+	edgeID.value = '';
+	newParent.value = '';
 	const st = stageDefs.value.find((s) => s.id === id)!;
 	invalidMappingValues.value = {};
 	stageName.value = st.name;
@@ -484,6 +576,7 @@ async function selectStage(id: string) {
 	onError.value = st.on_error;
 	refreshSeconds.value = st.refresh_seconds || 0;
 	inputPolicy.value = st.input_policy || 'keep_all';
+	stageInputMode.value = st.input_mode || 'single';
 	mappingKeys.value = Object.fromEntries(
 		Object.entries(st.save.mapping || {})
 			.filter(([, b]) => b.kind === 'field')
@@ -524,17 +617,28 @@ async function addStage() {
 	await selectStage(id);
 }
 async function removeStage() {
-	if (!(await confirm('删除当前阶段及全部下游？草稿修改需保存后生效。'))) return;
+	const selected = selectedID.value;
+	const remaining = stageDefs.value.filter((s) => s.id !== selected),
+		surviving = edges.value.filter((e) => e.from !== selected && e.to !== selected);
+	const reached = new Set([entryID.value]);
+	for (let i = 0; i < 20; i++) for (const e of surviving) if (reached.has(e.from)) reached.add(e.to);
+	const gone = stageDefs.value.filter((s) => !reached.has(s.id));
+	if (!(await confirm('将删除 ' + gone.map((s) => s.name).join('、') + '；有其他入口路径的共享下游保留。'))) return;
 	invalidMappingValues.value = {};
-	const gone = descendants(selectedID.value);
-	stageDefs.value = stageDefs.value.filter((s) => !gone.has(s.id));
-	edges.value = edges.value.filter((e) => !gone.has(e.from) && !gone.has(e.to));
+	stageDefs.value = remaining.filter((s) => reached.has(s.id));
+	edges.value = surviving.filter((e) => reached.has(e.from) && reached.has(e.to));
 	await selectStage(entryID.value);
 }
+
 function changeParent(id: string) {
 	if (incoming.value) {
+		const port = availablePort(id, incoming.value.id);
+		if (!port) {
+			problem.value = '该上游的所有输出端口已连接到当前阶段';
+			return;
+		}
 		incoming.value.from = id;
-		incoming.value.port = 'records';
+		incoming.value.port = port;
 		changePort();
 	}
 	mappingPreview.value = [];
@@ -887,6 +991,8 @@ onMounted(() =>
 			onError.value = all.on_error;
 			refreshSeconds.value = all.refresh_seconds || 0;
 			inputPolicy.value = all.input_policy || 'keep_all';
+			stageInputMode.value = all.input_mode || 'single';
+			edgeID.value = '';
 			sourceKind.value = d.source.kind;
 			frozenSource.value = d.source;
 			inputMode.value = 'json';

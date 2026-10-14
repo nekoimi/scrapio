@@ -3293,7 +3293,7 @@
             "description": "Required capability unavailable"
           }
         },
-        "description": "Run and per-stage status, input/work counts, immutable outputs, save decisions, filtered/delivered/remaining dispatches and pause reason. Selected O5-01 adds per-stage input policy, source_count, actual input_count, merged_inputs and outgoing merged_dispatches. Merged is dispatch receipt status, never a synthetic work item or independent success."
+        "description": "Run and per-stage status, input/work counts, immutable outputs, save decisions, filtered/delivered/remaining dispatches and pause reason. Selected O5-01 adds per-stage input policy, source_count, actual input_count, merged_inputs and outgoing merged_dispatches. Merged is dispatch receipt status, never a synthetic work item or independent success. Each stage includes upstreams with edge, port and parent status; union input closes only after ALL parents terminate and drain their dispatch plans. Empty/failed/limited parents remain visible."
       }
     },
     "/runs/{run_id}/work-items": {
@@ -4754,7 +4754,7 @@
             }
           }
         },
-        "description": "New finite run from explicit stage and descendants. Original item inputs, historical output+mapping or confirmed table snapshot. Task version same task; retry_of and unexecuted stage scope retained; missing evidence blocks. No full regression claim."
+        "description": "New finite run from explicit stage and descendants. Original item inputs, historical output+mapping or confirmed table snapshot. Task version same task; retry_of and unexecuted stage scope retained; missing evidence blocks. No full regression claim. For historical outputs with multiple incoming edges, edge_id is required; a single edge defaults automatically. Only that edge maps the selected outputs. Excluded incoming edges are recorded in retry_scope. Shared descendants run with the retained sources only, not a whole-graph regression."
       }
     },
     "/tables/{table_id}/export": {
@@ -5482,6 +5482,13 @@
             },
             "minItems": 0,
             "maxItems": 4
+          },
+          "input_mode": {
+            "enum": [
+              "single",
+              "union"
+            ],
+            "description": "Absent means single. More than one incoming edge requires explicit union. Each edge independently maps a complete input; no field joining or batch aggregation. Closure waits for every parent and its outbox. Up to 5 incoming edges."
           }
         },
         "required": [
@@ -5625,7 +5632,7 @@
               "$ref": "#/components/schemas/Edge"
             },
             "minItems": 0,
-            "maxItems": 19
+            "maxItems": 60
           },
           "budget": {
             "type": "object",
@@ -7731,6 +7738,10 @@
           },
           "confirmed": {
             "const": true
+          },
+          "edge_id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{0,63}$"
           }
         },
         "required": [
@@ -7792,6 +7803,20 @@
                     "output_ids"
                   ]
                 }
+              ]
+            }
+          }
+        ],
+        "allOf": [
+          {
+            "if": {
+              "required": [
+                "edge_id"
+              ]
+            },
+            "then": {
+              "required": [
+                "output_ids"
               ]
             }
           }

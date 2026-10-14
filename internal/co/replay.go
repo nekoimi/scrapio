@@ -7,6 +7,7 @@ import (
 )
 
 type ReplayRequest struct {
+	EdgeID        string        `json:"edge_id,omitempty"`
 	StageID       string        `json:"stage_id"`
 	TaskVersionID string        `json:"task_version_id,omitempty"`
 	ItemIDs       []string      `json:"item_ids,omitempty"`
@@ -38,6 +39,9 @@ func pruneManifest(m TaskManifest, entry string) (TaskManifest, []string, error)
 	for _, st := range m.Definition.Stages {
 		if keep[st.ID] {
 			st.RefreshSeconds = 0
+			if st.ID == entry {
+				st.InputMode = "single"
+			}
 			stages = append(stages, st)
 		} else {
 			upstream = append(upstream, st.ID)
@@ -59,6 +63,9 @@ func pruneManifest(m TaskManifest, entry string) (TaskManifest, []string, error)
 func ReplayStage(ctx context.Context, owner int64, runID, key string, p ReplayRequest) (*Operation, error) {
 	if !p.Confirmed {
 		return nil, collector.Invalid("confirmed", "局部补采会再次访问并保存；它不代表全链路回归，请确认")
+	}
+	if p.EdgeID != "" && len(p.OutputIDs) == 0 {
+		return nil, collector.Invalid("edge_id", "仅历史上游输出补采可指定连接")
 	}
 	count := 0
 	if len(p.ItemIDs) > 0 {
@@ -153,6 +160,7 @@ func ReplayStage(ctx context.Context, owner int64, runID, key string, p ReplayRe
 				m.Stages[id] = f
 			}
 		}
+		scopeEdges := m.Definition.Edges
 		unexecuted := []string{}
 		m, unexecuted, e = pruneManifest(m, p.StageID)
 		if e != nil {
@@ -160,6 +168,11 @@ func ReplayStage(ctx context.Context, owner int64, runID, key string, p ReplayRe
 		}
 		inputs := []RunInput{}
 		scope := []string{"partial_replay", "entry_stage:" + p.StageID}
+		for _, ed := range scopeEdges {
+			if m.Stage(ed.To).ID != "" && m.Stage(ed.From).ID == "" {
+				scope = append(scope, "not_executed_edge:"+ed.ID)
+			}
+		}
 		for _, st := range unexecuted {
 			scope = append(scope, "not_executed:"+st)
 		}
@@ -188,24 +201,14 @@ func ReplayStage(ctx context.Context, owner int64, runID, key string, p ReplayRe
 				scope = append(scope, "item:"+id)
 			}
 		} else {
-			edge := TaskEdge{}
-			for _, ed := range old.Definition.Edges {
-				if ed.To == p.StageID {
-					edge = ed
-				}
-			}
-			// When upgraded, use the explicitly published target mapping, frozen at start.
+			// Each selected historical output must use one explicit target edge.
 			var full TaskManifest
 			if e = collector.Strict([]byte(v.Manifest), &full); e != nil {
 				return nil, e
 			}
-			for _, ed := range full.Definition.Edges {
-				if ed.To == p.StageID {
-					edge = ed
-				}
-			}
-			if edge.ID == "" {
-				return nil, collector.Invalid("output_ids", "该入口没有上游映射；请选择原输入或表快照")
+			edge, err := replayEdge(full.Definition, p.StageID, p.EdgeID)
+			if err != nil {
+				return nil, err
 			}
 			if e = validateEdge(edge, old.ForStage(edge.From).CollectorDefinition, m.CollectorDefinition); e != nil {
 				return nil, e
@@ -241,7 +244,7 @@ func ReplayStage(ctx context.Context, owner int64, runID, key string, p ReplayRe
 					if row.Decision == "filtered" {
 						continue
 					}
-					inputs = append(inputs, RunInput{SourceKey: "replay:output:" + id + ":" + row.ElementKey, Values: collector.JSON(row.Values), Source: collector.JSON(map[string]any{"kind": "historical_output", "run_id": runID, "output_id": id, "mapping_hash": collector.Hash(edge), "element_key": row.ElementKey, "target_stage": p.StageID, "task_version_id": v.ID})})
+					inputs = append(inputs, RunInput{SourceKey: "replay:output:" + id + ":" + row.ElementKey, Values: collector.JSON(row.Values), Source: collector.JSON(map[string]any{"kind": "historical_output", "run_id": runID, "output_id": id, "edge_id": edge.ID, "port": edge.Port, "mapping_hash": collector.Hash(edge), "element_key": row.ElementKey, "target_stage": p.StageID, "task_version_id": v.ID})})
 				}
 				scope = append(scope, "output:"+id)
 			}
