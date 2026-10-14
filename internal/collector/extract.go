@@ -114,6 +114,7 @@ type FieldEvidence struct {
 	Message    string `json:"message,omitempty"`
 }
 type Candidate struct {
+	Port     string                   `json:"port,omitempty"`
 	Identity string                   `json:"identity,omitempty"`
 	Values   map[string]any           `json:"values"`
 	Valid    bool                     `json:"valid"`
@@ -127,9 +128,39 @@ type Page struct {
 	HasNext       bool
 	Hash          string
 	Truncated     bool
+	PrimaryEmpty  bool
 }
 
 func Extract(ctx context.Context, d Definition, input map[string]any, doc Document, limit int) (Page, error) {
+	if len(d.AdditionalOutputs) == 0 {
+		return extractPort(ctx, d, input, doc, limit)
+	}
+	result := Page{}
+	for i, port := range d.Ports() {
+		one, _ := d.ForPort(port.Output.Port)
+		p, e := extractPort(ctx, one, input, doc, limit-len(result.Candidates))
+		if e != nil {
+			return result, e
+		}
+		if i == 0 {
+			result = p
+			result.PrimaryEmpty = len(p.Candidates) == 0
+			if len(p.Candidates) == 0 && !p.EmptyVerified {
+				return result, Fault("ZERO_RESULT_UNVERIFIED", "records", "主端口缺少记录及空态证据，附加端口不能掩盖主规则失败")
+			}
+			result.Candidates = nil
+		}
+		for _, c := range p.Candidates {
+			c.Port = port.Output.Port
+			result.Candidates = append(result.Candidates, c)
+		}
+		result.Truncated = result.Truncated || p.Truncated
+	}
+	result.Hash = Hash(result.Candidates)
+	return result, nil
+}
+
+func extractPort(ctx context.Context, d Definition, input map[string]any, doc Document, limit int) (Page, error) {
 	result := Page{Hash: capture.Hash([]byte(doc.Content))}
 	var root *html.Node
 	var data any

@@ -12,10 +12,15 @@
 		<el-table :data="rows" empty-text="还没有任务；先发布独立采集器，再创建采集任务。">
 			<el-table-column prop="name" label="任务" /><el-table-column prop="revision" label="草稿 revision" width="140" />
 			<el-table-column prop="stage_count" label="阶段" width="80" /><el-table-column label="输入"
-				><template #default="{ row }">{{ row.input_count }} 条 · {{ row.source_kind==='manual'?'手动':row.source_kind==='table'?'表快照':'文件快照' }}{{ row.archived?' · 已归档':'' }}</template></el-table-column
+				><template #default="{ row }"
+					>{{ row.input_count }} 条 · {{ row.source_kind === 'manual' ? '手动' : row.source_kind === 'table' ? '表快照' : '文件快照'
+					}}{{ row.archived ? ' · 已归档' : '' }}</template
+				></el-table-column
 			>
 			<el-table-column label="入口保存表"
-				><template #default="{ row }">表 {{ row.table_id.slice(0, 8) }} · Schema {{ row.schema_version }}</template></el-table-column
+				><template #default="{ row }">{{
+					row.table_id ? '表 ' + row.table_id.slice(0, 8) + ' · Schema ' + row.schema_version : '仅传递结果'
+				}}</template></el-table-column
 			>
 			<el-table-column label="操作"
 				><template #default="{ row }"

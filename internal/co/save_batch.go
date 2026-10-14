@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/nekoimi/scrapio/internal/collector"
 	"sort"
+	"strings"
 	"time"
 	"xorm.io/xorm"
 )
@@ -25,6 +26,7 @@ type BusinessRecord struct {
 func (BusinessRecord) TableName() string { return "co_records" }
 
 type SavedOutput struct {
+	Port           string
 	ID             string `xorm:"id pk"`
 	RunID          string `xorm:"run_id"`
 	ItemID         string `xorm:"item_id"`
@@ -42,6 +44,7 @@ type SavedOutput struct {
 func (SavedOutput) TableName() string { return "co_run_outputs" }
 
 type SaveDecision struct {
+	Port     string           `json:"port,omitempty"`
 	Identity string           `json:"identity"`
 	Decision string           `json:"decision"`
 	RecordID string           `json:"record_id,omitempty"`
@@ -74,7 +77,11 @@ func decide(old *BusinessRecord, values map[string]any, b SaveBinding) SaveDecis
 	}
 	return decision
 }
-func PreviewSave(ctx context.Context, owner int64, version string, b SaveBinding, candidates []collector.Candidate) (any, error) {
+func PreviewSave(ctx context.Context, owner int64, version string, b SaveBinding, candidates []collector.Candidate, ports ...string) (any, error) {
+	port := "records"
+	if len(ports) > 0 && ports[0] != "" {
+		port = ports[0]
+	}
 	if len(candidates) > 100 || len(collector.JSON(candidates)) > 512*1024 {
 		return nil, collector.Invalid("candidates", "预演最多100条/512KiB")
 	}
@@ -83,6 +90,30 @@ func PreviewSave(ctx context.Context, owner int64, version string, b SaveBinding
 	_, d, e := collectorVersion(s, owner, version)
 	if e != nil {
 		return nil, e
+	}
+	d, e = d.ForPort(port)
+	if e != nil {
+		return nil, e
+	}
+	if e = validateSaveMode(b); e != nil {
+		return nil, e
+	}
+	if passThrough(b) {
+		out := []SaveDecision{}
+		for _, c := range candidates {
+			if collector.CandidatePort(c) != port {
+				return nil, collector.Invalid("candidates.port", "预演只能使用所选端口候选")
+			}
+			decision := SaveDecision{Port: port, Identity: c.Identity, Decision: "passed", Values: c.Values}
+			if err := validateOutputCandidate(d, c); err != nil {
+				decision.Decision = "invalid"
+				decision.Error = collector.AsError(err)
+			} else if !c.Valid {
+				decision.Decision = "invalid"
+			}
+			out = append(out, decision)
+		}
+		return map[string]any{"schema_hash": collector.Hash(collector.PortSchema(d.Output)), "decisions": out, "formal_writes": 0}, nil
 	}
 	schema, e := tableSchema(s, owner, b, false)
 	if e != nil {
@@ -94,8 +125,13 @@ func PreviewSave(ctx context.Context, owner int64, version string, b SaveBinding
 	out := []SaveDecision{}
 	seen := map[string]string{}
 	for _, c := range candidates {
-		decision := SaveDecision{Identity: c.Identity, Decision: "invalid", Values: c.Values}
-		if c.Valid {
+		if collector.CandidatePort(c) != port {
+			return nil, collector.Invalid("candidates.port", "预演只能使用所选端口候选")
+		}
+		decision := SaveDecision{Port: port, Identity: c.Identity, Decision: "invalid", Values: c.Values}
+		if problem := validateOutputCandidate(d, c); problem != nil {
+			decision.Error = collector.AsError(problem)
+		} else if c.Valid {
 			values, key, e := mapValues(b, schema, c.Values)
 			if e != nil {
 				decision.Error = collector.AsError(e)
@@ -112,6 +148,7 @@ func PreviewSave(ctx context.Context, owner int64, version string, b SaveBinding
 				seen[key] = collector.Hash(values)
 			}
 		}
+		decision.Port = port
 		out = append(out, decision)
 	}
 	return map[string]any{"schema_hash": collector.Hash(schema), "decisions": out, "formal_writes": 0}, nil
@@ -145,12 +182,9 @@ func CommitBatch(ctx context.Context, c *WorkClaim, candidates []collector.Candi
 	if cp.DefinitionHash != collector.Hash(c.Manifest.CollectorDefinition) || cp.InputHash != canonicalHash(item.InputValues) {
 		return collector.Fault("CHECKPOINT_CONFLICT", "checkpoint", "检查点与冻结定义或输入不匹配")
 	}
-	binding := c.Manifest.Stage(c.StageID).Save
-	schema, e := tableSchema(s, r.OwnerID, binding, true)
+	stage := c.Manifest.Stage(c.StageID)
+	schemas, e := stageSchemas(s, r.OwnerID, stage, c.Manifest.CollectorDefinition)
 	if e != nil {
-		return e
-	}
-	if e = validateBinding(binding, schema, c.Manifest.CollectorDefinition); e != nil {
 		return e
 	}
 	// Lock business keys in canonical order, including keys that do not exist yet.
@@ -159,10 +193,27 @@ func CommitBatch(ctx context.Context, c *WorkClaim, candidates []collector.Candi
 	keyByIndex := map[int]string{}
 	invalid := map[int]error{}
 	for i, candidate := range candidates {
+		port := collector.CandidatePort(candidate)
+		binding, err := stage.Binding(port)
+		if err != nil {
+			return err
+		}
+		cd, err := c.Manifest.CollectorDefinition.ForPort(port)
+		if err != nil {
+			return err
+		}
+		if err = validateOutputCandidate(cd, candidate); err != nil {
+			invalid[i] = err
+			continue
+		}
 		if !candidate.Valid {
 			invalid[i] = collector.Fault("INVALID_CANDIDATE", "output", "候选字段验证未通过")
 			continue
 		}
+		if passThrough(binding) {
+			continue
+		}
+		schema := schemas[port]
 		values, key, e := mapValues(binding, schema, candidate.Values)
 		if e != nil {
 			invalid[i] = e
@@ -170,7 +221,7 @@ func CommitBatch(ctx context.Context, c *WorkClaim, candidates []collector.Candi
 		}
 		mapped[i] = values
 		keyByIndex[i] = key
-		keys = append(keys, key)
+		keys = append(keys, binding.TableID+":"+key)
 	}
 	sort.Strings(keys)
 	previous := ""
@@ -179,19 +230,28 @@ func CommitBatch(ctx context.Context, c *WorkClaim, candidates []collector.Candi
 			continue
 		}
 		previous = key
-		if e = lockRecordKey(s, r.OwnerID, binding.TableID, key); e != nil {
+		parts := strings.SplitN(key, ":", 2)
+		if e = lockRecordKey(s, r.OwnerID, parts[0], parts[1]); e != nil {
 			return e
 		}
 	}
 	counts := map[string]int{}
 	seenBusiness := map[string]string{}
 	for i, candidate := range candidates {
+		port := collector.CandidatePort(candidate)
+		binding, _ := stage.Binding(port)
+		schema := schemas[port]
+		cd, _ := c.Manifest.CollectorDefinition.ForPort(port)
+		schemaHash := binding.SchemaHash
+		if passThrough(binding) {
+			schemaHash = collector.Hash(collector.PortSchema(cd.Output))
+		}
 		identity := candidate.Identity
 		if identity == "" {
 			identity = "invalid:" + collector.Hash(candidate)
 		}
 		output := new(SavedOutput)
-		exists, e := s.Where("item_id=? AND output_identity=?", item.ID, identity).Get(output)
+		exists, e := s.Where("item_id=? AND port=? AND output_identity=?", item.ID, port, identity).Get(output)
 		if e != nil {
 			return e
 		}
@@ -207,14 +267,17 @@ func CommitBatch(ctx context.Context, c *WorkClaim, candidates []collector.Candi
 		var record *BusinessRecord
 		if problem, ok := invalid[i]; ok {
 			decision.Error = collector.AsError(problem)
+		} else if passThrough(binding) {
+			decision.Decision = "passed"
 		} else {
 			values := mapped[i]
 			key := keyByIndex[i]
-			if hash, ok := seenBusiness[key]; ok && hash != collector.Hash(values) {
+			businessKey := binding.TableID + ":" + key
+			if hash, ok := seenBusiness[businessKey]; ok && hash != collector.Hash(values) {
 				decision.Decision = "conflict"
 				decision.Error = collector.AsError(collector.Fault("SAVE_KEY_CONFLICT", "save", "同页不同候选映射到相同唯一键但值不同"))
 			} else {
-				seenBusiness[key] = collector.Hash(values)
+				seenBusiness[businessKey] = collector.Hash(values)
 				record, e = recordFor(s, binding.TableID, key)
 				if e != nil {
 					return e
@@ -264,7 +327,7 @@ func CommitBatch(ctx context.Context, c *WorkClaim, candidates []collector.Candi
 		if decision.Error != nil {
 			diagnostic["error"] = decision.Error
 		}
-		if _, e = s.Exec(`INSERT INTO co_observations(id,run_id,item_id,record_id,output_identity,values_json,schema_hash,decision,diagnostic) VALUES(?,?,?,?,?,CAST(? AS jsonb),?,?,CAST(? AS jsonb))`, observation, r.ID, item.ID, recordID, identity, collector.JSON(candidate.Values), binding.SchemaHash, decision.Decision, collector.JSON(diagnostic)); e != nil {
+		if _, e = s.Exec(`INSERT INTO co_observations(id,run_id,item_id,record_id,output_identity,values_json,schema_hash,decision,diagnostic,port) VALUES(?,?,?,?,?,CAST(? AS jsonb),?,?,CAST(? AS jsonb),?)`, observation, r.ID, item.ID, recordID, identity, collector.JSON(candidate.Values), schemaHash, decision.Decision, collector.JSON(diagnostic), port); e != nil {
 			return e
 		}
 		counts[decision.Decision]++
@@ -279,7 +342,7 @@ func CommitBatch(ctx context.Context, c *WorkClaim, candidates []collector.Candi
 		if r.OutputCount >= c.Manifest.Definition.Budget.MaxOutputs {
 			return collector.Fault("OUTPUT_BUDGET", "budget", "达到输出预算；本页未提交，之前保存的数据保留")
 		}
-		out := SavedOutput{ID: uuid.NewString(), RunID: r.ID, ItemID: item.ID, Namespace: r.Namespace, OutputIdentity: identity, Values: collector.JSON(candidate.Values), SchemaHash: binding.SchemaHash, ContentHash: collector.Hash(candidate.Values), ObservationID: observation, Decision: decision.Decision, Source: collector.JSON(map[string]any{"input_id": item.InputID, "source_key": item.SourceKey, "stage_id": c.StageID, "collector_version_id": c.Manifest.Collector.ID, "page": candidate.Page, "page_url": cp.CurrentURL, "content_hash": cp.ContentHash, "port": "records", "attempt_id": c.Attempt.ID}), CreatedAt: time.Now()}
+		out := SavedOutput{Port: port, ID: uuid.NewString(), RunID: r.ID, ItemID: item.ID, Namespace: r.Namespace, OutputIdentity: identity, Values: collector.JSON(candidate.Values), SchemaHash: schemaHash, ContentHash: collector.Hash(candidate.Values), ObservationID: observation, Decision: decision.Decision, Source: collector.JSON(map[string]any{"input_id": item.InputID, "source_key": item.SourceKey, "stage_id": c.StageID, "collector_version_id": c.Manifest.Collector.ID, "page": candidate.Page, "page_url": cp.CurrentURL, "content_hash": cp.ContentHash, "port": port, "attempt_id": c.Attempt.ID}), CreatedAt: time.Now()}
 		if e = reserveStorage(s, r.OwnerID, "output_bytes", int64(len(out.Values)+len(out.Source))); e != nil {
 			return e
 		}

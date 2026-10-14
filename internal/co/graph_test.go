@@ -31,7 +31,7 @@ func TestCOO3GraphAndMapping(t *testing.T) {
 	if invalid.Validate() == nil {
 		t.Fatal("same table accepted")
 	}
-	up := collector.Definition{InputFields: []collector.Field{{Key: "id", Type: "string", Required: true}}, Output: collector.Output{Fields: []collector.Field{{Key: "urls", Type: "url", Required: true, Multiple: true, EmptyAllowed: true}}}}
+	up := collector.Definition{InputFields: []collector.Field{{Key: "id", Type: "string", Required: true}}, Output: collector.Output{Port: "records", Fields: []collector.Field{{Key: "urls", Type: "url", Required: true, Multiple: true, EmptyAllowed: true}}}}
 	down := collector.Definition{InputFields: []collector.Field{{Key: "url", Type: "url", Required: true}, {Key: "id", Type: "string", Required: true}}, Fetch: collector.Fetch{Kind: "http_html", URL: collector.Binding{Kind: "field", Path: "input.url"}, AllowedOrigins: []string{"https://example.com"}}}
 	e := d.Edges[0]
 	e.Expand = &EdgeExpand{Path: "output.urls"}

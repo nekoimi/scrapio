@@ -98,8 +98,10 @@
 				>
 				<el-tab-pane label="不可变输出" name="outputs"
 					><el-table :data="outputs"
-						><el-table-column prop="output_identity" label="输出身份" /><el-table-column prop="decision" label="保存决策" /><el-table-column
-							label="本次原始值"
+						><el-table-column prop="output_identity" label="输出身份" /><el-table-column prop="port" label="端口" width="110" /><el-table-column
+							label="保存决策"
+							><template #default="{ row }">{{ row.decision === 'passed' ? '仅传递' : row.decision }}</template></el-table-column
+						><el-table-column label="本次原始值"
 							><template #default="{ row }"
 								><code>{{ JSON.stringify(row.values) }}</code></template
 							></el-table-column
@@ -112,7 +114,9 @@
 				>
 				<el-tab-pane label="候选与诊断" name="observations"
 					><el-table :data="observations"
-						><el-table-column prop="decision" label="保存决策" /><el-table-column label="候选"
+						><el-table-column prop="port" label="端口" width="110" /><el-table-column label="保存决策"
+							><template #default="{ row }">{{ row.decision === 'passed' ? '仅传递' : row.decision }}</template></el-table-column
+						><el-table-column label="候选"
 							><template #default="{ row }"
 								><code>{{ JSON.stringify(row.values) }}</code></template
 							></el-table-column

@@ -53,7 +53,7 @@ func SaveSample(ctx context.Context, owner int64, id, key string, revision int, 
 			expected = []map[string]any{}
 			for _, c := range result.Candidates {
 				if c.Valid {
-					expected = append(expected, c.Values)
+					expected = append(expected, collector.SampleValue(c))
 				}
 			}
 		}
@@ -157,7 +157,7 @@ func Compare(actual []collector.Candidate, expected []map[string]any) map[string
 	valid := []map[string]any{}
 	for _, c := range actual {
 		if c.Valid {
-			valid = append(valid, c.Values)
+			valid = append(valid, collector.SampleValue(c))
 		}
 	}
 	equal := collector.Hash(valid) == collector.Hash(expected)

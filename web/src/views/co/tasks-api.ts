@@ -1,5 +1,6 @@
 import { call, key, type Definition, type Field, type Binding, type Candidate, type Page, type Operation } from './api';
 export interface SaveBinding {
+	mode?: 'table' | 'pass_through';
 	table_id: string;
 	schema_version: number;
 	schema_hash: string;
@@ -20,6 +21,7 @@ export interface TaskStage {
 	name: string;
 	collector_version_id: string;
 	save: SaveBinding;
+	additional_saves?: { port: string; save: SaveBinding }[];
 	on_error: string;
 	refresh_seconds?: number;
 	input_policy?: 'keep_all' | 'merge_identical';
@@ -177,11 +179,11 @@ export const taskApi = {
 			{ upstream_version_id: up, downstream_version_id: down, edge, input, output },
 			key()
 		),
-	savePreview: (version: string, save: SaveBinding, candidates: Candidate[]) =>
+	savePreview: (version: string, save: SaveBinding, candidates: Candidate[], port = 'records') =>
 		call<{ decisions: { identity: string; decision: string; values: unknown; error?: { message: string } }[] }>(
 			'/tasks/save-preview',
 			'post',
-			{ collector_version_id: version, save, candidates },
+			{ collector_version_id: version, save, candidates, port },
 			key()
 		),
 	runs: (cursor = '') => call<Page<Run>>('/runs?limit=20&cursor=' + encodeURIComponent(cursor)),

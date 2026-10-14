@@ -99,14 +99,15 @@ type Pagination struct {
 	MaxDurationMS   int      `json:"max_duration_ms"`
 }
 type Definition struct {
-	DefinitionVersion  string     `json:"definition_version"`
-	InterpreterVersion string     `json:"interpreter_version"`
-	InputFields        []Field    `json:"input_fields"`
-	Fetch              Fetch      `json:"fetch"`
-	Actions            []Action   `json:"actions"`
-	Records            Locator    `json:"records"`
-	Output             Output     `json:"output"`
-	Pagination         Pagination `json:"pagination"`
+	DefinitionVersion  string       `json:"definition_version"`
+	InterpreterVersion string       `json:"interpreter_version"`
+	InputFields        []Field      `json:"input_fields"`
+	Fetch              Fetch        `json:"fetch"`
+	Actions            []Action     `json:"actions"`
+	Records            Locator      `json:"records"`
+	Output             Output       `json:"output"`
+	AdditionalOutputs  []OutputPort `json:"additional_outputs,omitempty"`
+	Pagination         Pagination   `json:"pagination"`
 }
 
 func Decode(raw []byte) (Definition, error) {
@@ -134,6 +135,13 @@ func Strict(raw []byte, target any) error {
 func JSON(value any) string { data, _ := json.Marshal(value); return string(data) }
 func Hash(value any) string { return capture.Hash([]byte(JSON(value))) }
 func OutputSchemaHash(d Definition) string {
+	if len(d.AdditionalOutputs) > 0 {
+		ports := []any{PortSchema(d.Output)}
+		for _, p := range d.AdditionalOutputs {
+			ports = append(ports, PortSchema(p.Output))
+		}
+		return Hash(ports)
+	}
 	return Hash(struct {
 		Port           string   `json:"port"`
 		Fields         []Field  `json:"fields"`
@@ -197,6 +205,23 @@ func validateFields(fields []Field, path string) (map[string]Field, error) {
 	return keys, nil
 }
 func (d Definition) Validate() error {
+	if len(d.AdditionalOutputs) > 4 {
+		return Invalid("additional_outputs", "最多4个附加端口，与records共用获取和分页预算")
+	}
+	seenPorts := map[string]bool{"records": true}
+	for _, p := range d.AdditionalOutputs {
+		if !keyPattern.MatchString(p.Output.Port) || seenPorts[p.Output.Port] {
+			return Invalid("additional_outputs", "端口名无效或重复，records为保留主端口")
+		}
+		seenPorts[p.Output.Port] = true
+		one := d
+		one.AdditionalOutputs = nil
+		one.Records, one.Output = p.Records, p.Output
+		one.Output.Port = "records"
+		if e := one.Validate(); e != nil {
+			return Invalid("additional_outputs."+p.Output.Port, e.Error())
+		}
+	}
 	if d.DefinitionVersion != "collector.v1" || d.InterpreterVersion != Interpreter {
 		return Invalid("definition_version", "新采集器只接受collector.v1 / co.interpreter.v1")
 	}

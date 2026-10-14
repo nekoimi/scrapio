@@ -13,7 +13,7 @@
 			</div>
 			<div>
 				<el-button :disabled="busy" @click="reload">重新加载</el-button
-				><el-button type="primary" :loading="saving" :disabled="resource.archived || busy" @click="save">保存草稿</el-button>
+				><el-button type="primary" :loading="saving" :disabled="resource.archived || busy || invalidPorts" @click="save">保存草稿</el-button>
 			</div>
 		</div>
 		<el-alert v-if="problem" type="error" :title="problem" :closable="false" show-icon />
@@ -302,9 +302,14 @@
 							><el-select v-model="definition.output.identity_fields" multiple
 								><el-option v-for="f in definition.output.fields" :key="f.key" :value="f.key" :label="f.label || f.key" /></el-select></el-form-item
 					></el-form>
-					<pre class="co-json">{{ JSON.stringify(definition.output.fields, null, 2) }}</pre>
-				</el-card></el-tab-pane
-			>
+					<pre class="co-json">{{ JSON.stringify(definition.output.fields, null, 2) }}</pre></el-card
+				><CollectorPorts
+					:model-value="definition.additional_outputs || []"
+					@update:model-value="definition.additional_outputs = $event"
+					@invalid="invalidPorts = $event"
+					:input-fields="definition.input_fields"
+					:json="definition.fetch.kind === 'http_json'"
+			/></el-tab-pane>
 			<el-tab-pane label="⑤ 测试与样例" name="tests"
 				><el-card
 					><template #header>单输入测试</template>
@@ -333,7 +338,10 @@
 					<p v-if="result.comparison">
 						输出对比：{{ result.comparison.status }} · 实际{{ result.comparison.actual_count }} / 预期{{ result.comparison.expected_count }}
 					</p>
+					<p v-if="definition.additional_outputs?.length">多端口样例预期使用 {port, values} 包装；分页与预算为所有端口共用。</p>
 					<el-table :data="result.candidates"
+						><el-table-column label="端口" width="110"
+							><template #default="{ row }">{{ row.port || 'records' }}</template></el-table-column
 						><el-table-column label="状态" width="90"
 							><template #default="{ row }"
 								><el-tag :type="row.valid ? 'success' : 'danger'">{{ row.valid ? '有效' : '无效' }}</el-tag></template
@@ -419,7 +427,12 @@
 					>
 					<p class="co-muted">发布后可在编排任务中使用；在任务中确认输入、数据表与预算后执行。</p></el-card
 				>
-				<el-button type="primary" :disabled="!versions.length || resource.archived" @click="router.push({path:'/app/co/tasks/new',query:{collector_id:resource.id}})">创建单阶段任务</el-button>
+				<el-button
+					type="primary"
+					:disabled="!versions.length || resource.archived"
+					@click="router.push({ path: '/app/co/tasks/new', query: { collector_id: resource.id } })"
+					>创建单阶段任务</el-button
+				>
 				<el-button :disabled="busy || resource.archived" @click="archive">归档采集器</el-button>
 				<details>
 					<summary>高级：查看或替换定义JSON</summary>
@@ -437,6 +450,8 @@ import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue';
 import { useRoute, useRouter, onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import BrowserSelection from '../app/browser-selection.vue';
+const invalidPorts = ref(false);
+import CollectorPorts from './collector-ports.vue';
 import { createBrowserFrame } from '../app/browser-frame';
 import { createWheelQueue, framePoint, wheelPixels } from '../app/browser-workbench';
 import type { BrowserSession, SelectionRule, EditorLocator, PageHighlight } from '../app/api';
@@ -458,7 +473,7 @@ import {
 	type Version,
 } from './api';
 const route = useRoute(),
- router = useRouter(),
+	router = useRouter(),
 	collectorID = String(route.params.id),
 	resource = ref<Collector>(),
 	definition = ref<Definition>(initialDefinition()),
@@ -491,7 +506,7 @@ const types = ['string', 'url', 'integer', 'number', 'boolean', 'date', 'datetim
 				? ['none', 'url', 'cursor']
 				: ['none', 'url']
 	),
-	dirty = computed(() => JSON.stringify(definition.value) !== saved.value),
+	dirty = computed(() => invalidPorts.value || JSON.stringify(definition.value) !== saved.value),
 	result = computed(() => (activeTest.value?.result?.candidates ? activeTest.value.result : undefined));
 let live = true,
 	pollTimer: ReturnType<typeof setTimeout> | undefined;
@@ -598,7 +613,7 @@ function cleanDefinition() {
 		if (!a.locator?.expression) delete a.locator;
 		if (a.kind === 'click') delete a.value;
 	}
-	for (const m of d.output.mapping) {
+	for (const m of [d.output, ...(d.additional_outputs || []).map((p) => p.output)].flatMap((p) => p.mapping)) {
 		if (m.source !== 'element') {
 			delete m.locator;
 			delete m.extract;
@@ -977,14 +992,12 @@ const highlightBoxes = computed(() => {
 		s = browserSession.value;
 	if (!h || !s || h.page_state_id !== frameQueue.frame.value?.pageStateID) return [];
 	const v = frameQueue.frame.value?.state?.viewport || s.viewport;
-	return h.elements
-		.slice(0, 50)
-		.map((e) => ({
-			left: (100 * e.bounds.x) / v.width + '%',
-			top: (100 * e.bounds.y) / v.height + '%',
-			width: (100 * e.bounds.width) / v.width + '%',
-			height: (100 * e.bounds.height) / v.height + '%',
-		}));
+	return h.elements.slice(0, 50).map((e) => ({
+		left: (100 * e.bounds.x) / v.width + '%',
+		top: (100 * e.bounds.y) / v.height + '%',
+		width: (100 * e.bounds.width) / v.width + '%',
+		height: (100 * e.bounds.height) / v.height + '%',
+	}));
 });
 async function openBrowser() {
 	if (dirty.value && !(await save())) return;

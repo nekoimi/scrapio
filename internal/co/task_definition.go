@@ -30,18 +30,20 @@ type TaskStage struct {
 	Name               string      `json:"name"`
 	CollectorVersionID string      `json:"collector_version_id"`
 	Save               SaveBinding `json:"save"`
+	AdditionalSaves    []PortSave  `json:"additional_saves,omitempty"`
 	OnError            string      `json:"on_error"`
 	RefreshSeconds     int         `json:"refresh_seconds,omitempty"`
 	InputPolicy        string      `json:"input_policy,omitempty"`
 }
 type SaveBinding struct {
-	TableID       string                       `json:"table_id"`
-	SchemaVersion int                          `json:"schema_version"`
-	SchemaHash    string                       `json:"schema_hash"`
-	Mapping       map[string]collector.Binding `json:"mapping"`
-	UniqueKey     []string                     `json:"unique_key"`
-	UpdatePolicy  string                       `json:"update_policy"`
-	NullPolicy    string                       `json:"null_policy"`
+	Mode          string                       `json:"mode,omitempty"`
+	TableID       string                       `json:"table_id,omitempty"`
+	SchemaVersion int                          `json:"schema_version,omitempty"`
+	SchemaHash    string                       `json:"schema_hash,omitempty"`
+	Mapping       map[string]collector.Binding `json:"mapping,omitempty"`
+	UniqueKey     []string                     `json:"unique_key,omitempty"`
+	UpdatePolicy  string                       `json:"update_policy,omitempty"`
+	NullPolicy    string                       `json:"null_policy,omitempty"`
 }
 type TaskBudget struct {
 	MaxDispatches int `json:"max_dispatches,omitempty"`
@@ -70,9 +72,10 @@ type TrialOptions struct {
 }
 
 type FrozenStage struct {
-	Collector  FrozenCollector      `json:"collector"`
-	Definition collector.Definition `json:"definition"`
-	Schema     TableSchema          `json:"schema"`
+	Collector     FrozenCollector        `json:"collector"`
+	Definition    collector.Definition   `json:"definition"`
+	Schema        TableSchema            `json:"schema"`
+	OutputSchemas map[string]TableSchema `json:"output_schemas,omitempty"`
 }
 
 // ForStage keeps O2 manifests readable while selecting a frozen O3 executor.

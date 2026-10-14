@@ -129,14 +129,11 @@ func buildManifest(s *xorm.Session, owner int64, d TaskDefinition) (TaskManifest
 		if e != nil {
 			return m, e
 		}
-		schema, e := tableSchema(s, owner, stage.Save, true)
+		schemas, e := stageSchemas(s, owner, stage, cd)
 		if e != nil {
-			return m, e
-		}
-		if e = validateBinding(stage.Save, schema, cd); e != nil {
 			return m, stageError(stage.ID, e)
 		}
-		m.Stages[stage.ID] = FrozenStage{Collector: freezeCollector(v), Definition: cd, Schema: schema}
+		m.Stages[stage.ID] = FrozenStage{Collector: freezeCollector(v), Definition: cd, Schema: schemas["records"], OutputSchemas: schemas}
 	}
 	for _, edge := range d.Edges {
 		if e := validateEdge(edge, m.Stages[edge.From].Definition, m.Stages[edge.To].Definition); e != nil {

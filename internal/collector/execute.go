@@ -227,7 +227,7 @@ func ExecuteDurable(ctx context.Context, d Definition, input map[string]any, mod
 			return fail(Fault("ZERO_RESULT_UNVERIFIED", "records", "未找到记录且没有空态证据；可能是规则失效、登录页或验证页"))
 		}
 		for _, c := range p.Candidates {
-			if c.Valid && seenIdentity[c.Identity] == Hash(c.Values) {
+			if c.Valid && seenIdentity[CandidateKey(c)] == Hash(c.Values) {
 				continue
 			}
 			if total >= d.Pagination.MaxRecords || byteCount+len(JSON(c)) > 1024*1024 {
@@ -241,7 +241,7 @@ func ExecuteDurable(ctx context.Context, d Definition, input map[string]any, mod
 			c.Page = page
 			if !c.Valid {
 				invalid++
-			} else if old, ok := seenIdentity[c.Identity]; ok {
+			} else if old, ok := seenIdentity[CandidateKey(c)]; ok {
 				if old != Hash(c.Values) {
 					c.Valid = false
 					c.Fields["_identity"] = FieldEvidence{Status: "invalid", Message: "同一身份出现不同结果"}
@@ -251,7 +251,7 @@ func ExecuteDurable(ctx context.Context, d Definition, input map[string]any, mod
 				}
 			}
 			if c.Valid {
-				seenIdentity[c.Identity] = Hash(c.Values)
+				seenIdentity[CandidateKey(c)] = Hash(c.Values)
 			}
 			byteCount += len(JSON(c))
 			result.Candidates = append(result.Candidates, c)
@@ -267,7 +267,7 @@ func ExecuteDurable(ctx context.Context, d Definition, input map[string]any, mod
 			}
 			return finish()
 		}
-		ended := pconf.Kind == "none" || pconf.EndCondition == "empty_verified" && len(p.Candidates) == 0 && p.EmptyVerified || pconf.EndCondition == "next_missing" && !p.HasNext
+		ended := pconf.Kind == "none" || pconf.EndCondition == "empty_verified" && (len(p.Candidates) == 0 || p.PrimaryEmpty) && p.EmptyVerified || pconf.EndCondition == "next_missing" && !p.HasNext
 		if ended {
 			result.Status = "succeeded"
 			if invalid > 0 {

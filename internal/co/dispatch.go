@@ -61,7 +61,7 @@ func registerOutput(s *xorm.Session, r *Run, c *WorkClaim, out SavedOutput) erro
 		return e
 	}
 	for _, edge := range c.Manifest.Definition.Edges {
-		if edge.From != c.StageID {
+		if edge.From != c.StageID || edge.Port != out.Port {
 			continue
 		}
 		rows := []MappingPreview{}

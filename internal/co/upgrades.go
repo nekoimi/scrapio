@@ -137,7 +137,7 @@ func SchemaUpgrade(ctx context.Context, owner int64, id, key string, p SchemaUpg
 			return nil, conflict("Schema版本已变化")
 		}
 		// Do not acquire run locks after table locks; reject rather than race changes.
-		n, e := s.SQL(`SELECT COUNT(*) FROM co_runs r WHERE r.owner_id=? AND r.status IN ('preparing','running','pausing','paused','awaiting_confirmation') AND EXISTS(SELECT 1 FROM jsonb_array_elements(r.manifest -> 'definition' -> 'stages') st WHERE st -> 'save' ->> 'table_id'=?)`, owner, id).Count(new(Run))
+		n, e := s.SQL(`SELECT COUNT(*) FROM co_runs r WHERE r.owner_id=? AND r.status IN ('preparing','running','pausing','paused','awaiting_confirmation') AND EXISTS(SELECT 1 FROM jsonb_array_elements(r.manifest -> 'definition' -> 'stages') st WHERE st -> 'save' ->> 'table_id'=? OR EXISTS(SELECT 1 FROM jsonb_array_elements(COALESCE(st -> 'additional_saves','[]')) p WHERE p -> 'save' ->> 'table_id'=?))`, owner, id, id).Count(new(Run))
 		if e != nil {
 			return nil, e
 		}

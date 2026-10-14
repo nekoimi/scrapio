@@ -8,6 +8,8 @@ const sfc = require(path.join(web, "node_modules/@vue/compiler-sfc"));
 const ts = require(path.join(web, "node_modules/typescript"));
 const Ajv = require(path.join(web, "node_modules/ajv"));
 const files = [
+ "web/src/views/co/collector-ports.vue",
+ "web/src/views/co/port-saves.vue",
   "web/src/views/co/collectors.vue",
   "web/src/views/co/workbench.vue",
  "web/src/views/co/tasks.vue",

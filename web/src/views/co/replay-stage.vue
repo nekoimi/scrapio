@@ -71,7 +71,7 @@ const available = computed(() => {
 			(i: any) => props.stages.find((s: any) => s.id === i.stage_run_id)?.stage_id === stageID.value && i.status !== 'awaiting_confirmation'
 		);
 	const edge = props.run.manifest.definition.edges.find((e: any) => e.to === stageID.value);
-	return props.outputs.filter((o: any) => o.source?.stage_id === edge?.from);
+	return props.outputs.filter((o: any) => o.source?.stage_id === edge?.from && (o.port || 'records') === edge?.port);
 });
 async function guard(fn: () => Promise<void>) {
 	busy.value = true;

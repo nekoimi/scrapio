@@ -176,11 +176,12 @@ func (a API) savePreview(w http.ResponseWriter, r *http.Request) {
 		Version    string                `json:"collector_version_id"`
 		Save       co.SaveBinding        `json:"save"`
 		Candidates []collector.Candidate `json:"candidates"`
+		Port       string                `json:"port"`
 	}
 	if !decode(w, r, &p) {
 		return
 	}
-	v, e := co.PreviewSave(r.Context(), owner, p.Version, p.Save, p.Candidates)
+	v, e := co.PreviewSave(r.Context(), owner, p.Version, p.Save, p.Candidates, p.Port)
 	respond(w, r, v, e)
 }
 func (a API) startTask(w http.ResponseWriter, r *http.Request) {

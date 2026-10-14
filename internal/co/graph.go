@@ -49,10 +49,26 @@ func (d TaskDefinition) validateGraph() error {
 		if s.OnError != "continue" && s.OnError != "pause_stage" {
 			return collector.Invalid(loc+".on_error", "需要continue/pause_stage")
 		}
-		if prior := tables[s.Save.TableID]; prior != "" {
-			return collector.Invalid(loc+".save.table_id", "阶段"+prior+"已绑定同表；首版没有跨阶段合并策略，请绑定独立表")
+		if len(s.AdditionalSaves) > 4 {
+			return collector.Invalid(loc+".additional_saves", "最多4个附加端口绑定")
 		}
-		tables[s.Save.TableID] = s.ID
+		ports := map[string]bool{}
+		for _, p := range s.Saves() {
+			if !graphID.MatchString(p.Port) || ports[p.Port] {
+				return collector.Invalid(loc+".additional_saves", "端口名无效或重复")
+			}
+			ports[p.Port] = true
+			if e := validateSaveMode(p.Save); e != nil {
+				return e
+			}
+			if passThrough(p.Save) {
+				continue
+			}
+			if prior := tables[p.Save.TableID]; prior != "" {
+				return collector.Invalid(loc+".save.table_id", "阶段/端口"+prior+"已绑定同表；请使用独立表")
+			}
+			tables[p.Save.TableID] = s.ID + "/" + p.Port
+		}
 	}
 	if !nodes[d.EntryStage] {
 		return collector.Invalid("entry_stage", "入口阶段不存在")
@@ -68,10 +84,21 @@ func (d TaskDefinition) validateGraph() error {
 		if !nodes[e.From] || !nodes[e.To] || e.From == e.To || e.To == d.EntryStage || parents[e.To] != "" {
 			return collector.Invalid(loc, "连接节点缺失、循环、入口有上游或多上游")
 		}
-		if e.Port != "records" || (e.Emit != "valid" && e.Emit != "created" && e.Emit != "changed") {
-			return collector.Invalid(loc, "端口需records；传递策略需valid/created/changed")
+		if !graphID.MatchString(e.Port) || (e.Emit != "valid" && e.Emit != "created" && e.Emit != "changed") {
+			return collector.Invalid(loc, "请选择已声明的输出端口；传递策略需valid/created/changed")
 		}
 		parents[e.To] = e.From
+		for _, st := range d.Stages {
+			if st.ID == e.From {
+				b, err := st.Binding(e.Port)
+				if err != nil {
+					return err
+				}
+				if passThrough(b) && e.Emit != "valid" {
+					return collector.Invalid(loc+".emit", "仅传递端口没有业务记录新增/变化决策，传递策略需valid")
+				}
+			}
+		}
 	}
 	for _, s := range d.Stages {
 		seen := map[string]bool{}
@@ -112,6 +139,11 @@ func edgeField(path string, up collector.Definition, expand *EdgeExpand) (collec
 }
 func validateEdge(e TaskEdge, up, down collector.Definition) error {
 	loc := "edges." + e.ID
+	var err error
+	up, err = up.ForPort(e.Port)
+	if err != nil {
+		return collector.Invalid(loc+".port", err.Error())
+	}
 	if e.Expand != nil {
 		f, ok := edgeField(e.Expand.Path, up, nil)
 		if !ok || !f.Multiple || !strings.HasPrefix(e.Expand.Path, "output.") {

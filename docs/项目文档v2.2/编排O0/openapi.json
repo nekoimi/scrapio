@@ -2718,7 +2718,8 @@
               }
             }
           }
-        }
+        },
+        "description": "undefined Optional port defaults to records. Candidates must belong to the selected port. Pass-through returns passed without business writes."
       }
     },
     "/tasks/{task_id}/runs": {
@@ -3454,7 +3455,8 @@
           "503": {
             "description": "Required capability unavailable"
           }
-        }
+        },
+        "description": "undefined Includes port; output identity is scoped by work item and port. Each page commits all ports, observations, dispatch plans and checkpoint atomically."
       }
     },
     "/runs/{run_id}/observations": {
@@ -3519,7 +3521,8 @@
           "503": {
             "description": "Required capability unavailable"
           }
-        }
+        },
+        "description": "undefined Includes port and passed decision for durable pass-through results."
       }
     },
     "/runs/{run_id}/events": {
@@ -5323,6 +5326,14 @@
           },
           "pagination": {
             "$ref": "#/components/schemas/Pagination"
+          },
+          "additional_outputs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NamedOutput"
+            },
+            "minItems": 0,
+            "maxItems": 4
           }
         },
         "required": [
@@ -5337,60 +5348,79 @@
         ]
       },
       "SaveBinding": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "table_id": {
-            "type": "string",
-            "minLength": 1
-          },
-          "schema_version": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 100000
-          },
-          "schema_hash": {
-            "type": "string",
-            "minLength": 1
-          },
-          "mapping": {
+        "oneOf": [
+          {
             "type": "object",
-            "minProperties": 1,
-            "maxProperties": 30,
-            "additionalProperties": {
-              "$ref": "#/components/schemas/Binding"
-            }
-          },
-          "unique_key": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "pattern": "^[a-z][a-z0-9_]{0,63}$"
+            "additionalProperties": false,
+            "properties": {
+              "table_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "schema_version": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100000
+              },
+              "schema_hash": {
+                "type": "string",
+                "minLength": 1
+              },
+              "mapping": {
+                "type": "object",
+                "minProperties": 1,
+                "maxProperties": 30,
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/Binding"
+                }
+              },
+              "unique_key": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_]{0,63}$"
+                },
+                "minItems": 1,
+                "maxItems": 5
+              },
+              "update_policy": {
+                "enum": [
+                  "merge_present",
+                  "replace_present"
+                ]
+              },
+              "null_policy": {
+                "enum": [
+                  "keep",
+                  "clear"
+                ]
+              },
+              "mode": {
+                "const": "table"
+              }
             },
-            "minItems": 1,
-            "maxItems": 5
-          },
-          "update_policy": {
-            "enum": [
-              "merge_present",
-              "replace_present"
+            "required": [
+              "table_id",
+              "schema_version",
+              "schema_hash",
+              "mapping",
+              "unique_key",
+              "update_policy",
+              "null_policy"
             ]
           },
-          "null_policy": {
-            "enum": [
-              "keep",
-              "clear"
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "mode": {
+                "const": "pass_through"
+              }
+            },
+            "required": [
+              "mode"
             ]
           }
-        },
-        "required": [
-          "table_id",
-          "schema_version",
-          "schema_hash",
-          "mapping",
-          "unique_key",
-          "update_policy",
-          "null_policy"
         ]
       },
       "Stage": {
@@ -5430,6 +5460,28 @@
               "merge_identical"
             ],
             "description": "Optional; absent means keep_all. Merge only within one run and stage, using the complete normalized input and frozen collector version. All source snapshots retained. Shared outcome and one downstream delivery, including late sources."
+          },
+          "additional_saves": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "port": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_]{0,63}$"
+                },
+                "save": {
+                  "$ref": "#/components/schemas/SaveBinding"
+                }
+              },
+              "required": [
+                "port",
+                "save"
+              ]
+            },
+            "minItems": 0,
+            "maxItems": 4
           }
         },
         "required": [
@@ -5501,7 +5553,8 @@
             "pattern": "^[a-z][a-z0-9_]{0,63}$"
           },
           "port": {
-            "const": "records"
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{0,63}$"
           },
           "mapping": {
             "type": "object",
@@ -6516,6 +6569,10 @@
                 "status"
               ]
             }
+          },
+          "port": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{0,63}$"
           }
         },
         "required": [
@@ -7153,6 +7210,10 @@
             },
             "minItems": 0,
             "maxItems": 100
+          },
+          "port": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{0,63}$"
           }
         },
         "required": [
@@ -7778,6 +7839,60 @@
           "expected_version",
           "schema",
           "confirmed"
+        ]
+      },
+      "NamedOutput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "records": {
+            "$ref": "#/components/schemas/Locator"
+          },
+          "output": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "port": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]{0,63}$"
+              },
+              "fields": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Field"
+                },
+                "minItems": 1,
+                "maxItems": 30
+              },
+              "identity_fields": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_]{0,63}$"
+                },
+                "minItems": 1,
+                "maxItems": 5
+              },
+              "mapping": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/OutputField"
+                },
+                "minItems": 1,
+                "maxItems": 30
+              }
+            },
+            "required": [
+              "port",
+              "fields",
+              "identity_fields",
+              "mapping"
+            ]
+          }
+        },
+        "required": [
+          "records",
+          "output"
         ]
       }
     }

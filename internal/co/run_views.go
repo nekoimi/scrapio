@@ -148,7 +148,7 @@ func ItemDetail(ctx context.Context, owner int64, runID, itemID string, sourceCu
 	lineage, e := views(s, `WITH RECURSIVE chain AS (
  SELECT l.*,1 AS depth FROM co_lineage l WHERE l.run_id=? AND l.target_item_id=?
  UNION SELECT l.*,c.depth+1 FROM co_lineage l JOIN chain c ON l.target_item_id=c.source_item_id AND l.run_id=c.run_id WHERE c.depth<20
- ) SELECT c.*,o.values_json AS output_values,o.output_identity,o.source,w.input_values AS source_input,st.stage_id AS source_stage
+ ) SELECT c.*,o.values_json AS output_values,o.output_identity,o.port,o.source,w.input_values AS source_input,st.stage_id AS source_stage
  FROM chain c JOIN co_run_outputs o ON o.id=c.source_output_id JOIN co_work_items w ON w.id=c.source_item_id JOIN co_stage_runs st ON st.id=w.stage_run_id ORDER BY depth,c.source_output_id,c.edge_id,c.element_key LIMIT 101`, runID, itemID)
 	more := len(lineage) > 100
 	if more {

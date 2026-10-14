@@ -212,7 +212,7 @@ func ReplayStage(ctx context.Context, owner int64, runID, key string, p ReplayRe
 			}
 			for _, id := range p.OutputIDs {
 				output := new(SavedOutput)
-				ok, e := s.SQL(`SELECT o.* FROM co_run_outputs o JOIN co_work_items w ON w.id=o.item_id JOIN co_stage_runs st ON st.id=w.stage_run_id WHERE o.run_id=? AND o.id=? AND st.stage_id=?`, runID, id, edge.From).Get(output)
+				ok, e := s.SQL(`SELECT o.* FROM co_run_outputs o JOIN co_work_items w ON w.id=o.item_id JOIN co_stage_runs st ON st.id=w.stage_run_id WHERE o.run_id=? AND o.id=? AND st.stage_id=? AND o.port=?`, runID, id, edge.From, edge.Port).Get(output)
 				if e != nil {
 					return nil, e
 				}

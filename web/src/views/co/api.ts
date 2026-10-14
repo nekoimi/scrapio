@@ -55,6 +55,7 @@ export interface Definition {
 	actions: Action[];
 	records: Locator;
 	output: { port: 'records'; fields: Field[]; identity_fields: string[]; mapping: Mapping[] };
+	additional_outputs?: { records: Locator; output: { port: string; fields: Field[]; identity_fields: string[]; mapping: Mapping[] } }[];
 	pagination: {
 		kind: string;
 		next?: Locator;
@@ -78,6 +79,7 @@ export interface Collector {
 	updated_at: string;
 }
 export interface Candidate {
+	port?: string;
 	identity?: string;
 	values: Record<string, unknown>;
 	valid: boolean;

@@ -110,15 +110,20 @@
 						></el-form-item>
 						<el-form-item label="传递策略"
 							><el-select v-model="incoming.emit"
-								><el-option label="所有有效输出（含未变化）" value="valid" /><el-option label="仅新增" value="created" /><el-option
-									label="新增及变化"
-									value="changed" /></el-select
+								><el-option label="所有有效输出（含未变化）" value="valid" /><el-option
+									label="仅新增"
+									value="created"
+									:disabled="incomingPass" /><el-option label="新增及变化" value="changed" :disabled="incomingPass" /></el-select
+						></el-form-item>
+						<el-form-item label="上游输出端口"
+							><el-select v-model="incoming.port" @change="changePort"
+								><el-option v-for="p in outputsOf(upstream?.definition)" :key="p.port" :label="p.port" :value="p.port" /></el-select
 						></el-form-item>
 						<p class="co-muted">仅新增/变化会跳过本次未变化记录的下游刷新；保存失败和冲突候选始终不传递。</p>
 						<el-form-item label="数组展开"
 							><el-select :model-value="incoming.expand?.path || ''" clearable @change="setExpand"
 								><el-option
-									v-for="f in upstream?.definition.output.fields.filter((f) => f.multiple) || []"
+									v-for="f in upstreamOutput?.fields.filter((f) => f.multiple) || []"
 									:key="f.key"
 									:label="f.key"
 									:value="'output.' + f.key" /></el-select
@@ -178,7 +183,12 @@
 				</el-card>
 				<el-card v-if="version"
 					><template #header>3 · 数据表与保存绑定</template>
-					<el-form label-position="top"
+					<el-radio-group v-model="primaryMode"
+						><el-radio-button label="table">records 写入数据表</el-radio-button
+						><el-radio-button label="pass_through">records 仅传递结果</el-radio-button></el-radio-group
+					>
+					<p v-if="primaryMode === 'pass_through'">有效输出仍保存到本次运行，并可靠传递下游；不创建或更新业务表。连接策略请选择所有有效输出。</p>
+					<el-form v-if="primaryMode === 'table'" label-position="top"
 						><el-form-item label="输出数据表"
 							><el-select v-model="save.table_id" @change="bindTable"
 								><el-option v-for="t in tables" :key="t.id" :value="t.id" :label="t.name + ' · Schema ' + t.schema_version" /></el-select
@@ -221,6 +231,10 @@
 							></el-table
 						>
 					</el-form>
+					<template v-if="primaryMode === 'pass_through'"
+						><el-button :disabled="busy" @click="previewSave">预演 records 仅传递结果</el-button>
+						<pre v-if="savePreview.length">{{ JSON.stringify(savePreview, null, 2) }}</pre></template
+					><PortSaves v-model="additionalSaves" :version="version" :tables="tables" @table-created="tables.unshift($event)" />
 				</el-card>
 				<el-card
 					><template #header>4 · 预算与失败策略</template
@@ -254,7 +268,7 @@
 			</div>
 		</div>
 		<div class="co-toolbar">
-			<el-button type="primary" :loading="busy" :disabled="!version || !table" @click="saveDraft">保存任务草稿</el-button
+			<el-button type="primary" :loading="busy" :disabled="!version || (primaryMode === 'table' && !table)" @click="saveDraft">保存任务草稿</el-button
 			><el-button :disabled="busy || !task || dirty" @click="publish">发布当前 revision</el-button>
 		</div>
 		<TaskDaily
@@ -295,6 +309,7 @@ import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router';
 import { ElMessageBox } from 'element-plus';
 import SourcePicker from './source-picker.vue';
 import TaskDaily from './task-daily.vue';
+import PortSaves from './port-saves.vue';
 import type { TaskSource } from './tasks-api';
 import { call, coApi, describe, type Collector, type Version, type Candidate, type Binding } from './api';
 import {
@@ -346,6 +361,11 @@ const save = ref<SaveBinding>({
 		null_policy: 'keep',
 	}),
 	budget = ref({ max_work_items: 100, max_outputs: 1000, max_pending: 10, browser_slots: 1, max_duration_ms: 600000, max_dispatches: 10000 });
+const primaryMode = ref<'table' | 'pass_through'>('table'),
+	additionalSaves = ref<NonNullable<TaskStage['additional_saves']>>([]);
+function outputsOf(d?: Version['definition']) {
+	return d ? [d.output, ...(d.additional_outputs || []).map((p) => p.output)] : [];
+}
 const version = computed(() => collectorVersions.value.find((v) => v.id === versionID.value)),
 	table = computed(() => tables.value.find((t) => t.id === save.value.table_id));
 function inputs() {
@@ -374,11 +394,29 @@ const upstream = computed(() => {
 	const st = stageDefs.value.find((s) => s.id === incoming.value?.from);
 	return st ? knownVersions.value[st.collector_version_id] : undefined;
 });
+const upstreamOutput = computed(() => outputsOf(upstream.value?.definition).find((p) => p.port === incoming.value?.port));
+const incomingPass = computed(() => {
+	const st = stageDefs.value.find((s) => s.id === incoming.value?.from);
+	if (!st || !incoming.value) return false;
+	const b = incoming.value.port === 'records' ? st.save : st.additional_saves?.find((p) => p.port === incoming.value!.port)?.save;
+	return b?.mode === 'pass_through';
+});
+function changePort() {
+	if (!incoming.value) return;
+	incoming.value.mapping = {};
+	delete incoming.value.filter;
+	delete incoming.value.expand;
+	if (incomingPass.value) incoming.value.emit = 'valid';
+	mappingPreview.value = [];
+	sampleOutput.value = '{}';
+	notice.value = '已切换输出端口，请重新确认输入映射和过滤规则';
+}
+
 const sampleInput = ref('{}'),
 	sampleOutput = ref('{}'),
 	mappingPreview = ref<any[]>([]);
 const mappingSources = computed(() => [
-	...(upstream.value?.definition.output.fields || []).map((f) => ({ path: 'output.' + f.key, label: '输出 · ' + f.key + ' (' + f.type + ')' })),
+	...(upstreamOutput.value?.fields || []).map((f) => ({ path: 'output.' + f.key, label: '输出 · ' + f.key + ' (' + f.type + ')' })),
 	...(upstream.value?.definition.input_fields || []).map((f) => ({ path: 'input.' + f.key, label: '输入透传 · ' + f.key })),
 	...(incoming.value?.expand ? [{ path: 'element', label: '当前展开元素' }] : []),
 ]);
@@ -392,7 +430,8 @@ function selectedStage(): TaskStage {
 		id: selectedID.value,
 		name: stageName.value,
 		collector_version_id: versionID.value,
-		save: { ...save.value, mapping },
+		save: primaryMode.value === 'pass_through' ? ({ mode: 'pass_through' } as SaveBinding) : { ...save.value, mode: 'table', mapping },
+		additional_saves: additionalSaves.value,
 		on_error: onError.value,
 		refresh_seconds: refreshSeconds.value,
 		input_policy: inputPolicy.value,
@@ -440,11 +479,13 @@ async function selectStage(id: string) {
 	invalidMappingValues.value = {};
 	stageName.value = st.name;
 	save.value = JSON.parse(JSON.stringify(st.save));
+	primaryMode.value = st.save.mode === 'pass_through' ? 'pass_through' : 'table';
+	additionalSaves.value = JSON.parse(JSON.stringify(st.additional_saves || []));
 	onError.value = st.on_error;
 	refreshSeconds.value = st.refresh_seconds || 0;
 	inputPolicy.value = st.input_policy || 'keep_all';
 	mappingKeys.value = Object.fromEntries(
-		Object.entries(st.save.mapping)
+		Object.entries(st.save.mapping || {})
 			.filter(([, b]) => b.kind === 'field')
 			.map(([k, b]) => [k, b.path?.slice(7) || ''])
 	);
@@ -491,7 +532,11 @@ async function removeStage() {
 	await selectStage(entryID.value);
 }
 function changeParent(id: string) {
-	if (incoming.value) incoming.value.from = id;
+	if (incoming.value) {
+		incoming.value.from = id;
+		incoming.value.port = 'records';
+		changePort();
+	}
 	mappingPreview.value = [];
 }
 function setExpand(path: string) {
@@ -554,7 +599,9 @@ async function loadMappingSample() {
 		const test = (await coApi.tests(upstream.value.collector_id!)).items.find((t) => t.result?.definition_hash === upstream.value!.definition_hash);
 		if (!test?.result.candidates.length) throw new Error('上游所选版本没有可用样例输出，请先在采集器工作台测试或填入真实样例');
 		sampleInput.value = JSON.stringify(test.result.input || {}, null, 2);
-		sampleOutput.value = JSON.stringify(test.result.candidates[0].values, null, 2);
+		const candidate = test.result.candidates.find((c) => (c.port || 'records') === incoming.value?.port);
+		if (!candidate) throw new Error('所选上游端口没有样例输出');
+		sampleOutput.value = JSON.stringify(candidate.values, null, 2);
 	});
 }
 async function previewMapping() {
@@ -573,7 +620,7 @@ watch(
 	}
 );
 watch(
-	() => JSON.stringify([versionID.value, save.value, mappingKeys.value]),
+	() => JSON.stringify([versionID.value, primaryMode.value, save.value, mappingKeys.value]),
 	() => {
 		savePreview.value = [];
 	}
@@ -644,7 +691,7 @@ function versionChanged() {
 		knownVersions.value[version.value.id] = version.value;
 		if (incoming.value)
 			for (const f of version.value.definition.input_fields) {
-				if (!incoming.value.mapping[f.key] && upstream.value?.definition.output.fields.some((o) => o.key === f.key))
+				if (!incoming.value.mapping[f.key] && upstreamOutput.value?.fields.some((o) => o.key === f.key))
 					incoming.value.mapping[f.key] = { kind: 'field', path: 'output.' + f.key };
 			}
 		tableName.value = name.value || '采集结果';
@@ -698,7 +745,7 @@ async function previewSave() {
 		const tests = (await coApi.tests(collectorID.value)).items;
 		const tested = tests.find((t) => t.result?.definition_hash === version.value?.definition_hash);
 		if (!tested) throw new Error('所选采集器版本没有可用测试结果；可发布任务后先隔离试采。');
-		const candidates: Candidate[] = tested.result.candidates.slice(0, 100);
+		const candidates: Candidate[] = tested.result.candidates.filter((c) => (c.port || 'records') === 'records').slice(0, 100);
 		savePreview.value = (await taskApi.savePreview(versionID.value, selectedStage().save, candidates)).decisions;
 	});
 }
@@ -816,7 +863,9 @@ onMounted(() =>
 			stageName.value = all.name;
 			for (const st of d.stages) {
 				knownVersions.value[st.collector_version_id] = await coApi.version(st.collector_version_id);
-				if (!tables.value.some((t) => t.id === st.save.table_id)) tables.value.push(await call<DataTable>('/tables/' + st.save.table_id));
+				for (const p of [{ port: 'records', save: st.save }, ...(st.additional_saves || [])])
+					if (p.save.table_id && !tables.value.some((t) => t.id === p.save.table_id))
+						tables.value.push(await call<DataTable>('/tables/' + p.save.table_id));
 			}
 			versionID.value = all.collector_version_id;
 			const versions = (taskVersions.value = (await taskApi.versions(task.value.id)).items);
@@ -824,10 +873,13 @@ onMounted(() =>
 			collectorID.value = selectedVersion.collector_id || '';
 			collectorVersions.value = [selectedVersion, ...(await coApi.versions(collectorID.value)).items.filter((v) => v.id !== selectedVersion.id)];
 			if (!collectors.value.some((c) => c.id === collectorID.value)) collectors.value.push(await coApi.get(collectorID.value));
-			if (!tables.value.some((t) => t.id === all.save.table_id)) tables.value.push(await call<DataTable>('/tables/' + all.save.table_id));
+			if (all.save.table_id && !tables.value.some((t) => t.id === all.save.table_id))
+				tables.value.push(await call<DataTable>('/tables/' + all.save.table_id));
 			save.value = all.save;
+			primaryMode.value = all.save.mode === 'pass_through' ? 'pass_through' : 'table';
+			additionalSaves.value = all.additional_saves || [];
 			mappingKeys.value = Object.fromEntries(
-				Object.entries(all.save.mapping)
+				Object.entries(all.save.mapping || {})
 					.filter(([, v]) => v.kind === 'field')
 					.map(([k, v]) => [k, v.path?.slice(7) || ''])
 			);

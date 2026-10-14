@@ -162,11 +162,7 @@ func newRun(s *xorm.Session, owner int64, v TaskVersion, namespace, retryOf stri
 		return nil, e
 	}
 	for _, st := range m.Definition.Stages {
-		schema, e := tableSchema(s, owner, st.Save, true)
-		if e != nil {
-			return nil, e
-		}
-		if e = validateBinding(st.Save, schema, m.ForStage(st.ID).CollectorDefinition); e != nil {
+		if _, e := stageSchemas(s, owner, st, m.ForStage(st.ID).CollectorDefinition); e != nil {
 			return nil, e
 		}
 	}
