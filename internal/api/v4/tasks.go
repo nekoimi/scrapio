@@ -11,6 +11,8 @@ import (
 func (a API) mountTasks(v *mux.Router) {
 	v.HandleFunc("/governance", a.governance).Methods("GET")
 	v.HandleFunc("/transforms/preview", a.transformPreview).Methods("POST")
+	v.HandleFunc("/delivery-capabilities", a.deliveryCapabilities).Methods("GET")
+	v.HandleFunc("/runs/{run_id}/deliveries/control", a.deliveryControl).Methods("POST")
 	v.HandleFunc("/sources/preview", a.sourcePreview).Methods("POST")
 	v.HandleFunc("/sources/{source_id}", a.sourceDetail).Methods("GET")
 	v.HandleFunc("/tasks/{task_id}/schedule", a.schedule).Methods("GET", "POST")
@@ -42,7 +44,7 @@ func (a API) mountTasks(v *mux.Router) {
 	v.HandleFunc("/runs/{run_id}/work-items/{item_id}", a.workItem).Methods("GET")
 	v.HandleFunc("/runs/{run_id}/work-items/{item_id}/resolve", a.resolveItem).Methods("POST")
 	v.HandleFunc("/runs/{run_id}/work-items/{item_id}/attempts/{attempt_id}/commands/{command_id}", a.itemReceipt).Methods("GET")
-	v.HandleFunc("/runs/{run_id}/{kind:work-items|outputs|observations|dispatches|gather-groups}", a.runPage).Methods("GET")
+	v.HandleFunc("/runs/{run_id}/{kind:work-items|outputs|observations|dispatches|gather-groups|deliveries}", a.runPage).Methods("GET")
 }
 func (a API) mappingPreview(w http.ResponseWriter, r *http.Request) {
 	owner, ok := owner(w, r)

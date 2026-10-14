@@ -8,6 +8,8 @@ const sfc = require(path.join(web, "node_modules/@vue/compiler-sfc"));
 const ts = require(path.join(web, "node_modules/typescript"));
 const Ajv = require(path.join(web, "node_modules/ajv"));
 const files = [
+ "web/src/views/co/delivery-bindings.vue",
+ "web/src/views/co/run-deliveries.vue",
  "web/src/views/co/transform-editor.vue",
  "web/src/views/co/collector-ports.vue",
  "web/src/views/co/port-saves.vue",
@@ -178,3 +180,13 @@ assert.equal(transformSchema({...baseTransform,input:{...baseTransform.input,key
 assert.equal(transformSchema({...baseTransform,input:{...baseTransform.input,default:"a"}}),false);
 assert.equal(transformSchema({...baseTransform,samples:[]}),false);
 process.stdout.write("OK O5-05 typed transform and sample contract\n");
+const delivery={id:'download',port:'records',plugin_code:'aria2',version:'co.delivery.aria2.v1',emit:'changed',mapping:{url:{kind:'field',path:'output.url'}}};
+validate('DeliveryBinding',delivery);
+validate('DeliveryBinding',{...delivery,mapping:{url:{kind:'constant',value:'https://example.test/file'},dir:{kind:'constant',value:'/downloads'}}});
+const deliverySchema=ajv.getSchema('#/components/schemas/DeliveryBinding');
+assert.equal(deliverySchema({...delivery,plugin_code:'cloud-driver'}),false);
+assert.equal(deliverySchema({...delivery,mapping:{url:{kind:'template',template:'{{output.url}}'}}}),false);
+assert.equal(deliverySchema({...delivery,mapping:{url:delivery.mapping.url,options:{kind:'constant',value:{}}}}),false);
+validate('DeliveryControlRequest',{delivery_id:'fixture',action:'query',expected_revision:2,confirmed:true});
+assert.equal(ajv.getSchema('#/components/schemas/DeliveryControlRequest')({delivery_id:'fixture',action:'retry',expected_revision:2,confirmed:false}),false);
+process.stdout.write('OK O5-06 delivery profile, mapping and confirmed control contract\n');

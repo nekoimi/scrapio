@@ -360,7 +360,15 @@ func CommitBatch(ctx context.Context, c *WorkClaim, candidates []collector.Candi
 		if e = registerOutput(s, r, c, out, ctx); e != nil {
 			return e
 		}
+		if e = registerDeliveries(s, r, c, out); e != nil {
+			return e
+		}
 		r.OutputCount++
+	}
+	if len(stage.Deliveries) > 0 && r.Namespace == "formal" {
+		if e = checkDeliveryBudget(s, r.OwnerID); e != nil {
+			return e
+		}
 	}
 	var remaining int
 	pendingRows, e := s.QueryString("SELECT COALESCE(SUM(total-next_ordinal),0) AS n FROM co_dispatch_plans WHERE run_id=? AND status='pending'", r.ID)

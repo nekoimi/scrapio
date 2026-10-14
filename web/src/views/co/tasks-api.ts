@@ -16,7 +16,16 @@ export interface DataTable {
 	schema_hash: string;
 	schema: { fields: Field[]; unique_key: string[] };
 }
+export interface DeliveryBinding {
+	id: string;
+	port: string;
+	plugin_code: 'aria2';
+	version: 'co.delivery.aria2.v1';
+	emit: 'valid' | 'created' | 'changed';
+	mapping: Record<string, Binding>;
+}
 export interface TaskStage {
+	deliveries?: DeliveryBinding[];
 	input_mode?: 'single' | 'union' | 'join' | 'batch';
 	gather?: { key_fields?: string[]; missing: 'reject' | 'skip'; max_rows: number; max_bytes: number };
 	id: string;
@@ -37,7 +46,7 @@ export interface TaskSource {
 	accept_partial?: boolean;
 }
 export interface TaskEdge {
- transforms?: Record<string, Transform>;
+	transforms?: Record<string, Transform>;
 	id: string;
 	from: string;
 	to: string;
@@ -191,7 +200,9 @@ export const taskApi = {
 		),
 	runs: (cursor = '') => call<Page<Run>>('/runs?limit=20&cursor=' + encodeURIComponent(cursor)),
 	run: (id: string, summary = false) =>
-		call<{ run: Run; stages: any[]; counts: { status: string; count: number }[] }>('/runs/' + id + (summary ? '?summary=1' : '')),
+		call<{ run: Run; stages: any[]; counts: { status: string; count: number }[]; delivery_counts?: { status: string; count: number }[] }>(
+			'/runs/' + id + (summary ? '?summary=1' : '')
+		),
 	runPage: <T = any>(id: string, kind: string, cursor = '') =>
 		call<Page<T>>('/runs/' + id + '/' + kind + '?limit=50&cursor=' + encodeURIComponent(cursor)),
 	item: (run: string, id: string, sourceCursor = '') =>

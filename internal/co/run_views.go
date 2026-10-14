@@ -54,7 +54,11 @@ func RunDetail(ctx context.Context, owner int64, id string, summary ...bool) (an
 		return nil, e
 	}
 	counts, e := views(s, "SELECT status,COUNT(*) AS count FROM co_work_items WHERE run_id=? GROUP BY status", id)
-	return map[string]any{"run": rows[0], "stages": stages, "counts": counts}, e
+	if e != nil {
+		return nil, e
+	}
+	deliveries, e := deliveryCounts(s, id)
+	return map[string]any{"run": rows[0], "stages": stages, "counts": counts, "delivery_counts": deliveries}, e
 }
 func RunPage(ctx context.Context, owner int64, id, kind, cursor string, limit int) (any, error) {
 	s := session(ctx)
@@ -72,6 +76,8 @@ func RunPage(ctx context.Context, owner int64, id, kind, cursor string, limit in
 		table = "co_observations"
 	case "dispatches":
 		table = "co_dispatches"
+	case "deliveries":
+		table = "co_deliveries"
 	case "gather-groups":
 		table = "co_gather_groups"
 	default:

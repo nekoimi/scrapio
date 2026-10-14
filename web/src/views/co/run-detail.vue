@@ -113,7 +113,11 @@
 							><template #default="{ row }">{{ row.decision === 'passed' ? '仅传递' : row.decision }}</template></el-table-column
 						><el-table-column label="本次原始值"
 							><template #default="{ row }"
-								><code>{{ JSON.stringify(row.values) }}</code><details v-if="row.diagnostic?.fields"><summary>字段证据与转换诊断</summary><pre class="co-json">{{ JSON.stringify(row.diagnostic.fields,null,2) }}</pre></details></template
+								><code>{{ JSON.stringify(row.values) }}</code>
+								<details v-if="row.diagnostic?.fields">
+									<summary>字段证据与转换诊断</summary>
+									<pre class="co-json">{{ JSON.stringify(row.diagnostic.fields, null, 2) }}</pre>
+								</details></template
 							></el-table-column
 						><el-table-column label="来源"
 							><template #default="{ row }"
@@ -148,7 +152,11 @@
 						<el-table-column label="冻结下游输入 / 错误"
 							><template #default="{ row }"
 								><code>{{ JSON.stringify(row.input_snapshot) }}</code>
-								<p>{{ row.error?.message || row.error?.code }}</p><details v-if="row.transforms"><summary>转换前后与诊断</summary><pre class="co-json">{{ JSON.stringify(row.transforms,null,2) }}</pre></details></template
+								<p>{{ row.error?.message || row.error?.code }}</p>
+								<details v-if="row.transforms">
+									<summary>转换前后与诊断</summary>
+									<pre class="co-json">{{ JSON.stringify(row.transforms, null, 2) }}</pre>
+								</details></template
 							></el-table-column
 						>
 						<el-table-column label="下游项"
@@ -157,6 +165,7 @@
 							></el-table-column
 						>
 					</el-table></el-tab-pane
+				><el-tab-pane label="插件交付" name="deliveries"><RunDeliveries :run-id="id" :items="deliveries" @changed="refresh" /></el-tab-pane
 				><el-tab-pane label="配对与批次诊断" name="gather-groups"
 					><el-table :data="gatherGroups"
 						><el-table-column label="阶段"
@@ -248,6 +257,7 @@ import { call, describe } from './api';
 import { taskApi, taskMutation, recoverTaskMutation, type Run, type WorkItem } from './tasks-api';
 import { statusLabel } from './status';
 import ReplayStage from './replay-stage.vue';
+import RunDeliveries from './run-deliveries.vue';
 const route = useRoute(),
 	router = useRouter(),
 	id = String(route.params.id),
@@ -259,6 +269,8 @@ const route = useRoute(),
 	stages = ref<any[]>([]),
 	dispatches = ref<any[]>([]),
 	gatherGroups = ref<any[]>([]),
+	deliveries = ref<any[]>([]),
+	deliveryCounts = ref<{ status: string; count: number }[]>([]),
 	tab = ref('work-items'),
 	cursors = ref<Record<string, string>>({}),
 	busy = ref(false),
@@ -273,6 +285,15 @@ const route = useRoute(),
 let alive = true,
 	timer: ReturnType<typeof setTimeout> | undefined;
 const active = computed(() => !!run.value && !['succeeded', 'partial', 'limited', 'failed', 'cancelled'].includes(run.value.status));
+const pendingDeliveries = computed(() =>
+	deliveryCounts.value.some(
+		(c) => Number(c.count) > 0 && (['sending', 'checking'].includes(c.status) || (c.status === 'queued' && run.value?.status !== 'paused'))
+	)
+);
+function schedulePoll() {
+	if (timer) clearTimeout(timer);
+	if (alive && (active.value || pendingDeliveries.value)) timer = setTimeout(poll, pollError.value ? 8000 : 2500);
+}
 async function guarded(fn: () => Promise<void>) {
 	busy.value = true;
 	problem.value = '';
@@ -290,6 +311,7 @@ async function state() {
 	run.value = { ...run.value, ...d.run };
 	counts.value = d.counts;
 	stages.value = d.stages;
+	deliveryCounts.value = d.delivery_counts || [];
 }
 async function loadTab(more: unknown = false) {
 	const append = more === true;
@@ -300,6 +322,7 @@ async function loadTab(more: unknown = false) {
 		else if (tab.value === 'outputs') outputs.value = append ? [...outputs.value, ...p.items] : p.items;
 		else if (tab.value === 'dispatches') dispatches.value = append ? [...dispatches.value, ...p.items] : p.items;
 		else if (tab.value === 'gather-groups') gatherGroups.value = append ? [...gatherGroups.value, ...p.items] : p.items;
+		else if (tab.value === 'deliveries') deliveries.value = append ? [...deliveries.value, ...p.items] : p.items;
 		else observations.value = append ? [...observations.value, ...p.items] : p.items;
 	});
 }
@@ -316,6 +339,7 @@ async function refresh() {
 		await loadEvents();
 	});
 	await loadTab();
+	schedulePoll();
 }
 async function confirm(text: string) {
 	try {
@@ -395,11 +419,12 @@ async function poll() {
 			const previous = sequence.value;
 			await state();
 			await loadEvents();
-			if (sequence.value !== previous && tab.value === 'work-items' && !drawer.value) {
-				const p = await taskApi.runPage<WorkItem>(id, 'work-items');
+			if (sequence.value !== previous && ['work-items', 'deliveries'].includes(tab.value) && !drawer.value) {
+				const p = await taskApi.runPage<any>(id, tab.value);
 				if (alive) {
-					items.value = p.items;
-					cursors.value['work-items'] = p.next_cursor || '';
+					if (tab.value === 'deliveries') deliveries.value = p.items;
+					else items.value = p.items;
+					cursors.value[tab.value] = p.next_cursor || '';
 				}
 			}
 			pollError.value = false;
@@ -407,13 +432,13 @@ async function poll() {
 	} catch {
 		pollError.value = true;
 	} finally {
-		if (alive && active.value) timer = setTimeout(poll, pollError.value ? 8000 : 2500);
+		schedulePoll();
 	}
 }
 onMounted(async () => {
 	await refresh();
 	if (route.query.item_id) await openItem(String(route.query.item_id));
-	if (alive && active.value) timer = setTimeout(poll, 2500);
+	schedulePoll();
 });
 onBeforeUnmount(() => {
 	alive = false;

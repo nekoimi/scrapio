@@ -473,6 +473,9 @@ func ControlRun(ctx context.Context, owner int64, id, key, action string, expect
 		case "cancel":
 			r.Status = "cancelled"
 			r.ControlEpoch++
+			if _, e = s.Exec("UPDATE co_deliveries SET status='cancelled',revision=revision+1,updated_at=NOW() WHERE run_id=? AND status='queued'", id); e != nil {
+				return nil, e
+			}
 			if _, e = s.Exec("UPDATE co_dispatch_plans SET status='cancelled' WHERE run_id=? AND status='pending'", id); e != nil {
 				return nil, e
 			}

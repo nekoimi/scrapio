@@ -5280,6 +5280,195 @@
         },
         "description": "Pure co.transform.v1 expression on one typed value; 1..5 exact offline samples required. Collector conversion runs after extraction/cleaning before output validation and identity; edge conversion after filtering/expansion/binding before target Schema and allowed-origin checks. Syntax allowlist, no statements/functions/loops/regex/dynamic code/external access; 256 AST nodes/24 depth, intermediate JSON8192bytes/16depth/100array/30keys, runtime25ms/64stack. Before/after, expression fingerprint and error location; no formal writes. Definition/task hashes freeze transforms and samples; changes require new evidence/version. Not a general arbitrary JS runtime or OS memory sandbox."
       }
+    },
+    "/delivery-capabilities": {
+      "get": {
+        "operationId": "getCoDeliveryCapabilities",
+        "tags": [
+          "O5"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O5",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/runs/{run_id}/deliveries": {
+      "get": {
+        "operationId": "listCoDeliveries",
+        "tags": [
+          "O5"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O5",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "description": "Owner-scoped cursor page. Snapshot and outbox commit with persisted valid output; trial previews never call external service. Fixed output+binding idempotency, frozen aria2 contract and destination fingerprint, private credentials remain in service config. Configuration changes block recovery until original target is restored or manually confirmed. One worker, 30s remote budget, 90s database-clock lease; expired sending only queries original GID. Success means accepted, not download completion. Collection and delivery status are independent. At most5 bindings per stage,10000 active deliveries per owner; payload and reserved8KiB receipt count toward output storage quota."
+      }
+    },
+    "/runs/{run_id}/deliveries/control": {
+      "post": {
+        "operationId": "controlCoDelivery",
+        "tags": [
+          "O5"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O5",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeliveryControlRequest"
+              }
+            }
+          }
+        },
+        "description": "Confirmed revision CAS and operation idempotency. Query an unknown original request; manually confirm acceptance or end tracking without cancelling external action. Retry only known unsubmitted failures without external ID. Unknown actions are never automatically resubmitted. Run pause blocks queued sends; cancellation cancels queued sends, sent requests keep original receipt reconciliation."
+      }
     }
   },
   "components": {
@@ -5863,6 +6052,14 @@
           },
           "gather": {
             "$ref": "#/components/schemas/GatherConfig"
+          },
+          "deliveries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DeliveryBinding"
+            },
+            "minItems": 0,
+            "maxItems": 5
           }
         },
         "required": [
@@ -8589,6 +8786,118 @@
           "transform",
           "value",
           "target"
+        ]
+      },
+      "DeliveryBinding": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{0,63}$"
+          },
+          "port": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{0,63}$"
+          },
+          "plugin_code": {
+            "const": "aria2"
+          },
+          "version": {
+            "const": "co.delivery.aria2.v1"
+          },
+          "emit": {
+            "enum": [
+              "valid",
+              "created",
+              "changed"
+            ]
+          },
+          "mapping": {
+            "type": "object",
+            "required": [
+              "url"
+            ],
+            "minProperties": 1,
+            "maxProperties": 2,
+            "properties": {
+              "url": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Binding"
+                  },
+                  {
+                    "properties": {
+                      "kind": {
+                        "enum": [
+                          "field",
+                          "constant"
+                        ]
+                      }
+                    }
+                  }
+                ]
+              },
+              "dir": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Binding"
+                  },
+                  {
+                    "properties": {
+                      "kind": {
+                        "enum": [
+                          "field",
+                          "constant"
+                        ]
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "id",
+          "port",
+          "plugin_code",
+          "version",
+          "emit",
+          "mapping"
+        ]
+      },
+      "DeliveryControlRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "delivery_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "action": {
+            "enum": [
+              "query",
+              "retry",
+              "confirm_delivered",
+              "cancel"
+            ]
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "confirmed": {
+            "const": true
+          }
+        },
+        "required": [
+          "delivery_id",
+          "action",
+          "expected_revision",
+          "confirmed"
         ]
       }
     }

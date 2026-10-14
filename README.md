@@ -12,6 +12,8 @@ scrapio 是面向自用和小团队的采集平台。Go 服务负责采集任务
 
 ## 快速部署
 
+独立任务阶段可把持久输出交付aria2，运行详情的「插件交付」单独展示原请求回执。成功表示请求已接受，试采不会调用外部服务；升级需迁移`2026_10_14_004`。配置、未知回执和暂缓的云盘范围见 [O5-06实施记录](docs/项目文档v2.2/下游插件交付O5-06实施与验收记录.md)。
+
 需要 Docker Compose、可用的 CloakBrowser Manager 和浏览器 Profile。复制 `docker-compose.example.yaml` 为 `docker-compose.yaml`，然后在同目录提供 `.env`：
 
 ```dotenv

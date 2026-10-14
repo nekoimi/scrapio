@@ -218,12 +218,19 @@
 							/>
 						</div>
 						<el-divider>连接样例预览</el-divider>
-                        <details><summary>可选：映射值转换</summary>
-                            <template v-for="f in version.definition.input_fields" :key="f.key">
-                                <TransformEditor v-if="incoming.mapping[f.key]" :model-value="incoming.transforms?.[f.key]" :target="edgeTransformTarget(f)" :scope="'下游输入 ' + f.key" @update:model-value="(value) => setEdgeTransform(f.key, value)" />
-                            </template>
-                            <p>只转换对应映射的值，不修改上游输出；批次模式转换单个数组元素。过滤与展开先执行。结果仍需通过下游Schema及访问范围检查。</p>
-                        </details>
+						<details>
+							<summary>可选：映射值转换</summary>
+							<template v-for="f in version.definition.input_fields" :key="f.key">
+								<TransformEditor
+									v-if="incoming.mapping[f.key]"
+									:model-value="incoming.transforms?.[f.key]"
+									:target="edgeTransformTarget(f)"
+									:scope="'下游输入 ' + f.key"
+									@update:model-value="(value) => setEdgeTransform(f.key, value)"
+								/>
+							</template>
+							<p>只转换对应映射的值，不修改上游输出；批次模式转换单个数组元素。过滤与展开先执行。结果仍需通过下游Schema及访问范围检查。</p>
+						</details>
 						<el-button :disabled="busy || !upstream" @click="loadMappingSample">载入上游所选版本的测试样例</el-button>
 						<el-form-item label="上游输入（JSON）"><el-input v-model="sampleInput" type="textarea" :rows="3" /></el-form-item>
 						<el-form-item label="上游一条输出（JSON）"><el-input v-model="sampleOutput" type="textarea" :rows="4" /></el-form-item>
@@ -233,7 +240,13 @@
 						</p>
 						<el-table v-if="mappingPreview.length" :data="mappingPreview"
 							><el-table-column prop="decision" label="映射决策" /><el-table-column label="下游值 / 错误"
-								><template #default="{ row }">{{ row.error?.message || JSON.stringify(row.values) }}<details v-if="row.transforms"><summary>转换前后与诊断</summary><pre class="co-json">{{ JSON.stringify(row.transforms,null,2) }}</pre></details></template></el-table-column
+								><template #default="{ row }"
+									>{{ row.error?.message || JSON.stringify(row.values) }}
+									<details v-if="row.transforms">
+										<summary>转换前后与诊断</summary>
+										<pre class="co-json">{{ JSON.stringify(row.transforms, null, 2) }}</pre>
+									</details></template
+								></el-table-column
 							></el-table
 						>
 						<p class="co-muted">模板支持 output.key、input.key 与展开 element。预览不会写数据；空数组正常产生零项。</p>
@@ -293,6 +306,14 @@
 						><el-button :disabled="busy" @click="previewSave">预演 records 仅传递结果</el-button>
 						<pre v-if="savePreview.length">{{ JSON.stringify(savePreview, null, 2) }}</pre></template
 					><PortSaves v-model="additionalSaves" :version="version" :tables="tables" @table-created="tables.unshift($event)" />
+					<DeliveryBindings
+						v-model="deliveries"
+						:definition="version.definition"
+						:pass-ports="[
+							...(primaryMode === 'pass_through' ? ['records'] : []),
+							...additionalSaves.filter((p) => p.save.mode === 'pass_through').map((p) => p.port),
+						]"
+					/>
 				</el-card>
 				<el-card
 					><template #header>4 · 预算与失败策略</template
@@ -365,6 +386,7 @@
 import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue';
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router';
 import TransformEditor from './transform-editor.vue';
+import DeliveryBindings from './delivery-bindings.vue';
 import { ElMessageBox } from 'element-plus';
 import SourcePicker from './source-picker.vue';
 import TaskDaily from './task-daily.vue';
@@ -382,6 +404,7 @@ import {
 	type TaskVersion,
 	type TaskStage,
 	type TaskEdge,
+	type DeliveryBinding,
 } from './tasks-api';
 const route = useRoute(),
 	router = useRouter(),
@@ -452,6 +475,7 @@ const stageDefs = ref<TaskStage[]>([
 ]);
 const edges = ref<TaskEdge[]>([]),
 	knownVersions = ref<Record<string, Version>>({});
+const deliveries = ref<DeliveryBinding[]>([]);
 const incomingEdges = computed(() => edges.value.filter((e) => e.to === selectedID.value));
 const incoming = computed(() => incomingEdges.value.find((e) => e.id === edgeID.value) || incomingEdges.value[0]);
 function selectIncoming(id: string) {
@@ -518,7 +542,7 @@ const incomingPass = computed(() => {
 function changePort() {
 	if (!incoming.value) return;
 	incoming.value.mapping = {};
- delete incoming.value.transforms;
+	delete incoming.value.transforms;
 	invalidMappingValues.value = {};
 	delete incoming.value.filter;
 	delete incoming.value.expand;
@@ -562,6 +586,7 @@ function selectedStage(): TaskStage {
 		collector_version_id: versionID.value,
 		save: primaryMode.value === 'pass_through' ? ({ mode: 'pass_through' } as SaveBinding) : { ...save.value, mode: 'table', mapping },
 		additional_saves: additionalSaves.value,
+		...(deliveries.value.length ? { deliveries: deliveries.value } : {}),
 		on_error: onError.value,
 		refresh_seconds: refreshSeconds.value,
 		input_policy: inputPolicy.value,
@@ -612,6 +637,7 @@ async function selectStage(id: string) {
 	save.value = JSON.parse(JSON.stringify(st.save));
 	primaryMode.value = st.save.mode === 'pass_through' ? 'pass_through' : 'table';
 	additionalSaves.value = JSON.parse(JSON.stringify(st.additional_saves || []));
+	deliveries.value = JSON.parse(JSON.stringify(st.deliveries || []));
 	onError.value = st.on_error;
 	refreshSeconds.value = st.refresh_seconds || 0;
 	inputPolicy.value = st.input_policy || 'keep_all';
@@ -709,16 +735,24 @@ function setFilterValue(raw: string) {
 	}
 	mappingPreview.value = [];
 }
-function edgeTransformTarget(f: Field): Field { return ['join','batch'].includes(stageInputMode.value) ? {...f,required:false,default:undefined,multiple:stageInputMode.value==='batch'?false:f.multiple} : f; }
-function setEdgeTransform(key: string,value: import('./api').Transform | undefined) {
- if (!incoming.value) return;
- incoming.value.transforms ||= {};
- if(value) incoming.value.transforms[key]=value; else delete incoming.value.transforms[key];
- if(!Object.keys(incoming.value.transforms).length) delete incoming.value.transforms;
- mappingPreview.value=[];
+function edgeTransformTarget(f: Field): Field {
+	return ['join', 'batch'].includes(stageInputMode.value)
+		? { ...f, required: false, default: undefined, multiple: stageInputMode.value === 'batch' ? false : f.multiple }
+		: f;
+}
+function setEdgeTransform(key: string, value: import('./api').Transform | undefined) {
+	if (!incoming.value) return;
+	incoming.value.transforms ||= {};
+	if (value) incoming.value.transforms[key] = value;
+	else delete incoming.value.transforms[key];
+	if (!Object.keys(incoming.value.transforms).length) delete incoming.value.transforms;
+	mappingPreview.value = [];
 }
 function setMappingKind(key: string, kind: string) {
- if (!kind && incoming.value?.transforms) {delete incoming.value.transforms[key];if(!Object.keys(incoming.value.transforms).length)delete incoming.value.transforms;}
+	if (!kind && incoming.value?.transforms) {
+		delete incoming.value.transforms[key];
+		if (!Object.keys(incoming.value.transforms).length) delete incoming.value.transforms;
+	}
 	delete invalidMappingValues.value[(incoming.value?.id || '') + ':' + key];
 	if (!incoming.value) return;
 	if (!kind) delete incoming.value.mapping[key];
@@ -1038,6 +1072,7 @@ onMounted(() =>
 			save.value = all.save;
 			primaryMode.value = all.save.mode === 'pass_through' ? 'pass_through' : 'table';
 			additionalSaves.value = all.additional_saves || [];
+			deliveries.value = all.deliveries || [];
 			mappingKeys.value = Object.fromEntries(
 				Object.entries(all.save.mapping || {})
 					.filter(([, v]) => v.kind === 'field')

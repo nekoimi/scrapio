@@ -28,6 +28,7 @@ func TestControlWorkersHaveIndependentRegistryKeys(t *testing.T) {
 	assertRegistered[job.WorkflowScheduler](t, ctx)
 	assertRegistered[co.Worker](t, ctx)
 	assertRegistered[co.TaskWorker](t, ctx)
+	assertRegistered[co.DeliveryWorker](t, ctx)
 	assertRegistered[job.RecordExportWorker](t, ctx)
 	assertRegistered[job.DocumentRetentionWorker](t, ctx)
 	assertRegistered[trialworker.Worker](t, ctx)

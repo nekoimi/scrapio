@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -261,11 +262,11 @@ func (p *Aria2) call(ctx context.Context, method string, params []any) (any, err
 			Message string `json:"message"`
 		} `json:"error"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&value); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 65537)).Decode(&value); err != nil {
 		return nil, err
 	}
 	if value.Error != nil {
-		return nil, fmt.Errorf("aria2 error %d: %s", value.Error.Code, value.Error.Message)
+		return nil, &rpcError{Code: value.Error.Code, Message: value.Error.Message}
 	}
 	return value.Result, nil
 }

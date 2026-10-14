@@ -134,6 +134,9 @@ func buildManifest(s *xorm.Session, owner int64, d TaskDefinition) (TaskManifest
 			return m, stageError(stage.ID, e)
 		}
 		m.Stages[stage.ID] = FrozenStage{Collector: freezeCollector(v), Definition: cd, Schema: schemas["records"], OutputSchemas: schemas}
+		if e = validateDeliveries(stage, cd); e != nil {
+			return m, stageError(stage.ID, e)
+		}
 	}
 	for _, edge := range d.Edges {
 		if e := validateEdge(edge, m.Stages[edge.From].Definition, gatherRowDefinition(d.Stage(edge.To), m.Stages[edge.To].Definition)); e != nil {

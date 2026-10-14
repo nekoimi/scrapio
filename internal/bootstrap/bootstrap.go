@@ -39,6 +39,7 @@ func BeanLifecycle() *bean.LifecycleManager {
 	registerControlWorkers(ctx)
 	pluginRegistry := plugin.NewRegistry()
 	delivery.RegisterBuiltins(pluginRegistry, bean.PtrFromContext[config.Config](ctx))
+	co.ConfigureDeliveries(pluginRegistry)
 	bean.MustRegisterPtr[plugin.Registry](ctx, pluginRegistry)
 	bean.MustRegisterPtr[plugin.Worker](ctx, plugin.NewWorker(pluginRegistry))
 	// 任务管理器
@@ -56,6 +57,7 @@ func BeanLifecycle() *bean.LifecycleManager {
 func registerControlWorkers(ctx context.Context) {
 	bean.MustRegisterPtr[co.Worker](ctx, co.NewWorker())
 	bean.MustRegisterPtr[co.TaskWorker](ctx, co.NewTaskWorker())
+	bean.MustRegisterPtr[co.DeliveryWorker](ctx, co.NewDeliveryWorker())
 	// Registry keys are types. Each worker needs its own concrete key; registering
 	// them all as bean.Lifecycle replaces the lookup and only starts the first one.
 	bean.MustRegisterPtr[job.WorkflowScheduler](ctx, job.NewWorkflowScheduler())
