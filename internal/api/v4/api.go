@@ -30,6 +30,7 @@ func Mount(r *mux.Router, browser *drission_rod.DrissionRod, cfg *config.Config)
 	a := API{Browser: browser, Config: cfg}
 	v := r.PathPrefix("/v4").Subrouter()
 	a.mountTasks(v)
+	a.mountAI(v)
 	v.HandleFunc("/capabilities", a.capabilities).Methods("GET")
 	v.HandleFunc("/collectors", a.collectors).Methods("GET", "POST")
 	v.HandleFunc("/collectors/{collector_id}", a.item).Methods("GET")
@@ -65,7 +66,7 @@ func fail(w http.ResponseWriter, r *http.Request, e error) {
 		if typed.Code == "CONFLICT" || typed.Code == "REVISION_CONFLICT" || typed.Code == "IDEMPOTENCY_CONFLICT" || typed.Code == "SCHEMA_CONFLICT" {
 			status = http.StatusConflict
 		}
-		if typed.Code == "BROWSER_UNAVAILABLE" || typed.Code == "CAPABILITY_UNAVAILABLE" {
+		if typed.Code == "BROWSER_UNAVAILABLE" || typed.Code == "CAPABILITY_UNAVAILABLE" || typed.Code == "AI_UNAVAILABLE" {
 			status = http.StatusServiceUnavailable
 		}
 	} else {

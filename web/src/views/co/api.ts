@@ -147,13 +147,13 @@ export const key = () => {
 	const h = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
 	return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
 };
-export function call<T>(path: string, method = 'get', data?: unknown, idempotency?: string): Promise<T> {
+export function call<T>(path: string, method = 'get', data?: unknown, idempotency?: string, timeout = 8000): Promise<T> {
 	return request({
 		url: '/api/v4' + path,
 		method,
 		data,
 		localError: true,
-		timeout: 8000,
+		timeout,
 		headers: idempotency ? { 'Idempotency-Key': idempotency } : undefined,
 	}).then((r: any) => r.data as T);
 }

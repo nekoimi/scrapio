@@ -5469,6 +5469,733 @@
         },
         "description": "Confirmed revision CAS and operation idempotency. Query an unknown original request; manually confirm acceptance or end tracking without cancelling external action. Retry only known unsubmitted failures without external ID. Unknown actions are never automatically resubmitted. Run pause blocks queued sends; cancellation cancels queued sends, sent requests keep original receipt reconciliation."
       }
+    },
+    "/ai-capabilities": {
+      "get": {
+        "operationId": "getCoAICapabilities",
+        "tags": [
+          "O5"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O5",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ai/prepare": {
+      "post": {
+        "operationId": "prepareAIAssist",
+        "tags": [
+          "O5"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O5",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AIPrepareRequest"
+              }
+            }
+          }
+        },
+        "description": "Explicit owner-scoped saved sample, port, edge/expected-output index, or failed work item. Freeze current revision/hash and the local full sample. Preview only the bounded, redacted model payload (24KiB), model, prompt version/hash and unknown monetary cost. No model call at this step. Mapping samples must match the published upstream revision; only scalar single/union paths, no expand/transforms/join/batch edits."
+      }
+    },
+    "/ai/suggestions": {
+      "get": {
+        "operationId": "listCoAISuggestions",
+        "tags": [
+          "O5"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O5",
+        "parameters": [
+          {
+            "name": "resource_kind",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "enum": [
+                "collector",
+                "task",
+                "run"
+              ]
+            }
+          },
+          {
+            "name": "resource_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ai/suggestions/{suggestion_id}": {
+      "get": {
+        "operationId": "getCoAISuggestion",
+        "tags": [
+          "O5"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O5",
+        "parameters": [
+          {
+            "name": "suggestion_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteAIAssist",
+        "tags": [
+          "O5"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O5",
+        "parameters": [
+          {
+            "name": "suggestion_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AICleanupRequest"
+              }
+            }
+          }
+        },
+        "description": "Confirmed cleanup only for applied/rejected/failed suggestions. Clear frozen sample, prompt, candidate and duplicated prepare evidence and release reserved storage; retain status/called_at tombstone and original call identity so cleanup cannot reset daily quota. Unknown calls must first be explicitly ended. Existing adopted drafts are retained."
+      }
+    },
+    "/ai/suggestions/{suggestion_id}/call": {
+      "post": {
+        "operationId": "callAIAssist",
+        "tags": [
+          "O5"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O5",
+        "parameters": [
+          {
+            "name": "suggestion_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AIControlRequest"
+              }
+            }
+          }
+        },
+        "description": "Confirmed one-shot call bound to canonical prompt evidence_hash. Persist calling and original operation before network I/O outside database transaction. 20s timeout, 1000 output tokens, 64KiB gateway response; no redirects. Default 10 calls per owner/database calendar day, unknowns and failures count. A new key cannot resubmit calling/unknown/ready rows; query original suggestion/operation. Model output is untrusted and strictly decoded, then validated by the actual collector interpreter/task mapper against frozen samples."
+      }
+    },
+    "/ai/suggestions/{suggestion_id}/validate": {
+      "post": {
+        "operationId": "validateAIAssist",
+        "tags": [
+          "O5"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O5",
+        "parameters": [
+          {
+            "name": "suggestion_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AIControlRequest"
+              }
+            }
+          }
+        },
+        "description": "Explicit confirmation of displayed validation evidence_hash; deterministically recheck the frozen candidate and sample. Sample-only evidence never substitutes for live publication evidence."
+      }
+    },
+    "/ai/suggestions/{suggestion_id}/accept": {
+      "post": {
+        "operationId": "acceptAIAssist",
+        "tags": [
+          "O5"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O5",
+        "parameters": [
+          {
+            "name": "suggestion_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AIControlRequest"
+              }
+            }
+          }
+        },
+        "description": "Separate explicit acceptance after confirmed validation; binds the accepted candidate, never edits configuration."
+      }
+    },
+    "/ai/suggestions/{suggestion_id}/apply": {
+      "post": {
+        "operationId": "applyAIAssist",
+        "tags": [
+          "O5"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O5",
+        "parameters": [
+          {
+            "name": "suggestion_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AIControlRequest"
+              }
+            }
+          }
+        },
+        "description": "Requires accepted status, evidence_hash, expected_revision and unchanged original draft/hash/model/gateway/prompt version. Revalidate; update only existing element locators/extraction or declared scalar edge bindings in a transaction. Rebuild full task manifest before commit. Increment revision; require new tests/publication. Never changes schema, credentials, origins, actions, paging, published versions or active runs. Failure explanation is read-only and cannot apply."
+      }
+    },
+    "/ai/suggestions/{suggestion_id}/reject": {
+      "post": {
+        "operationId": "rejectAIAssist",
+        "tags": [
+          "O5"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O5",
+        "parameters": [
+          {
+            "name": "suggestion_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AIControlRequest"
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -8897,6 +9624,84 @@
           "delivery_id",
           "action",
           "expected_revision",
+          "confirmed"
+        ]
+      },
+      "AIPrepareRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "enum": [
+              "selectors",
+              "mapping",
+              "failure"
+            ]
+          },
+          "resource_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2147483647
+          },
+          "sample_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "port": {
+            "type": "string"
+          },
+          "edge_id": {
+            "type": "string"
+          },
+          "output_index": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 99
+          },
+          "item_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "resource_id",
+          "expected_revision"
+        ]
+      },
+      "AIControlRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "confirmed": {
+            "const": true
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2147483647
+          },
+          "evidence_hash": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "confirmed"
+        ]
+      },
+      "AICleanupRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "confirmed": {
+            "const": true
+          }
+        },
+        "required": [
           "confirmed"
         ]
       }

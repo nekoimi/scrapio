@@ -398,7 +398,8 @@
 							>导入样例</el-button
 						>
 					</details></el-card
-				></el-tab-pane
+				><AIAssist kind="selectors" :resource-id="collectorID" :revision="resource.revision" :sample-collector-id="collectorID" :ports="['records', ...(definition.additional_outputs || []).map(p => p.output.port)]" :disabled="dirty || busy || resource.archived" @applied="reload" />
+				</el-tab-pane
 			>
 			<el-tab-pane label="⑥ 发布与版本" name="publish"
 				><el-card
@@ -450,6 +451,7 @@
 import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue';
 import { useRoute, useRouter, onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router';
 import TransformEditor from './transform-editor.vue';
+import AIAssist from './ai-assist.vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import BrowserSelection from '../app/browser-selection.vue';
 const invalidPorts = ref(false);

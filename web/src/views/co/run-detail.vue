@@ -206,6 +206,7 @@
 		<el-drawer v-model="drawer" title="工作项输入与尝试" size="min(760px, 94vw)"
 			><template v-if="selected"
 				><p>{{ statusLabel(selected.item.status) }} · {{ selected.item.error?.message }}</p>
+				<AIAssist v-if="selected.item.error?.code" :key="selected.item.id" kind="failure" :resource-id="id" :item-id="selected.item.id" />
 				<pre>{{ JSON.stringify(selected.input, null, 2) }}</pre>
 				<h3>全部输入来源 · 相同输入共享此工作项及结果</h3>
 				<el-table :data="selected.sources"
@@ -257,6 +258,7 @@ import { call, describe } from './api';
 import { taskApi, taskMutation, recoverTaskMutation, type Run, type WorkItem } from './tasks-api';
 import { statusLabel } from './status';
 import ReplayStage from './replay-stage.vue';
+import AIAssist from './ai-assist.vue';
 import RunDeliveries from './run-deliveries.vue';
 const route = useRoute(),
 	router = useRouter(),

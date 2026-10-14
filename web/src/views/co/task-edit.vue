@@ -218,6 +218,7 @@
 							/>
 						</div>
 						<el-divider>连接样例预览</el-divider>
+						<AIAssist v-if="task && upstream?.collector_id" :key="incoming.id" kind="mapping" :resource-id="task.id" :revision="task.revision" :sample-collector-id="upstream.collector_id" :edge-id="incoming.id" :disabled="busy || dirty || ['join','batch'].includes(stageInputMode) || !!incoming.expand || !!Object.keys(incoming.transforms || {}).length" @applied="reloadTask" />
 						<details>
 							<summary>可选：映射值转换</summary>
 							<template v-for="f in version.definition.input_fields" :key="f.key">
@@ -386,6 +387,7 @@
 import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue';
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router';
 import TransformEditor from './transform-editor.vue';
+import AIAssist from './ai-assist.vue';
 import DeliveryBindings from './delivery-bindings.vue';
 import { ElMessageBox } from 'element-plus';
 import SourcePicker from './source-picker.vue';

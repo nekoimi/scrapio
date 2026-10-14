@@ -8,6 +8,7 @@ const sfc = require(path.join(web, "node_modules/@vue/compiler-sfc"));
 const ts = require(path.join(web, "node_modules/typescript"));
 const Ajv = require(path.join(web, "node_modules/ajv"));
 const files = [
+ "web/src/views/co/ai-assist.vue",
  "web/src/views/co/delivery-bindings.vue",
  "web/src/views/co/run-deliveries.vue",
  "web/src/views/co/transform-editor.vue",
@@ -190,3 +191,14 @@ assert.equal(deliverySchema({...delivery,mapping:{url:delivery.mapping.url,optio
 validate('DeliveryControlRequest',{delivery_id:'fixture',action:'query',expected_revision:2,confirmed:true});
 assert.equal(ajv.getSchema('#/components/schemas/DeliveryControlRequest')({delivery_id:'fixture',action:'retry',expected_revision:2,confirmed:false}),false);
 process.stdout.write('OK O5-06 delivery profile, mapping and confirmed control contract\n');
+
+validate('AIPrepareRequest',{kind:'selectors',resource_id:'collector',expected_revision:1,sample_id:'sample',port:'records'});
+validate('AIPrepareRequest',{kind:'mapping',resource_id:'task',expected_revision:1,sample_id:'sample',edge_id:'edge',output_index:0});
+validate('AIControlRequest',{confirmed:true,expected_revision:1,evidence_hash:'fixture'});
+assert.equal(ajv.getSchema('#/components/schemas/AIControlRequest')({confirmed:false}),false);
+assert.equal(ajv.getSchema('#/components/schemas/AIPrepareRequest')({kind:'run_code',resource_id:'fixture',expected_revision:1}),false);
+for(const action of ['call','validate','accept','apply','reject'])assert.equal(contract.paths['/ai/suggestions/{suggestion_id}/'+action].post['x-implementation-status'],'implemented');
+const aiUI=fs.readFileSync(path.join(web,'src/views/co/ai-assist.vue'),'utf8');
+assert.ok(!/\b(?:window\.)?(alert|prompt)\s*\(/.test(aiUI));
+assert.ok(aiUI.includes("emit('applied')")&&aiUI.includes("control('accept')"));
+process.stdout.write('OK O5-07 explicit AI preview, confirmation and candidate adoption contract\n');
