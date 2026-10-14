@@ -39,7 +39,7 @@ func (a API) mountTasks(v *mux.Router) {
 	v.HandleFunc("/runs/{run_id}/work-items/{item_id}", a.workItem).Methods("GET")
 	v.HandleFunc("/runs/{run_id}/work-items/{item_id}/resolve", a.resolveItem).Methods("POST")
 	v.HandleFunc("/runs/{run_id}/work-items/{item_id}/attempts/{attempt_id}/commands/{command_id}", a.itemReceipt).Methods("GET")
-	v.HandleFunc("/runs/{run_id}/{kind:work-items|outputs|observations|dispatches}", a.runPage).Methods("GET")
+	v.HandleFunc("/runs/{run_id}/{kind:work-items|outputs|observations|dispatches|gather-groups}", a.runPage).Methods("GET")
 }
 func (a API) mappingPreview(w http.ResponseWriter, r *http.Request) {
 	owner, ok := owner(w, r)
@@ -47,16 +47,17 @@ func (a API) mappingPreview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var p struct {
-		Up     string         `json:"upstream_version_id"`
-		Down   string         `json:"downstream_version_id"`
-		Edge   co.TaskEdge    `json:"edge"`
-		Input  map[string]any `json:"input"`
-		Output map[string]any `json:"output"`
+		InputMode string         `json:"input_mode,omitempty"`
+		Up        string         `json:"upstream_version_id"`
+		Down      string         `json:"downstream_version_id"`
+		Edge      co.TaskEdge    `json:"edge"`
+		Input     map[string]any `json:"input"`
+		Output    map[string]any `json:"output"`
 	}
 	if !decode(w, r, &p) {
 		return
 	}
-	v, e := co.TaskMappingPreview(r.Context(), owner, p.Up, p.Down, p.Edge, p.Input, p.Output)
+	v, e := co.TaskMappingPreview(r.Context(), owner, p.Up, p.Down, p.Edge, p.Input, p.Output, p.InputMode)
 	respond(w, r, v, e)
 }
 func (a API) collectorVersion(w http.ResponseWriter, r *http.Request) {

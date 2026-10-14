@@ -17,7 +17,8 @@ export interface DataTable {
 	schema: { fields: Field[]; unique_key: string[] };
 }
 export interface TaskStage {
-	input_mode?: 'single' | 'union';
+	input_mode?: 'single' | 'union' | 'join' | 'batch';
+	gather?: { key_fields?: string[]; missing: 'reject' | 'skip'; max_rows: number; max_bytes: number };
 	id: string;
 	name: string;
 	collector_version_id: string;
@@ -173,11 +174,11 @@ export const taskApi = {
 			{ collector_version_id: version, inputs },
 			key()
 		),
-	mappingPreview: (up: string, down: string, edge: TaskEdge, input: unknown, output: unknown) =>
+	mappingPreview: (up: string, down: string, edge: TaskEdge, input: unknown, output: unknown, input_mode = 'single') =>
 		call<{ items: any[]; mapping_hash: string }>(
 			'/tasks/mapping-preview',
 			'post',
-			{ upstream_version_id: up, downstream_version_id: down, edge, input, output },
+			{ upstream_version_id: up, downstream_version_id: down, edge, input, output, input_mode },
 			key()
 		),
 	savePreview: (version: string, save: SaveBinding, candidates: Candidate[], port = 'records') =>

@@ -150,7 +150,7 @@ for (const item of Object.values(contract.paths))
   for (const op of Object.values(item))
     assert.equal(
       op["x-implementation-status"],
-      ["O1","O2","O3","O4"].includes(op["x-delivery-phase"]) ? "implemented" : "planned",
+      ["O1","O2","O3","O4","O5"].includes(op["x-delivery-phase"]) ? "implemented" : "planned",
     );
 const router = fs.readFileSync(path.join(web, "src/router/route.ts"), "utf8");
 assert.ok(router.includes("path: 'co/collectors/:id'"));

@@ -68,7 +68,8 @@ func registerOutput(s *xorm.Session, r *Run, c *WorkClaim, out SavedOutput) erro
 		emit := edge.Emit == "valid" || edge.Emit == "created" && out.Decision == "created" || edge.Emit == "changed" && (out.Decision == "created" || out.Decision == "updated")
 		if emit {
 			var e error
-			rows, e = mapEdge(edge, c.Manifest.ForStage(edge.To).CollectorDefinition, input, output)
+			st := c.Manifest.Stage(edge.To)
+			rows, e = mapEdgeMode(edge, gatherRowDefinition(st, c.Manifest.ForStage(edge.To).CollectorDefinition), input, output, gatherStage(st))
 			if e != nil {
 				rows = []MappingPreview{{Decision: "invalid", Error: collector.AsError(e), ElementKey: "mapping-error"}}
 			}
@@ -174,44 +175,51 @@ func dispatchRun(ctx context.Context, id string) error {
 				problem = row.Error
 			}
 			if status == "ready" {
-				childID, err := mergedItem(s, id, stage.ID, m.Stage(p.ToStage), collector.JSON(row.Values))
-				if err != nil {
-					return err
-				}
-				merged := childID != ""
-				if !merged && int(total)+r.InputCount-r.PreparingCursor >= m.Definition.Budget.MaxWorkItems {
-					status = "limited"
-					problem = map[string]string{"code": "WORK_ITEM_BUDGET"}
-				}
-				if status == "ready" && !merged && capacity <= 0 {
-					break
-				}
-				if status == "ready" {
-					sourceKey := p.EdgeID + ":" + p.OutputID + ":" + row.ElementKey
-					inputID := uuid.NewString()
-					source := map[string]any{"kind": "output", "output_id": p.OutputID, "edge_id": p.EdgeID, "mapping_hash": p.MappingHash, "element_key": row.ElementKey}
-					// Root ordinals stay [0,input_count); child ordinals are assigned under the run lock.
-					if _, e = s.Exec(`INSERT INTO co_run_inputs(id,run_id,ordinal,source_key,values_json,source,materialized_at) SELECT ?,?,COALESCE(MAX(ordinal),-1)+1,?,CAST(? AS jsonb),CAST(? AS jsonb),NOW() FROM co_run_inputs WHERE run_id=?`, inputID, id, sourceKey, collector.JSON(row.Values), collector.JSON(source), id); e != nil {
+				if gatherStage(m.Stage(p.ToStage)) {
+					status, problem, e = bufferGather(s, r, m, stage, row)
+					if e != nil {
 						return e
 					}
-					if !merged {
-						childID, e = createInputItem(s, id, stage.ID, m.Stage(p.ToStage), m.ForStage(p.ToStage).CollectorDefinition, RunInput{ID: inputID, SourceKey: sourceKey, Values: collector.JSON(row.Values)})
-						if e != nil {
+				} else {
+					childID, err := mergedItem(s, id, stage.ID, m.Stage(p.ToStage), collector.JSON(row.Values))
+					if err != nil {
+						return err
+					}
+					merged := childID != ""
+					if !merged && int(total)+r.InputCount-r.PreparingCursor >= m.Definition.Budget.MaxWorkItems {
+						status = "limited"
+						problem = map[string]string{"code": "WORK_ITEM_BUDGET"}
+					}
+					if status == "ready" && !merged && capacity <= 0 {
+						break
+					}
+					if status == "ready" {
+						sourceKey := p.EdgeID + ":" + p.OutputID + ":" + row.ElementKey
+						inputID := uuid.NewString()
+						source := map[string]any{"kind": "output", "output_id": p.OutputID, "edge_id": p.EdgeID, "mapping_hash": p.MappingHash, "element_key": row.ElementKey}
+						// Root ordinals stay [0,input_count); child ordinals are assigned under the run lock.
+						if _, e = s.Exec(`INSERT INTO co_run_inputs(id,run_id,ordinal,source_key,values_json,source,materialized_at) SELECT ?,?,COALESCE(MAX(ordinal),-1)+1,?,CAST(? AS jsonb),CAST(? AS jsonb),NOW() FROM co_run_inputs WHERE run_id=?`, inputID, id, sourceKey, collector.JSON(row.Values), collector.JSON(source), id); e != nil {
 							return e
 						}
-						capacity--
-						total++
-					}
-					if e = attachInputSource(s, id, childID, inputID, merged); e != nil {
-						return e
-					}
-					if _, e = s.Exec(`INSERT INTO co_lineage(target_item_id,run_id,source_item_id,source_output_id,namespace,edge_id,mapping_hash,element_key) SELECT ?,?,item_id,id,namespace,?,?,? FROM co_run_outputs WHERE run_id=? AND namespace=? AND id=?`, childID, id, p.EdgeID, p.MappingHash, row.ElementKey, id, r.Namespace, p.OutputID); e != nil {
-						return e
-					}
-					child = childID
-					status = "delivered"
-					if merged {
-						status = "merged"
+						if !merged {
+							childID, e = createInputItem(s, id, stage.ID, m.Stage(p.ToStage), m.ForStage(p.ToStage).CollectorDefinition, RunInput{ID: inputID, SourceKey: sourceKey, Values: collector.JSON(row.Values)})
+							if e != nil {
+								return e
+							}
+							capacity--
+							total++
+						}
+						if e = attachInputSource(s, id, childID, inputID, merged); e != nil {
+							return e
+						}
+						if _, e = s.Exec(`INSERT INTO co_lineage(target_item_id,run_id,source_item_id,source_output_id,namespace,edge_id,mapping_hash,element_key) SELECT ?,?,item_id,id,namespace,?,?,? FROM co_run_outputs WHERE run_id=? AND namespace=? AND id=?`, childID, id, p.EdgeID, p.MappingHash, row.ElementKey, id, r.Namespace, p.OutputID); e != nil {
+							return e
+						}
+						child = childID
+						status = "delivered"
+						if merged {
+							status = "merged"
+						}
 					}
 				}
 			}
@@ -291,6 +299,25 @@ func graphSettle(s *xorm.Session, r *Run) error {
 		if !closed && st.StageID != m.Definition.EntryStage {
 			closed, reason = upstreamClosure(m.Definition, st.StageID, states)
 		}
+		gatherPending, gatherBad, gatherLimited := 0, 0, 0
+		if gatherStage(m.Stage(st.StageID)) {
+			var e error
+			gatherPending, gatherBad, gatherLimited, e = settleGather(s, r, m, st, closed, reason)
+			if e != nil {
+				return e
+			}
+			// New work may have been materialized at this barrier.
+			rows, e = s.QueryString("SELECT status,COUNT(*) AS n FROM co_work_items WHERE stage_run_id=? GROUP BY status", st.ID)
+			if e != nil {
+				return e
+			}
+			counts = map[string]int{}
+			for _, row := range rows {
+				var n int
+				fmt.Sscan(row["n"], &n)
+				counts[row["status"]] = n
+			}
+		}
 		n, e := s.Table("co_dispatch_plans").Where("run_id=? AND from_stage=? AND status='pending'", r.ID, st.StageID).Count()
 		if e != nil {
 			return e
@@ -316,12 +343,12 @@ func graphSettle(s *xorm.Session, r *Run) error {
 		if counts["awaiting_confirmation"] > 0 {
 			status = "awaiting_confirmation"
 		}
-		if closed && counts["queued"]+counts["running"]+counts["backpressured"]+counts["awaiting_confirmation"] == 0 && n == 0 && st.BlockedReason == "" {
+		if closed && gatherPending == 0 && counts["queued"]+counts["running"]+counts["backpressured"]+counts["awaiting_confirmation"] == 0 && n == 0 && st.BlockedReason == "" {
 			status = "succeeded"
-			if counts["limited"] > 0 || limited > 0 || reason == "upstream_limited" {
+			if counts["limited"] > 0 || limited > 0 || gatherLimited > 0 || reason == "upstream_limited" {
 				status = "limited"
 			}
-			if counts["partial"] > 0 || counts["skipped"] > 0 || bad-limited > 0 || reason == "upstream_partial" || reason == "upstream_failed" {
+			if counts["partial"] > 0 || counts["skipped"] > 0 || bad-limited > 0 || gatherBad > 0 || reason == "upstream_partial" || reason == "upstream_failed" {
 				status = "partial"
 			}
 			if counts["failed"] > 0 {

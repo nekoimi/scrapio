@@ -26,15 +26,24 @@ type ManualSource struct {
 	AcceptPartial bool             `json:"accept_partial,omitempty"`
 }
 type TaskStage struct {
-	InputMode          string      `json:"input_mode,omitempty"`
-	ID                 string      `json:"id"`
-	Name               string      `json:"name"`
-	CollectorVersionID string      `json:"collector_version_id"`
-	Save               SaveBinding `json:"save"`
-	AdditionalSaves    []PortSave  `json:"additional_saves,omitempty"`
-	OnError            string      `json:"on_error"`
-	RefreshSeconds     int         `json:"refresh_seconds,omitempty"`
-	InputPolicy        string      `json:"input_policy,omitempty"`
+	Gather             *GatherConfig `json:"gather,omitempty"`
+	InputMode          string        `json:"input_mode,omitempty"`
+	ID                 string        `json:"id"`
+	Name               string        `json:"name"`
+	CollectorVersionID string        `json:"collector_version_id"`
+	Save               SaveBinding   `json:"save"`
+	AdditionalSaves    []PortSave    `json:"additional_saves,omitempty"`
+	OnError            string        `json:"on_error"`
+	RefreshSeconds     int           `json:"refresh_seconds,omitempty"`
+	InputPolicy        string        `json:"input_policy,omitempty"`
+}
+
+// Gather is a finite, run-scoped barrier, never a cross-run subscription.
+type GatherConfig struct {
+	KeyFields []string `json:"key_fields,omitempty"`
+	Missing   string   `json:"missing"`
+	MaxRows   int      `json:"max_rows"`
+	MaxBytes  int      `json:"max_bytes"`
 }
 type SaveBinding struct {
 	Mode          string                       `json:"mode,omitempty"`

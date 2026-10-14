@@ -33,7 +33,7 @@ var edgeToken = regexp.MustCompile(`\{\{(output\.[a-z][a-z0-9_]*|input\.[a-z][a-
 
 func (d TaskDefinition) validateGraph() error {
 	if d.DefinitionVersion != "task.v1" || len(d.Stages) < 1 || len(d.Stages) > 20 || len(d.Edges) > 60 {
-		return collector.Invalid("stages", "需要1..20阶段、最多60条连接的单入口无环DAG；多来源阶段需显式选择union")
+		return collector.Invalid("stages", "需要1..20阶段、最多60条连接的单入口无环DAG；多来源阶段需显式选择union/join/batch")
 	}
 	nodes := map[string]bool{}
 	tables := map[string]string{}
@@ -107,20 +107,23 @@ func (d TaskDefinition) validateGraph() error {
 		}
 	}
 	for _, st := range d.Stages {
-		if st.InputMode != "" && st.InputMode != "single" && st.InputMode != "union" {
-			return collector.Invalid("stages."+st.ID+".input_mode", "输入模式只支持single/union；Join和批次聚合尚未支持")
+		if st.InputMode != "" && st.InputMode != "single" && st.InputMode != "union" && !gatherStage(st) {
+			return collector.Invalid("stages."+st.ID+".input_mode", "输入模式需single/union/join/batch")
+		}
+		if e := validateGatherConfig(st, parents[st.ID]); e != nil {
+			return e
 		}
 		if st.ID == d.EntryStage {
-			if st.InputMode == "union" {
-				return collector.Invalid("stages."+st.ID+".input_mode", "入口阶段使用根输入，不使用union")
+			if st.InputMode != "" && st.InputMode != "single" {
+				return collector.Invalid("stages."+st.ID+".input_mode", "入口阶段使用根输入，不使用汇聚模式")
 			}
 			continue
 		}
 		if parents[st.ID] == 0 || parents[st.ID] > 5 {
 			return collector.Invalid("stages."+st.ID, "非入口阶段需1..5条上游连接")
 		}
-		if parents[st.ID] > 1 && st.InputMode != "union" {
-			return collector.Invalid("stages."+st.ID+".input_mode", "多个上游需显式选择union，每条来源独立映射，不拼接字段")
+		if parents[st.ID] > 1 && st.InputMode != "union" && !gatherStage(st) {
+			return collector.Invalid("stages."+st.ID+".input_mode", "多个上游需显式选择联合输入、按键配对或批次收齐")
 		}
 	}
 	_, err := d.TopologicalStages()
@@ -252,6 +255,9 @@ func edgeValue(path string, input, output map[string]any, element any) (any, boo
 	return nil, false
 }
 func mapEdge(e TaskEdge, down collector.Definition, input, output map[string]any) ([]MappingPreview, error) {
+	return mapEdgeMode(e, down, input, output, false)
+}
+func mapEdgeMode(e TaskEdge, down collector.Definition, input, output map[string]any, partial bool) ([]MappingPreview, error) {
 	elements := []any{nil}
 	if e.Expand != nil {
 		v, ok := edgeValue(e.Expand.Path, input, output, nil)
@@ -325,10 +331,12 @@ func mapEdge(e TaskEdge, down collector.Definition, input, output map[string]any
 			}
 			values[key] = v
 		}
-		if problem == nil {
+		if problem == nil && partial {
+			values, problem = validatePartialInput(down, values)
+		} else if problem == nil {
 			values, problem = collector.ValidateInput(down, values)
 		}
-		if problem == nil {
+		if problem == nil && !partial {
 			_, problem = collector.Prepare(down, values)
 		}
 		if problem != nil {
@@ -341,7 +349,7 @@ func mapEdge(e TaskEdge, down collector.Definition, input, output map[string]any
 	}
 	return rows, nil
 }
-func TaskMappingPreview(ctx context.Context, owner int64, upID, downID string, edge TaskEdge, input, output map[string]any) (any, error) {
+func TaskMappingPreview(ctx context.Context, owner int64, upID, downID string, edge TaskEdge, input, output map[string]any, modes ...string) (any, error) {
 	if len(collector.JSON(input))+len(collector.JSON(output)) > 131072 {
 		return nil, collector.Invalid("sample", "样例最多128KiB")
 	}
@@ -355,11 +363,19 @@ func TaskMappingPreview(ctx context.Context, owner int64, upID, downID string, e
 	if err != nil {
 		return nil, err
 	}
+	stage := TaskStage{}
+	if len(modes) > 0 {
+		stage.InputMode = modes[0]
+	}
+	if stage.InputMode != "" && stage.InputMode != "single" && stage.InputMode != "union" && !gatherStage(stage) {
+		return nil, collector.Invalid("input_mode", "无效的输入模式")
+	}
+	down = gatherRowDefinition(stage, down)
 	if err = validateEdge(edge, up, down); err != nil {
 		return nil, err
 	}
-	rows, err := mapEdge(edge, down, input, output)
-	return map[string]any{"items": rows, "mapping_hash": collector.Hash(edge), "formal_writes": 0}, err
+	rows, err := mapEdgeMode(edge, down, input, output, gatherStage(stage))
+	return map[string]any{"items": rows, "mapping_hash": collector.Hash(edge), "formal_writes": 0, "fragment_only": gatherStage(stage)}, err
 }
 
 func bindingTemplate(b collector.Binding) string {

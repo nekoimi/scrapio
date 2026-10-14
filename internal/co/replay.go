@@ -41,6 +41,7 @@ func pruneManifest(m TaskManifest, entry string) (TaskManifest, []string, error)
 			st.RefreshSeconds = 0
 			if st.ID == entry {
 				st.InputMode = "single"
+				st.Gather = nil
 			}
 			stages = append(stages, st)
 		} else {
@@ -52,6 +53,12 @@ func pruneManifest(m TaskManifest, entry string) (TaskManifest, []string, error)
 	for _, e := range m.Definition.Edges {
 		if keep[e.From] && keep[e.To] {
 			edges = append(edges, e)
+		}
+	}
+	// A shared Join/batch cannot silently lose required upstream branches.
+	for _, ed := range m.Definition.Edges {
+		if keep[ed.To] && ed.To != entry && !keep[ed.From] && gatherStage(m.Stage(ed.To)) {
+			return m, nil, collector.Invalid("stage_id", "局部路径会缺少汇聚来源，请从包含全部来源的阶段重跑，或直接补采汇聚后的历史输入")
 		}
 	}
 	m.Definition.Stages = stages
@@ -205,6 +212,9 @@ func ReplayStage(ctx context.Context, owner int64, runID, key string, p ReplayRe
 			var full TaskManifest
 			if e = collector.Strict([]byte(v.Manifest), &full); e != nil {
 				return nil, e
+			}
+			if gatherStage(full.Stage(p.StageID)) {
+				return nil, collector.Invalid("output_ids", "Join/批次不能用单条上游连接补采，请选择完整历史输入或表快照")
 			}
 			edge, err := replayEdge(full.Definition, p.StageID, p.EdgeID)
 			if err != nil {

@@ -71,7 +71,7 @@ func TestCOO2Postgres(t *testing.T) {
 	exec("SET search_path TO " + schema)
 	exec("CREATE TABLE admin(id BIGINT PRIMARY KEY)")
 	exec("INSERT INTO admin(id) VALUES(1),(2)")
-	for _, name := range []string{"migrate_co_o1.go", "migrate_co_o2.go", "migrate_co_o3.go", "migrate_co_o4.go", "migrate_co_o5.go", "migrate_co_o5_outputs.go"} {
+	for _, name := range []string{"migrate_co_o1.go", "migrate_co_o2.go", "migrate_co_o3.go", "migrate_co_o4.go", "migrate_co_o5.go", "migrate_co_o5_outputs.go", "migrate_co_o5_gather.go"} {
 		tree, e := parser.ParseFile(token.NewFileSet(), filepath.Join(root, "internal/db/migrate", name), nil, 0)
 		if e != nil {
 			t.Fatal(e)
@@ -387,7 +387,9 @@ func TestCOO2Postgres(t *testing.T) {
 	if _, e = RunEvents(ctx, 2, runID, 0); e != ErrNotFound {
 		t.Fatal("event owner isolation", e)
 	}
-	if os.Getenv("SCRAPIO_CO_O5_UNION_DB_TEST") == "1" {
+	if os.Getenv("SCRAPIO_CO_O5_GATHER_DB_TEST") == "1" {
+		checkO5GatherPostgres(t, ctx, engine, taskVersion)
+	} else if os.Getenv("SCRAPIO_CO_O5_UNION_DB_TEST") == "1" {
 		checkO5UnionPostgres(t, ctx, engine, taskVersion)
 	} else if os.Getenv("SCRAPIO_CO_O5_OUTPUT_DB_TEST") == "1" {
 		checkO5OutputPostgres(t, ctx, engine, taskVersion)

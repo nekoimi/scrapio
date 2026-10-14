@@ -3293,7 +3293,7 @@
             "description": "Required capability unavailable"
           }
         },
-        "description": "Run and per-stage status, input/work counts, immutable outputs, save decisions, filtered/delivered/remaining dispatches and pause reason. Selected O5-01 adds per-stage input policy, source_count, actual input_count, merged_inputs and outgoing merged_dispatches. Merged is dispatch receipt status, never a synthetic work item or independent success. Each stage includes upstreams with edge, port and parent status; union input closes only after ALL parents terminate and drain their dispatch plans. Empty/failed/limited parents remain visible."
+        "description": "Run and per-stage status, input/work counts, immutable outputs, save decisions, filtered/delivered/remaining dispatches and pause reason. Selected O5-01 adds per-stage input policy, source_count, actual input_count, merged_inputs and outgoing merged_dispatches. Merged is dispatch receipt status, never a synthetic work item or independent success. Each stage includes upstreams with edge, port and parent status; union input closes only after ALL parents terminate and drain their dispatch plans. Empty/failed/limited parents remain visible. Gather stages expose gather_sealed, buffered_rows and gather_counts. Sealed groups are durable before work is released; pending groups prevent stage completion."
       }
     },
     "/runs/{run_id}/work-items": {
@@ -4107,7 +4107,8 @@
               }
             }
           }
-        }
+        },
+        "description": "For join/batch this previews a typed fragment only, not a complete prepared input. Batch maps scalar elements into downstream array fields; final complete input is validated at barrier closure."
       }
     },
     "/runs/{run_id}/dispatches": {
@@ -4754,7 +4755,7 @@
             }
           }
         },
-        "description": "New finite run from explicit stage and descendants. Original item inputs, historical output+mapping or confirmed table snapshot. Task version same task; retry_of and unexecuted stage scope retained; missing evidence blocks. No full regression claim. For historical outputs with multiple incoming edges, edge_id is required; a single edge defaults automatically. Only that edge maps the selected outputs. Excluded incoming edges are recorded in retry_scope. Shared descendants run with the retained sources only, not a whole-graph regression."
+        "description": "New finite run from explicit stage and descendants. Original item inputs, historical output+mapping or confirmed table snapshot. Task version same task; retry_of and unexecuted stage scope retained; missing evidence blocks. No full regression claim. For historical outputs with multiple incoming edges, edge_id is required; a single edge defaults automatically. Only that edge maps the selected outputs. Excluded incoming edges are recorded in retry_scope. Shared descendants run with the retained sources only, not a whole-graph regression. Join/batch cannot replay a single upstream output; use complete historical inputs or a table snapshot. A pruned descendant barrier missing any required incoming branch is rejected."
       }
     },
     "/tables/{table_id}/export": {
@@ -4913,6 +4914,82 @@
             }
           }
         }
+      }
+    },
+    "/runs/{run_id}/gather-groups": {
+      "get": {
+        "operationId": "listCoGatherGroups",
+        "tags": [
+          "O5"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O5",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "description": "Owner-scoped, cursor-paginated persisted join/batch groups with frozen values, source receipt IDs, error, status and child item. Missing/duplicate keys and incomplete upstreams never silently execute."
       }
     }
   },
@@ -5486,9 +5563,14 @@
           "input_mode": {
             "enum": [
               "single",
-              "union"
+              "union",
+              "join",
+              "batch"
             ],
-            "description": "Absent means single. More than one incoming edge requires explicit union. Each edge independently maps a complete input; no field joining or batch aggregation. Closure waits for every parent and its outbox. Up to 5 incoming edges."
+            "description": "Single, streaming union, finite keyed join or finite batch barrier. Join/batch wait for every upstream success and drained outbox, within the immutable run; no time-window subscription."
+          },
+          "gather": {
+            "$ref": "#/components/schemas/GatherConfig"
           }
         },
         "required": [
@@ -5497,6 +5579,87 @@
           "collector_version_id",
           "save",
           "on_error"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "input_mode": {
+                  "enum": [
+                    "join",
+                    "batch"
+                  ]
+                }
+              },
+              "required": [
+                "input_mode"
+              ]
+            },
+            "then": {
+              "required": [
+                "gather"
+              ]
+            },
+            "else": {
+              "not": {
+                "required": [
+                  "gather"
+                ]
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "input_mode": {
+                  "const": "join"
+                }
+              },
+              "required": [
+                "input_mode"
+              ]
+            },
+            "then": {
+              "properties": {
+                "gather": {
+                  "required": [
+                    "key_fields"
+                  ],
+                  "properties": {
+                    "key_fields": {
+                      "minItems": 1
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "input_mode": {
+                  "const": "batch"
+                }
+              },
+              "required": [
+                "input_mode"
+              ]
+            },
+            "then": {
+              "properties": {
+                "gather": {
+                  "properties": {
+                    "key_fields": {
+                      "maxItems": 0
+                    },
+                    "missing": {
+                      "const": "reject"
+                    }
+                  }
+                }
+              }
+            }
+          }
         ]
       },
       "Filter": {
@@ -7496,6 +7659,14 @@
           },
           "output": {
             "$ref": "#/components/schemas/BoundedObject"
+          },
+          "input_mode": {
+            "enum": [
+              "single",
+              "union",
+              "join",
+              "batch"
+            ]
           }
         },
         "required": [
@@ -7918,6 +8089,43 @@
         "required": [
           "records",
           "output"
+        ]
+      },
+      "GatherConfig": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "key_fields": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_]{0,63}$"
+            },
+            "minItems": 0,
+            "maxItems": 5,
+            "uniqueItems": true
+          },
+          "missing": {
+            "enum": [
+              "reject",
+              "skip"
+            ]
+          },
+          "max_rows": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000
+          },
+          "max_bytes": {
+            "type": "integer",
+            "minimum": 1024,
+            "maximum": 4194304
+          }
+        },
+        "required": [
+          "missing",
+          "max_rows",
+          "max_bytes"
         ]
       }
     }

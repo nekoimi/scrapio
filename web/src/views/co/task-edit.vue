@@ -112,9 +112,10 @@
 				<el-card v-if="selectedID !== entryID">
 					<template #header>阶段输入 · {{ incomingEdges.length }}/5 条连接</template>
 					<el-radio-group :model-value="stageInputMode" @change="setInputMode"
-						><el-radio-button label="single">单一来源</el-radio-button><el-radio-button label="union">联合输入</el-radio-button></el-radio-group
+						><el-radio-button label="single">单一来源</el-radio-button><el-radio-button label="union">联合输入</el-radio-button
+						><el-radio-button label="join">按键配对</el-radio-button><el-radio-button label="batch">批次收齐</el-radio-button></el-radio-group
 					>
-					<p class="co-muted">
+					<p v-if="stageInputMode === 'single' || stageInputMode === 'union'" class="co-muted">
 						联合输入：各来源独立生成完整输入，到达即可执行；等全部上游结束且完成分发后关闭。不等待配对、不拼接字段。相同完整输入可在运行策略中选择合并。
 					</p>
 					<div class="co-tag-row">
@@ -122,7 +123,27 @@
 							>{{ e.from }} / {{ e.port }} · {{ e.id }}</el-button
 						>
 					</div>
-					<div class="co-toolbar" v-if="stageInputMode === 'union'">
+					<el-form v-if="stageInputMode === 'join' || stageInputMode === 'batch'" label-position="top">
+						<p>等全部上游成功并完成派发后才执行；失败或缓存超限时不执行不完整批次。每条连接可映射部分字段，完整输入在收齐后校验。</p>
+						<el-form-item v-if="stageInputMode === 'join'" label="配对输入字段（每条来源必须提供，重复键报错）"
+							><el-select v-model="gather.key_fields" multiple
+								><el-option
+									v-for="f in version?.definition.input_fields.filter((f) => !f.multiple && !f.nullable && f.type !== 'json') || []"
+									:key="f.key"
+									:value="f.key"
+									:label="f.key" /></el-select
+						></el-form-item>
+						<el-form-item v-if="stageInputMode === 'join'" label="缺少来源"
+							><el-select v-model="gather.missing"
+								><el-option label="记录错误，不执行此键" value="reject" /><el-option label="跳过此键并标记不完整" value="skip" /></el-select
+						></el-form-item>
+						<p v-else>
+							各来源分别提供不同数组字段，映射单个元素；固定参数在采集器输入默认值中设置。零结果来源收为空数组；每个数组最多100项，完整输入最多64KiB。
+						</p>
+						<el-form-item label="缓存行上限"><el-input-number v-model="gather.max_rows" :min="1" :max="1000" /></el-form-item
+						><el-form-item label="缓存字节上限"><el-input-number v-model="gather.max_bytes" :min="1024" :max="4194304" /></el-form-item>
+					</el-form>
+					<div class="co-toolbar" v-if="stageInputMode !== 'single'">
 						<el-select v-model="newParent" placeholder="选择另一个上游阶段"
 							><el-option v-for="st in parentOptions" :key="st.id" :value="st.id" :label="st.name" /></el-select
 						><el-button :disabled="!newParent || incomingEdges.length >= 5 || edges.length >= 60" @click="addIncoming">添加来源连接</el-button>
@@ -201,6 +222,9 @@
 						<el-form-item label="上游输入（JSON）"><el-input v-model="sampleInput" type="textarea" :rows="3" /></el-form-item>
 						<el-form-item label="上游一条输出（JSON）"><el-input v-model="sampleOutput" type="textarea" :rows="4" /></el-form-item>
 						<el-button :disabled="busy || !upstream" @click="previewMapping">预览下游输入</el-button>
+						<p v-if="stageInputMode === 'join' || stageInputMode === 'batch'">
+							以下仅预览当前来源片段；完整配对/批次与错误请在试采的“配对与批次诊断”中确认。
+						</p>
 						<el-table v-if="mappingPreview.length" :data="mappingPreview"
 							><el-table-column prop="decision" label="映射决策" /><el-table-column label="下游值 / 错误"
 								><template #default="{ row }">{{ row.error?.message || JSON.stringify(row.values) }}</template></el-table-column
@@ -379,7 +403,8 @@ const sourceKind = ref<'manual' | 'table' | 'file'>(route.query.source_table ? '
 	frozenSource = ref<TaskSource>({ kind: 'table', inputs: [] }),
 	refreshSeconds = ref(0),
 	inputPolicy = ref<'keep_all' | 'merge_identical'>('keep_all');
-const stageInputMode = ref<'single' | 'union'>('single'),
+const gather = ref<NonNullable<TaskStage['gather']>>({ key_fields: [], missing: 'reject', max_rows: 100, max_bytes: 262144 });
+const stageInputMode = ref<NonNullable<TaskStage['input_mode']>>('single'),
 	edgeID = ref(''),
 	newParent = ref('');
 const save = ref<SaveBinding>({
@@ -437,7 +462,12 @@ function setInputMode(mode: unknown) {
 		problem.value = '请先移除多余连接，再切换为单一来源';
 		return;
 	}
-	stageInputMode.value = mode as 'single' | 'union';
+	stageInputMode.value = mode as NonNullable<TaskStage['input_mode']>;
+	if (mode === 'batch') {
+		gather.value.key_fields = [];
+		gather.value.missing = 'reject';
+	}
+	mappingPreview.value = [];
 }
 function addIncoming() {
 	if (!newParent.value || incomingEdges.value.length >= 5 || edges.value.length >= 60) return;
@@ -528,6 +558,7 @@ function selectedStage(): TaskStage {
 		refresh_seconds: refreshSeconds.value,
 		input_policy: inputPolicy.value,
 		input_mode: stageInputMode.value,
+		...(stageInputMode.value === 'join' || stageInputMode.value === 'batch' ? { gather: JSON.parse(JSON.stringify(gather.value)) } : {}),
 	};
 }
 function persistSelected() {
@@ -577,6 +608,7 @@ async function selectStage(id: string) {
 	refreshSeconds.value = st.refresh_seconds || 0;
 	inputPolicy.value = st.input_policy || 'keep_all';
 	stageInputMode.value = st.input_mode || 'single';
+	gather.value = JSON.parse(JSON.stringify(st.gather || { key_fields: [], missing: 'reject', max_rows: 100, max_bytes: 262144 }));
 	mappingKeys.value = Object.fromEntries(
 		Object.entries(st.save.mapping || {})
 			.filter(([, b]) => b.kind === 'field')
@@ -713,7 +745,14 @@ async function previewMapping() {
 		if (!incoming.value || !upstream.value) return;
 		if (Object.keys(invalidMappingValues.value).length) throw new Error('请修复无效的映射常量');
 		mappingPreview.value = (
-			await taskApi.mappingPreview(upstream.value.id, versionID.value, incoming.value, JSON.parse(sampleInput.value), JSON.parse(sampleOutput.value))
+			await taskApi.mappingPreview(
+				upstream.value.id,
+				versionID.value,
+				incoming.value,
+				JSON.parse(sampleInput.value),
+				JSON.parse(sampleOutput.value),
+				stageInputMode.value
+			)
 		).items;
 	});
 }
@@ -992,6 +1031,7 @@ onMounted(() =>
 			refreshSeconds.value = all.refresh_seconds || 0;
 			inputPolicy.value = all.input_policy || 'keep_all';
 			stageInputMode.value = all.input_mode || 'single';
+			gather.value = JSON.parse(JSON.stringify(all.gather || { key_fields: [], missing: 'reject', max_rows: 100, max_bytes: 262144 }));
 			edgeID.value = '';
 			sourceKind.value = d.source.kind;
 			frozenSource.value = d.source;

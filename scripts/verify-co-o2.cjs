@@ -14,7 +14,7 @@ for (const m of api.matchAll(
   /v\.HandleFunc\("([^"]+)"[^\n]*\.Methods\(([^\n]+)\)/g,
 )) {
   const urls = m[1].includes("{kind:")
-    ? ["work-items", "outputs", "observations", "dispatches"].map((kind) =>
+    ? ["work-items", "outputs", "observations", "dispatches", "gather-groups"].map((kind) =>
         m[1].replace(/\{kind:[^}]+\}/, kind),
       )
     : [m[1]];
@@ -33,7 +33,7 @@ const contract = JSON.parse(
 let routes = 0;
 for (const [url, methods] of Object.entries(contract.paths))
   for (const [method, op] of Object.entries(methods))
-    if (["O2", "O3", "O4"].includes(op["x-delivery-phase"])) {
+    if (["O2", "O3", "O4", "O5"].includes(op["x-delivery-phase"])) {
       assert.ok(
         mounted.has(method + " " + url),
         "unmounted contract: " + method + " " + url,
@@ -188,6 +188,8 @@ unionTask.stages[2].input_mode='union';
 unionTask.edges.push({...unionTask.edges[0],id:'also_comments',to:unionTask.stages[2].id});
 assert.equal(graph(unionTask),true,JSON.stringify(graph.errors));
 unionTask.stages[2].input_mode='join';assert.equal(graph(unionTask),false);
+unionTask.stages[2].gather={key_fields:['movie_id'],missing:'reject',max_rows:100,max_bytes:262144};assert.equal(graph(unionTask),true,JSON.stringify(graph.errors));
+unionTask.stages[2].gather.max_rows=1001;assert.equal(graph(unionTask),false);
 const replay=ajv.getSchema('#/components/schemas/ReplayStageRequest');
 assert.equal(replay({stage_id:'movie',edge_id:'ranking_movie',output_ids:['out'],confirmed:true}),true);
 assert.equal(replay({stage_id:'movie',edge_id:'ranking_movie',item_ids:['item'],confirmed:true}),false);

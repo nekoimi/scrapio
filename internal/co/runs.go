@@ -52,6 +52,7 @@ type WorkItem struct {
 func (WorkItem) TableName() string { return "co_work_items" }
 
 type StageRun struct {
+	GatherSealed       bool
 	ID                 string `xorm:"id pk"`
 	RunID              string `xorm:"run_id"`
 	StageID            string `xorm:"stage_id"`
@@ -475,6 +476,9 @@ func ControlRun(ctx context.Context, owner int64, id, key, action string, expect
 			if _, e = s.Exec("UPDATE co_dispatch_plans SET status='cancelled' WHERE run_id=? AND status='pending'", id); e != nil {
 				return nil, e
 			}
+			if _, e = s.Exec("UPDATE co_gather_groups SET status='cancelled' WHERE run_id=? AND status='pending'", id); e != nil {
+				return nil, e
+			}
 			if _, e = s.Exec("UPDATE co_work_items SET status='cancelled',lease_token=NULL,lease_until=NULL WHERE run_id=? AND status IN ('queued','running','backpressured','awaiting_confirmation')", id); e != nil {
 				return nil, e
 			}
@@ -546,6 +550,9 @@ func prepareRun(ctx context.Context, id string) error {
 			return e
 		}
 		if _, e = s.Exec("UPDATE co_dispatch_plans SET status='limited' WHERE run_id=? AND status='pending'", id); e != nil {
+			return e
+		}
+		if _, e = s.Exec("UPDATE co_gather_groups SET status='limited',error=CAST(? AS jsonb) WHERE run_id=? AND status='pending'", `{"code":"DURATION_BUDGET"}`, id); e != nil {
 			return e
 		}
 		if _, e = s.Exec("UPDATE co_stage_runs SET status='limited',input_closed=TRUE,close_reason='duration_budget' WHERE run_id=?", id); e != nil {

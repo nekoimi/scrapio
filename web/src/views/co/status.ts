@@ -10,6 +10,8 @@ export function statusLabel(status: string) {
 				dispatching: '正在分发',
 				backpressured: '等待下游消化积压',
 				filtered: '已过滤',
+				buffered: '已缓存，等待来源收齐',
+				pending: '等待派发',
 				delivered: '已派发',
 				merged: '合并到已有工作项',
 				ready: '有效输入',

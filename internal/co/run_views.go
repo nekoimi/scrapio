@@ -38,6 +38,8 @@ func RunDetail(ctx context.Context, owner int64, id string, summary ...bool) (an
 	stages, e := views(s, `SELECT st.*,
  (SELECT COALESCE(jsonb_agg(jsonb_build_object('edge_id',ed ->> 'id','stage_id',up.stage_id,'port',ed ->> 'port','status',up.status,'input_closed',up.input_closed) ORDER BY ed ->> 'id'),'[]') FROM co_runs cr CROSS JOIN LATERAL jsonb_array_elements(cr.manifest -> 'definition' -> 'edges') ed JOIN co_stage_runs up ON up.run_id=cr.id AND up.stage_id=ed ->> 'from' WHERE cr.id=st.run_id AND ed ->> 'to'=st.stage_id) AS upstreams,
  (SELECT COUNT(*) FROM co_work_items w WHERE w.stage_run_id=st.id) AS input_count,
+ (SELECT COUNT(*) FROM co_dispatches d JOIN co_dispatch_plans p ON p.id=d.plan_id WHERE d.run_id=st.run_id AND p.to_stage=st.stage_id AND d.status='buffered') AS buffered_rows,
+ (SELECT COALESCE(jsonb_object_agg(status,n),'{}') FROM (SELECT g.status,COUNT(*) AS n FROM co_gather_groups g WHERE g.stage_run_id=st.id GROUP BY g.status) gs) AS gather_counts,
  (SELECT COUNT(*) FROM co_item_sources src JOIN co_work_items w ON w.id=src.item_id WHERE w.stage_run_id=st.id) AS source_count,
  (SELECT COUNT(*) FROM co_item_sources src JOIN co_work_items w ON w.id=src.item_id WHERE w.stage_run_id=st.id AND src.merged) AS merged_inputs,
  (SELECT COUNT(*) FROM co_run_outputs o JOIN co_work_items w ON w.id=o.item_id WHERE w.stage_run_id=st.id) AS output_count,
@@ -70,6 +72,8 @@ func RunPage(ctx context.Context, owner int64, id, kind, cursor string, limit in
 		table = "co_observations"
 	case "dispatches":
 		table = "co_dispatches"
+	case "gather-groups":
+		table = "co_gather_groups"
 	default:
 		return nil, ErrNotFound
 	}

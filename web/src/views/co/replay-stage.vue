@@ -18,7 +18,8 @@
 						:value="v.id"
 						:label="'显式修复任务版本 ' + v.number" /></el-select></el-form-item
 			><el-radio-group v-model="mode"
-				><el-radio-button label="items">历史输入快照</el-radio-button><el-radio-button label="outputs">历史上游输出</el-radio-button
+				><el-radio-button label="items">历史输入快照</el-radio-button
+				><el-radio-button label="outputs" :disabled="gatherTarget">历史上游输出</el-radio-button
 				><el-radio-button label="table">表输入快照</el-radio-button></el-radio-group
 			></el-form
 		>
@@ -27,6 +28,7 @@
 				><el-option v-for="e in replayEdges" :key="e.id" :value="e.id" :label="e.from + ' / ' + e.port + ' · ' + e.id" /></el-select
 		></el-form-item>
 		<p v-if="mode === 'outputs'">只使用当前所选连接映射历史输出；其他上游不会补跑，缺失分支会记入本次范围。</p>
+		<p v-if="gatherTarget">配对或批次阶段需要完整输入，不能用单条上游连接补采。共享下游缺少必要分支时，请从包含全部来源的阶段重跑。</p>
 		<template v-if="mode !== 'table'"
 			><p>选择{{ mode === 'items' ? '此阶段原工作项' : '此阶段上游输出' }}；最多100个。此页只显示当前已加载记录，可在运行详情继续加载。</p>
 			<el-checkbox-group v-model="selectedIDs"
@@ -71,13 +73,20 @@ const dialog = ref(false),
 	selectedIDs = ref<string[]>([]),
 	source = ref<TaskSource>({ kind: 'table', inputs: [] }),
 	collectorVersion = ref<Version>();
-const replayEdges = computed(() => {
+const targetDefinition = computed(() => {
 	const d =
 		versionID.value === props.run.task_version_id
 			? props.run.manifest.definition
 			: versions.value.find((v) => v.id === versionID.value)?.manifest.definition;
-	return d?.edges.filter((e: any) => e.to === stageID.value) || [];
+	return d;
 });
+const gatherTarget = computed(() =>
+	['join', 'batch'].includes(targetDefinition.value?.stages.find((s: any) => s.id === stageID.value)?.input_mode || '')
+);
+watch(gatherTarget, (value) => {
+	if (value && mode.value === 'outputs') mode.value = 'items';
+});
+const replayEdges = computed(() => targetDefinition.value?.edges.filter((e: any) => e.to === stageID.value) || []);
 watch(replayEdges, () => {
 	edgeID.value = replayEdges.value.length === 1 ? replayEdges.value[0].id : '';
 	selectedIDs.value = [];

@@ -136,7 +136,12 @@ func buildManifest(s *xorm.Session, owner int64, d TaskDefinition) (TaskManifest
 		m.Stages[stage.ID] = FrozenStage{Collector: freezeCollector(v), Definition: cd, Schema: schemas["records"], OutputSchemas: schemas}
 	}
 	for _, edge := range d.Edges {
-		if e := validateEdge(edge, m.Stages[edge.From].Definition, m.Stages[edge.To].Definition); e != nil {
+		if e := validateEdge(edge, m.Stages[edge.From].Definition, gatherRowDefinition(d.Stage(edge.To), m.Stages[edge.To].Definition)); e != nil {
+			return m, e
+		}
+	}
+	for _, stage := range d.Stages {
+		if e := validateGatherMappings(d, stage, m.Stages[stage.ID].Definition); e != nil {
 			return m, e
 		}
 	}

@@ -49,6 +49,10 @@
 					<el-table-column label="上游输入"
 						><template #default="{ row }"
 							><el-tag v-if="run.manifest.definition.stages.find((s) => s.id === row.stage_id)?.input_mode === 'union'">联合输入</el-tag>
+							<el-tag v-if="['join', 'batch'].includes(run.manifest.definition.stages.find((s) => s.id === row.stage_id)?.input_mode || '')"
+								>汇聚 · {{ row.gather_sealed ? '已收齐' : '等待来源' }}</el-tag
+							>
+							<p v-if="row.buffered_rows">缓存 {{ row.buffered_rows }} 行 · {{ JSON.stringify(row.gather_counts) }}</p>
 							<p v-for="up in row.upstreams || []" :key="up.edge_id">{{ up.stage_id }} / {{ up.port }} · {{ statusLabel(up.status) }}</p>
 							<small>{{ row.input_closed ? '输入已关闭' : '等待剩余来源及分发' }}</small></template
 						></el-table-column
@@ -153,6 +157,27 @@
 							></el-table-column
 						>
 					</el-table></el-tab-pane
+				><el-tab-pane label="配对与批次诊断" name="gather-groups"
+					><el-table :data="gatherGroups"
+						><el-table-column label="阶段"
+							><template #default="{ row }">{{
+								stages.find((s) => s.id === row.stage_run_id)?.stage_id || row.stage_run_id
+							}}</template></el-table-column
+						><el-table-column prop="group_key" label="分组身份" show-overflow-tooltip /><el-table-column label="状态"
+							><template #default="{ row }">{{
+								row.status === 'skipped' ? '缺少来源，已跳过' : row.status === 'invalid' ? '汇聚未通过' : statusLabel(row.status)
+							}}</template></el-table-column
+						><el-table-column label="输入 / 诊断"
+							><template #default="{ row }"
+								><code>{{ JSON.stringify(row.values_json) }}</code>
+								<p>{{ row.error?.message || row.error?.code }}</p></template
+							></el-table-column
+						><el-table-column label="工作项"
+							><template #default="{ row }"
+								><el-button v-if="row.child_item_id" link @click="openItem(row.child_item_id)">查看来源链</el-button></template
+							></el-table-column
+						></el-table
+					></el-tab-pane
 				></el-tabs
 			><el-button v-if="cursors[tab]" @click="loadTab(true)">加载更多</el-button>
 			<el-card
@@ -233,6 +258,7 @@ const route = useRoute(),
 	observations = ref<any[]>([]),
 	stages = ref<any[]>([]),
 	dispatches = ref<any[]>([]),
+	gatherGroups = ref<any[]>([]),
 	tab = ref('work-items'),
 	cursors = ref<Record<string, string>>({}),
 	busy = ref(false),
@@ -273,6 +299,7 @@ async function loadTab(more: unknown = false) {
 		if (tab.value === 'work-items') items.value = append ? [...items.value, ...p.items] : p.items;
 		else if (tab.value === 'outputs') outputs.value = append ? [...outputs.value, ...p.items] : p.items;
 		else if (tab.value === 'dispatches') dispatches.value = append ? [...dispatches.value, ...p.items] : p.items;
+		else if (tab.value === 'gather-groups') gatherGroups.value = append ? [...gatherGroups.value, ...p.items] : p.items;
 		else observations.value = append ? [...observations.value, ...p.items] : p.items;
 	});
 }
