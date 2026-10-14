@@ -13,6 +13,8 @@ func (a API) mountTasks(v *mux.Router) {
 	v.HandleFunc("/sources/preview", a.sourcePreview).Methods("POST")
 	v.HandleFunc("/sources/{source_id}", a.sourceDetail).Methods("GET")
 	v.HandleFunc("/tasks/{task_id}/schedule", a.schedule).Methods("GET", "POST")
+	v.HandleFunc("/tasks/{task_id}/subscriptions", a.subscriptions).Methods("GET", "POST")
+	v.HandleFunc("/tasks/{task_id}/subscriptions/control", a.subscriptionControl).Methods("POST")
 	v.HandleFunc("/tasks/{task_id}/upgrade-preview", a.upgradePreview).Methods("POST")
 	v.HandleFunc("/tasks/{task_id}/archive", a.archiveTask).Methods("POST")
 	v.HandleFunc("/runs/{run_id}/replay", a.replay).Methods("POST")

@@ -29,6 +29,7 @@ Idempotency-Key: your-stable-request-key
 					>
 					<p>响应丢失用原幂等键查询 /api/v4/operations/by-key?operation=startTask&amp;resource_id={{ task.id }}&amp;key=原键。</p>
 				</details> </el-tab-pane
+			><el-tab-pane label="持续数据订阅"><TaskSubscription :key="task.id" :task="task" :versions="versions" :dirty="dirty" /></el-tab-pane
 			><el-tab-pane label="采集器版本升级">
 				<el-select v-model="targetVersion" placeholder="所选阶段的新采集器版本"
 					><el-option v-for="v in collectorVersions" :key="v.id" :value="v.id" :label="'版本 ' + v.number + ' · revision ' + v.revision" /></el-select
@@ -60,6 +61,7 @@ Idempotency-Key: your-stable-request-key
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue';
 import { ElMessageBox } from 'element-plus';
+import TaskSubscription from './task-subscription.vue';
 import { call, coApi, describe, type Version } from './api';
 import { taskApi, taskMutation, recoverTaskMutation, type Task, type TaskVersion } from './tasks-api';
 const props = defineProps<{ task: Task; versions: TaskVersion[]; selectedStage: string; collectorVersion: string; dirty: boolean }>();

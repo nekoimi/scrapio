@@ -187,6 +187,11 @@ func CommitBatch(ctx context.Context, c *WorkClaim, candidates []collector.Candi
 	if e != nil {
 		return e
 	}
+	if r.Namespace == "formal" {
+		if e = lockSaveStreams(s, stage); e != nil {
+			return e
+		}
+	}
 	// Lock business keys in canonical order, including keys that do not exist yet.
 	keys := []string{}
 	mapped := map[int]map[string]any{}
@@ -336,6 +341,9 @@ func CommitBatch(ctx context.Context, c *WorkClaim, candidates []collector.Candi
 		}
 		if recordID != nil && (decision.Decision == "created" || decision.Decision == "updated") {
 			if _, e = s.Exec(`INSERT INTO co_record_revisions(record_id,revision,observation_id,values_json) VALUES(?,?,?,CAST(? AS jsonb))`, record.ID, record.Revision, observation, record.Values); e != nil {
+				return e
+			}
+			if e = appendRecordChange(s, r, record, observation, decision.Decision); e != nil {
 				return e
 			}
 		}

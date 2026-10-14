@@ -4991,6 +4991,224 @@
         },
         "description": "Owner-scoped, cursor-paginated persisted join/batch groups with frozen values, source receipt IDs, error, status and child item. Missing/duplicate keys and incomplete upstreams never silently execute."
       }
+    },
+    "/tasks/{task_id}/subscriptions": {
+      "get": {
+        "operationId": "getCoSubscriptions",
+        "tags": [
+          "O5"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O5",
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "description": "Owner-scoped subscription configuration, cursor, backlog, backfill remaining, blockers and latest20 durable delivery batches joined to run status. Cursor is delivery acknowledgement, not collection success; failures use existing run retry. Does not return full backfill."
+      },
+      "post": {
+        "operationId": "createCoSubscription",
+        "tags": [
+          "O5"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O5",
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubscriptionRequest"
+              }
+            }
+          }
+        },
+        "description": "Explicit frozen task version and source Schema; typed field mapping, 1..100 inputs per finite formal run. Initial backfill freezes at most1000 rows/4MiB with commit-ordered table watermark; future skips prior data. Source events are transactional created/updated effective rows; unchanged, trial, pass-through, deletes and direct SQL are excluded. Graph cycles including paused subscriptions rejected. At most20 retained subscriptions per owner; one retained subscription per task."
+      }
+    },
+    "/tasks/{task_id}/subscriptions/control": {
+      "post": {
+        "operationId": "controlCoSubscription",
+        "tags": [
+          "O5"
+        ],
+        "x-implementation-status": "implemented",
+        "x-delivery-phase": "O5",
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contract or input invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Owner/resource denied"
+          },
+          "409": {
+            "description": "Revision, idempotency, version or write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubscriptionControlRequest"
+              }
+            }
+          }
+        },
+        "description": "Revision CAS and original idempotency key. Pause preserves cursor and pending evidence; resume requires ready, unarchived task. Retire is terminal, releases unused backfill and retention protection; generated runs continue. Configuration is immutable: retire and explicitly recreate for a new version/mapping. Old changes retained at least30days, and indefinitely while any paused/blocked subscriber still needs them, within change-storage quota."
+      }
     }
   },
   "components": {
@@ -8126,6 +8344,93 @@
           "missing",
           "max_rows",
           "max_bytes"
+        ]
+      },
+      "SubscriptionRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "task_version_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "table_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "schema_version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100000
+          },
+          "schema_hash": {
+            "type": "string",
+            "minLength": 1
+          },
+          "mapping": {
+            "type": "object",
+            "minProperties": 1,
+            "maxProperties": 30,
+            "additionalProperties": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "initial_mode": {
+            "enum": [
+              "backfill",
+              "future"
+            ]
+          },
+          "batch_size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "confirmed": {
+            "const": true
+          }
+        },
+        "required": [
+          "task_version_id",
+          "table_id",
+          "schema_version",
+          "schema_hash",
+          "mapping",
+          "initial_mode",
+          "batch_size",
+          "enabled",
+          "confirmed"
+        ]
+      },
+      "SubscriptionControlRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "action": {
+            "enum": [
+              "pause",
+              "resume",
+              "retire"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "expected_revision",
+          "action"
         ]
       }
     }

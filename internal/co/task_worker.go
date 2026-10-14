@@ -55,9 +55,15 @@ func (w *TaskWorker) Start(ctx context.Context) error {
 							log.WithError(e).Warn("retain independent source evidence")
 						}
 						nextCleanup = time.Now().Add(time.Hour)
+						if e := CleanupChanges(run); e != nil && run.Err() == nil {
+							log.WithError(e).Warn("retain independent table changes")
+						}
 					}
 					if e := TickSchedules(run); e != nil && run.Err() == nil {
 						log.WithError(e).Warn("schedule independent tasks")
+					}
+					if e := TickSubscriptions(run); e != nil && run.Err() == nil {
+						log.WithError(e).Warn("dispatch independent task subscriptions")
 					}
 					if e := PrepareRuns(run); e != nil && run.Err() == nil {
 						log.WithError(e).Warn("prepare independent task inputs")

@@ -80,6 +80,10 @@ func ArchiveTask(ctx context.Context, owner int64, id, key string, revision int)
 		if _, e = s.Exec("UPDATE co_schedules SET enabled=FALSE,revision=revision+1 WHERE task_id=?", id); e != nil {
 			return nil, e
 		}
+		// Archive pauses subscriptions and preserves their cursors/evidence.
+		if _, e = s.Exec("UPDATE co_subscriptions SET enabled=FALSE,revision=revision+1 WHERE task_id=? AND status<>'retired'", id); e != nil {
+			return nil, e
+		}
 		if _, e = s.Exec("UPDATE co_tasks SET archived=TRUE,updated_at=NOW() WHERE id=?", id); e != nil {
 			return nil, e
 		}

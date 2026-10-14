@@ -911,7 +911,7 @@ func FinishWork(ctx context.Context, c *WorkClaim, result collector.Result) erro
 	if invalidCount > 0 && status == "succeeded" {
 		status = "partial"
 	}
-	if result.Reason == "OUTPUT_BUDGET" || (result.Error != nil && (result.Error.Code == "DISPATCH_BUDGET" || result.Error.Code == "OUTPUT_BUDGET" || result.Error.Code == "OUTPUT_STORAGE_LIMIT" || result.Error.Code == "DISPATCH_PAYLOAD_BUDGET")) {
+	if result.Reason == "OUTPUT_BUDGET" || (result.Error != nil && (result.Error.Code == "DISPATCH_BUDGET" || result.Error.Code == "OUTPUT_BUDGET" || result.Error.Code == "OUTPUT_STORAGE_LIMIT" || result.Error.Code == "CHANGE_STORAGE_LIMIT" || result.Error.Code == "DISPATCH_PAYLOAD_BUDGET")) {
 		status = "limited"
 	}
 	nextRetry := any(nil)

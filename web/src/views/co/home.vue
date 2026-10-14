@@ -87,6 +87,12 @@
 					{{ dashboard.capacity.output_storage_bytes / 1024 / 1024 }}MiB。此处为来源/输出JSON配额，数据库文件、索引及其他历史证据需另做磁盘监控。
 				</p>
 				<p>
+					变更事件JSON证据 {{ Math.ceil((dashboard.usage[0]?.change_bytes || 0) / 1024) }}KiB /
+					{{ dashboard.capacity.change_storage_bytes / 1024 / 1024 }}MiB · 保留中的订阅 {{ dashboard.usage[0]?.retained_subscriptions || 0 }} /
+					{{ dashboard.capacity.subscriptions_per_owner }} · 阻断 {{ dashboard.usage[0]?.blocked_subscriptions || 0 }}。事件至少保留
+					{{ dashboard.capacity.change_retention_days }} 天；暂停/阻断订阅仍保护未消费事件，达到配额会阻止本页正式保存。
+				</p>
+				<p>
 					未引用来源
 					{{ dashboard.capacity.retention_days }} 天后清理；发布引用、运行输入、输出、outbox及来源链保留。单次来源最多1000行/4MiB，文件768KiB。
 				</p>

@@ -19,6 +19,7 @@ const files = [
  "web/src/views/co/data.vue",
  "web/src/views/co/source-picker.vue",
  "web/src/views/co/task-daily.vue",
+ "web/src/views/co/task-subscription.vue",
  "web/src/views/co/replay-stage.vue",
  "web/src/views/co/home.vue",
   "web/src/views/app/browser-selection.vue",

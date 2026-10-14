@@ -184,6 +184,8 @@ func reserveStorage(s *xorm.Session, owner int64, column string, amount int64) e
 	name, fallback, code := "SCRAPIO_CO_SOURCE_STORAGE_MIB", 64, "SOURCE_STORAGE_LIMIT"
 	if column == "output_bytes" {
 		name, fallback, code = "SCRAPIO_CO_OUTPUT_STORAGE_MIB", 256, "OUTPUT_STORAGE_LIMIT"
+	} else if column == "change_bytes" {
+		name, fallback, code = "SCRAPIO_CO_CHANGE_STORAGE_MIB", 128, "CHANGE_STORAGE_LIMIT"
 	} else if column != "source_bytes" {
 		return collector.Invalid("storage", "无效容量类型")
 	}
@@ -199,6 +201,9 @@ func reserveStorage(s *xorm.Session, owner int64, column string, amount int64) e
 		return e
 	}
 	if n == 0 {
+		if column == "change_bytes" {
+			return collector.Fault(code, "storage", "当前账号变更事件证据容量达到上限，本页正式保存已回滚；请处理积压或结束不再需要的订阅，等待保留清理，或调整SCRAPIO_CO_CHANGE_STORAGE_MIB后恢复运行")
+		}
 		return collector.Fault(code, "storage", "当前账号来源/输出JSON证据容量达到上限；当前事务回滚。保留已提交来源，请调整容量或缩小任务范围")
 	}
 	return nil
@@ -225,7 +230,26 @@ func Governance(ctx context.Context, owner int64) (any, error) {
 		return nil, e
 	}
 	usage, e := views(s, `SELECT (SELECT COUNT(*) FROM co_work_items w JOIN co_runs r ON r.id=w.run_id WHERE r.owner_id=? AND w.status IN ('queued','backpressured')) AS pending_items,(SELECT COALESCE(SUM(p.total-p.next_ordinal),0) FROM co_dispatch_plans p JOIN co_runs r ON r.id=p.run_id WHERE r.owner_id=? AND p.status='pending') AS pending_dispatches,(SELECT COALESCE(source_bytes,0) FROM co_storage_usage WHERE owner_id=?) AS source_bytes,(SELECT COALESCE(output_bytes,0) FROM co_storage_usage WHERE owner_id=?) AS output_bytes`, owner, owner, owner, owner)
-	return map[string]any{"counts": counts, "runs": active, "triggers": triggers, "tables": tables, "usage": usage, "capacity": map[string]any{"http_slots": slots("SCRAPIO_CO_HTTP_SLOTS", 2), "browser_slots": slots("SCRAPIO_CO_BROWSER_SLOTS", 1), "site_interval_ms": capacitySetting("SCRAPIO_CO_SITE_INTERVAL_MS", 500, 0, 60000), "source_rows": sourceRowsMax, "source_bytes": 4 * 1024 * 1024, "source_storage_bytes": capacitySetting("SCRAPIO_CO_SOURCE_STORAGE_MIB", 64, 4, 4096) * 1024 * 1024, "output_storage_bytes": capacitySetting("SCRAPIO_CO_OUTPUT_STORAGE_MIB", 256, 4, 4096) * 1024 * 1024, "storage_scope": "source and immutable output JSON accounting; database disk, indexes and other evidence require deployment monitoring", "max_active_runs": capacitySetting("SCRAPIO_CO_ACTIVE_RUNS", 20, 1, 100), "retention_days": capacitySetting("SCRAPIO_CO_SOURCE_RETENTION_DAYS", 30, 1, 3650), "defaults_measured": false, "cleanup_scope": "unused source assets only; referenced inputs, outputs, outbox, history retained"}}, e
+	if e != nil {
+		return nil, e
+	}
+	subscriptionUsage, e := views(s, `SELECT COALESCE((SELECT change_bytes FROM co_storage_usage WHERE owner_id=?),0) AS change_bytes,(SELECT COUNT(*) FROM co_subscriptions WHERE owner_id=? AND status<>'retired') AS retained_subscriptions,(SELECT COUNT(*) FROM co_subscriptions WHERE owner_id=? AND status='blocked') AS blocked_subscriptions`, owner, owner, owner)
+	if e != nil {
+		return nil, e
+	}
+	var usageView map[string]any
+	if len(usage) > 0 {
+		_ = json.Unmarshal(usage[0], &usageView)
+	}
+	var changesView map[string]any
+	if len(subscriptionUsage) > 0 {
+		_ = json.Unmarshal(subscriptionUsage[0], &changesView)
+	}
+	for k, v := range changesView {
+		usageView[k] = v
+	}
+	usage = []json.RawMessage{json.RawMessage(collector.JSON(usageView))}
+	return map[string]any{"counts": counts, "runs": active, "triggers": triggers, "tables": tables, "usage": usage, "capacity": map[string]any{"http_slots": slots("SCRAPIO_CO_HTTP_SLOTS", 2), "browser_slots": slots("SCRAPIO_CO_BROWSER_SLOTS", 1), "site_interval_ms": capacitySetting("SCRAPIO_CO_SITE_INTERVAL_MS", 500, 0, 60000), "source_rows": sourceRowsMax, "source_bytes": 4 * 1024 * 1024, "source_storage_bytes": capacitySetting("SCRAPIO_CO_SOURCE_STORAGE_MIB", 64, 4, 4096) * 1024 * 1024, "output_storage_bytes": capacitySetting("SCRAPIO_CO_OUTPUT_STORAGE_MIB", 256, 4, 4096) * 1024 * 1024, "change_storage_bytes": capacitySetting("SCRAPIO_CO_CHANGE_STORAGE_MIB", 128, 4, 4096) * 1024 * 1024, "change_retention_days": capacitySetting("SCRAPIO_CO_CHANGE_RETENTION_DAYS", 30, 1, 3650), "subscriptions_per_owner": 20, "storage_scope": "source, immutable output and table change JSON accounting; database disk, indexes and other evidence require deployment monitoring", "max_active_runs": capacitySetting("SCRAPIO_CO_ACTIVE_RUNS", 20, 1, 100), "retention_days": capacitySetting("SCRAPIO_CO_SOURCE_RETENTION_DAYS", 30, 1, 3650), "defaults_measured": false, "cleanup_scope": "unused source assets and old delivered change prefixes; pending subscription changes, referenced inputs, outputs, outbox and history retained"}}, e
 }
 func CleanupSources(ctx context.Context) error {
 	s := session(ctx)
