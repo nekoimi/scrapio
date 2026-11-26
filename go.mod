@@ -18,7 +18,7 @@ require (
 	github.com/siku2/arigo v0.2.1-0.20250426130944-80d0332f34e9
 	github.com/sirupsen/logrus v1.10.2
 	github.com/spf13/viper v1.21.0
-	go.yaml.in/yaml/v3 v3.0.5
+	go.yaml.in/yaml/v3 v3.0.6
 	golang.org/x/crypto v0.58.0
 	golang.org/x/net v0.62.0
 	google.golang.org/grpc v1.84.0
